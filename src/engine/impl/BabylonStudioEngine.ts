@@ -419,7 +419,10 @@ export class BabylonStudioEngine implements StudioEngine {
   private beforeRender(): void {
     const now = performance.now();
     const playing = this.runtime.isAnimationPlaying;
-    this.audio.sync(this.runtime.currentTime, playing, this.speed);
+    // Audio leads; the animation follows by nudging its speed (applies from the next frame).
+    const nudge = this.audio.sync(this.runtime.currentTime, playing, this.speed);
+    const scale = this.capturing ? this.speed : this.speed * nudge;
+    if (this.runtime.timeScale !== scale) this.runtime.timeScale = scale;
 
     for (const m of this.models.values()) {
       if (!m.physics || !this.settings.physics.enabled) m.model.rigidBodyStates.fill(0);

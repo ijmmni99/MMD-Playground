@@ -1,6 +1,13 @@
 import type { AudioInfo } from '../types';
 
-const DRIFT_TOLERANCE = 0.08;
+/** Drift (s) the animation absorbs by gently changing speed; beyond it the audio is re-seeked. */
+const SOFT_DRIFT = 0.5;
+/** Drift (s) considered in sync. */
+const IN_SYNC = 0.04;
+/** Animation speed correction while catching up with the audio. */
+const NUDGE = 0.1;
+/** After a seek the element needs time to buffer; don't judge drift meanwhile (ms). */
+const SEEK_SETTLE_MS = 600;
 const PEAKS_PER_SECOND = 100;
 
 /**
@@ -19,6 +26,10 @@ export class AudioSync {
   info: AudioInfo | null = null;
   /** When true, the element is kept paused regardless of the animation clock. */
   suspended = false;
+  private lastSeekAt = -Infinity;
+  /** Last distinct currentTime the element reported and when (smooths coarse clocks, e.g. Safari). */
+  private clockTime = -1;
+  private clockStamp = 0;
 
   constructor() {
     this.element = new Audio();
@@ -105,23 +116,55 @@ export class AudioSync {
     else this.element.volume = Math.min(1, Math.max(0, v));
   }
 
-  /** Called every frame with the animation time in seconds. */
-  sync(animSeconds: number, playing: boolean, rate: number): void {
-    if (!this.url) return;
+  /**
+   * Called every frame with the animation time in seconds. The audio is the master clock while it
+   * plays: returns a speed multiplier for the animation (1 = in sync) so small drift is absorbed
+   * by the animation instead of re-seeking the audio, which is audible and makes it rebuffer.
+   */
+  sync(animSeconds: number, playing: boolean, rate: number): number {
+    if (!this.url) return 1;
     const target = animSeconds + this.offsetSeconds;
     const shouldPlay = playing && !this.suspended && target >= 0 && target < this.duration;
     if (!shouldPlay) {
       if (!this.element.paused) this.element.pause();
-      return;
+      return 1;
     }
     if (this.element.playbackRate !== rate) this.element.playbackRate = rate;
+    const now = performance.now();
     if (this.element.paused) {
-      this.element.currentTime = target;
+      this.seek(target, now);
       void this.ctx?.resume();
       this.element.play().catch(() => undefined);
-    } else if (Math.abs(this.element.currentTime - target) > DRIFT_TOLERANCE * Math.max(1, rate)) {
-      this.element.currentTime = target;
+      return 1;
     }
+    // Let a seek or buffering settle before comparing clocks.
+    if (this.element.seeking || this.element.readyState < 3 || now - this.lastSeekAt < SEEK_SETTLE_MS) {
+      return 1;
+    }
+    const drift = this.audioTime(now, rate) - target; // > 0: animation is behind the audio
+    if (Math.abs(drift) > SOFT_DRIFT * Math.max(1, rate)) {
+      this.seek(target, now);
+      return 1;
+    }
+    if (Math.abs(drift) < IN_SYNC) return 1;
+    return drift > 0 ? 1 + NUDGE : 1 - NUDGE;
+  }
+
+  private seek(time: number, now: number): void {
+    this.element.currentTime = time;
+    this.lastSeekAt = now;
+    this.clockTime = -1;
+  }
+
+  /** Element time, extrapolated between the (sometimes coarse) currentTime updates. */
+  private audioTime(now: number, rate: number): number {
+    const t = this.element.currentTime;
+    if (t !== this.clockTime) {
+      this.clockTime = t;
+      this.clockStamp = now;
+      return t;
+    }
+    return t + Math.min(0.5, ((now - this.clockStamp) / 1000) * rate);
   }
 
   get mediaStream(): MediaStream | null {
