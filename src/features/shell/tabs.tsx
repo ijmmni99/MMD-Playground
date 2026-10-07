@@ -44,7 +44,7 @@ export function TabContent({ tab }: { tab: SheetTab }) {
     case 'video2vmd':
       return (
         <Suspense fallback={<Loading />}>
-          <Video2VmdPanel />
+          <Video2VmdPanel embedded />
         </Suspense>
       );
     case 'more':

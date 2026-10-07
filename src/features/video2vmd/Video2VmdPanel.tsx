@@ -79,7 +79,7 @@ function Stepper() {
   const current = V2V_STEPS.findIndex((s) => s.id === step);
   return (
     <ol
-      className="flex gap-1 overflow-x-auto px-3 py-2"
+      className="flex flex-wrap gap-1 px-3 py-2"
       aria-label="Conversion steps"
       data-testid="v2v-stepper"
     >
@@ -708,7 +708,7 @@ function ExportStep() {
 }
 
 /** Video → VMD converter: stepper + video stage + per-step controls. */
-export default function Video2VmdPanel() {
+export default function Video2VmdPanel({ embedded = false }: { embedded?: boolean }) {
   const step = useV2V((s) => s.step);
   const video = useV2V((s) => s.video);
   const converting = useV2V((s) => s.converting);
@@ -718,10 +718,12 @@ export default function Video2VmdPanel() {
       aria-label="Video to VMD"
       data-testid="v2v-panel"
     >
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
-        <span className="panel-title">Video to VMD</span>
-        {converting && <span className="text-[11px] text-fg-dim">Updating…</span>}
-      </div>
+      {!embedded && (
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
+          <span className="panel-title">Video to VMD</span>
+          {converting && <span className="text-[11px] text-fg-dim">Updating…</span>}
+        </div>
+      )}
       <Stepper />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {video && (

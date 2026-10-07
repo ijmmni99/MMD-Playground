@@ -146,11 +146,103 @@ flowchart LR
   ST -->|autosave| DB
 ```
 
+- **Video to VMD:** convert a dance video into a VMD motion in the browser (MediaPipe pose → cleaning → retargeting onto your PMX with foot IK → .vmd). See [Video to VMD](#video-to-vmd).
 - **React never touches Babylon objects.** The UI dispatches intents to `store/actions.ts`. Actions call the typed `StudioEngine` interface and update the store. Engine events (playback, progress, warnings, bone edits) flow back through `features/app/bridge.ts`.
 - **The engine is code-split.** `createStudioEngine()` dynamically imports Babylon, babylon-mmd and the Bullet WASM after the UI has painted. Monaco is a separate lazy chunk that only loads on the Playground tab. JSZip and the Shift-JIS tables are also lazy.
 - **Resources are disposed.** Removing a model destroys its MMD runtime model and physics bodies, removes its shadow casters and disposes its `AssetContainer` (meshes, materials, textures, skeleton).
 - **Audio sync.** The MMD runtime is the master clock. `AudioSync` follows it at `time + offset` and re-seeks only when drift exceeds 80 ms. Audio goes through Web Audio so the recorder can capture it.
 - **Frame-stepped recording.** This mode overrides the engine's delta time to `1000/fps`. Every frame is rendered, including the physics step, and encoded with WebCodecs at an exact timestamp. The audio is cut from the decoded buffer and muxed by mediabunny.
+
+## Video to VMD
+
+Turn a dance video into an MMD bone motion, entirely in your browser; nothing is uploaded.
+
+- **Desktop / tablet:** switch the mode to **Video → VMD**. The converter opens next to the 3D viewport.
+- **Phone:** use **More → Video to VMD**.
+
+The converter walks through six steps:
+
+1. **Import:** pick or drop an MP4, WebM or MOV.
+   - You see the duration, resolution, frame rate and whether there is audio.
+   - Set a trim range, and drag on the video to crop to the dancer.
+   - Videos over 3 minutes or larger than 1080p get a warning, plus a 720p downscale option.
+2. **Detect:** frames are decoded frame-accurately and run through **MediaPipe Pose Landmarker (heavy)**.
+   - Decoding uses WebCodecs via mediabunny, inside a Worker.
+   - MediaPipe uses the GPU delegate, with a CPU fallback.
+   - A live skeleton overlay, progress, ETA and cancel / resume are shown.
+3. **Clean:** gaps and low-visibility landmarks are interpolated, and the result is resampled to 30 fps.
+   - Limb-length outliers are rejected and repaired.
+   - A zero-lag One Euro filter smooths the motion, and bone lengths are normalised.
+4. **Retarget:** onto the **selected PMX model's own rest pose and hierarchy**, or a standard MMD skeleton if none is loaded.
+   - Rotations are computed per bone with hinge limits and quaternion continuity.
+   - センター root motion uses leg odometry and ground contact.
+   - Optional foot IK pins planted feet. A **quality report** is shown.
+5. **Preview:** **Apply to model** plays the motion in the viewport. The source video follows the studio playhead, and scrubbing either one moves both. The video's soundtrack can be copied into the studio's audio slot, with an offset control.
+6. **Export:** download the `.vmd`, or the raw pose data as JSON so you can re-run retargeting later without pose detection. Keyframe reduction is adjustable, and the original and reduced key counts are shown.
+
+The session is saved with the project: the source video (up to 200 MB), pose data and settings. Reloading the page restores it.
+
+```mermaid
+flowchart LR
+  V[Video file] --> D[Decode<br/>WebCodecs · mediabunny<br/>or &lt;video&gt; seeking]
+  D --> P[PoseEstimator<br/>MediaPipe Pose Landmarker heavy]
+  P --> J[(Pose JSON<br/>33 landmarks / frame)]
+  J --> C[Clean<br/>gaps · outliers · One Euro · 30 fps · bone lengths]
+  C --> R[Retarget to PMX rest pose<br/>FK · joint limits · continuity]
+  R --> G[Root & feet<br/>leg odometry · ground contact · foot IK]
+  G --> K[Keyframe reduction]
+  K --> W[VMD writer<br/>Shift-JIS · 111-byte keys]
+  W --> A[Apply to model / download .vmd]
+  subgraph Worker
+    D
+    P
+  end
+```
+
+**Settings.**
+
+- **Presets:**
+  - **Balanced**
+  - **Slow / clean:** more smoothing.
+  - **Fast dance:** keeps sharp hits.
+  - **Upper body only:** locks the legs and センター, for seated or waist-up videos.
+- **Advanced:**
+  - One Euro min cutoff and beta
+  - visibility and outlier thresholds
+  - mirror (selfie videos)
+  - foot IK, or FK-only output with IK disabled in the VMD
+  - drive legs
+  - scale
+  - root and depth motion
+  - contact thresholds
+  - keyframe reduction
+
+**Tips for good input.**
+
+- Tripod or a static camera.
+- The **whole body in frame**, head to feet, for the whole clip.
+- **One dancer.** Crop if other people appear.
+- A plain background, good even lighting, and clothes that contrast with the background (no baggy dresses that hide the knees).
+- 720p–1080p at 30–60 fps is plenty.
+- For mirrored front-camera recordings, turn on **Mirror**.
+
+**Limitations.**
+
+- Monocular pose estimation can't see depth well. Moves toward or away from the camera, and the exact feet placement when facing sideways, are approximations.
+- Fingers, facial expressions and eye movement are not tracked (they stay at rest).
+- Assumes a single person, the full body in frame and a mostly static camera. Spins, floor work and occlusions reduce quality, and the quality report flags the affected times.
+- 肩 (shoulders) and the twist bones (腕捩/手捩) stay at rest.
+- On phones, analysis runs at up to 720p and 30 fps and is much slower than on a laptop GPU.
+- The open-source Chromium builds used by test runners can't decode H.264. Branded Chrome, Edge and Safari can.
+
+**Copyright.** The converter runs locally, but you are responsible for having the rights to the videos you analyse. That includes any music in them, which you can copy into the studio's audio slot. Also respect the terms of use of the models you apply the motion to (many forbid certain content or redistribution of derived works).
+
+**Adding a better pose backend.** Pose estimation sits behind the `PoseEstimator` interface in `src/engine/video2vmd/estimator.ts`.
+
+- **Contract:** `init()`, plus `estimate(frame, timestampMs, timeSec)`, which returns 33 BlazePose landmarks in image and metric world space plus a people count.
+- **What happens after it:** cleaning, retargeting and export only consume that `PoseSequence`.
+- **Higher-quality estimators:** an SMPL-based one such as WHAM or 4DHumans (on a server, or in WebGPU / ONNX Runtime Web) can be added as another implementation. It would map SMPL joints onto the BlazePose landmark set, register itself in `createEstimator()`, and need no other changes. A future backend could also emit joint rotations directly; the retargeting step would then skip its direction-vector solve.
+- **Built-in test backend:** `?pose=synthetic` swaps in a procedural stick-figure dancer, used by the tests and demos.
 
 ## Mobile & tablet
 
@@ -220,9 +312,21 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
 
 ## Tests
 
-- **Unit (Vitest, 85 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+- **Unit (Vitest, 127 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+  - **Video to VMD:**
+    - The VMD writer: byte-exact header, 111-byte records, section counts and Shift-JIS names.
+    - Round-trips through babylon-mmd's VMD parser and `VmdLoader`.
+    - Coordinate conversion and the mirror toggle; One Euro filtering; gap filling and 30 fps resampling.
+    - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
+    - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
 - **E2E (Playwright):**
   - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
+  - **Video to VMD:**
+    - Runs the converter on a generated stick-figure video (`e2e/fixtures/stick-dance.webm`) with the synthetic pose estimator.
+    - The target is a generated PMX rig with real leg IK (`e2e/fixtures/Mannequin`).
+    - Covers cancel / resume, the quality report, apply and play, ankles staying above the floor, and audio extraction.
+    - Validates the downloaded VMD and loads it back as a motion, then checks the session is restored after a reload.
+    - A phone variant runs the flow in the bottom sheet.
   - **Device matrix:** iPhone 14 and iPad (WebKit) and Pixel 7 (Chromium), each in portrait and landscape. Each run checks for horizontal overflow, the expected layout, sheet / side-panel / drawer navigation, loading a model and motion through the Add buttons, touch orbit and pinch zoom, play/pause, and console errors. If headless WebKit has no WebGL2, only the layout checks run.
 
 Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch to the Low quality preset. Inside a container that already has Chromium, set `PW_CHROMIUM_PATH=/path/to/chrome`. Without WebKit, `PW_WEBKIT_AS_CHROMIUM=1` runs the iPhone/iPad profiles on Chromium.
@@ -252,4 +356,4 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
 
 MMD Studio **ships no third-party models, motions, stages or music**. Every MMD asset you load has its own terms of use, typically covering credit, redistribution, modification, commercial use and content restrictions. **You are responsible for respecting them** when you load, record or publish anything made with this tool. Good starting points are the asset sites linked from the welcome screen (BowlRoll, Niconi Solid, DeviantArt, VPVP wiki). Always read the bundled readme.
 
-The included "Blocky" sample and test fixtures are procedurally generated by `scripts/make-fixtures.mjs` and released into the public domain. babylon-mmd and Babylon.js are licensed under MIT and Apache-2.0 respectively.
+The included "Blocky" sample and test fixtures are procedurally generated by `scripts/make-fixtures.mjs`, `scripts/make-mannequin.mjs` and `scripts/make-video-fixture.ts` and released into the public domain. Video to VMD uses MediaPipe Tasks Vision (Apache-2.0); its pose model is downloaded from Google's model CDN on first use and cached. babylon-mmd and Babylon.js are licensed under MIT and Apache-2.0 respectively.

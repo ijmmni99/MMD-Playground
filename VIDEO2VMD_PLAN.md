@@ -106,6 +106,6 @@ Landmark numbers are MediaPipe Pose indices; L/R are the dancer's sides.
 - [x] e. Retargeting FK against the selected PMX (or the standard fallback skeleton)
 - [x] f. Root motion, ground contact, foot contacts, foot IK
 - [x] g. Preview: apply to model, side-by-side synced playback, audio passthrough
-- [ ] h. Export (.vmd, pose JSON), persistence, quality report, presets, keyframe reduction
-- [ ] i. Mobile, Playwright smoke test (mock estimator), screenshots, docs
-- [ ] j. (stretch) Face blendshapes → MMD morphs
+- [x] h. Export (.vmd, pose JSON), persistence, quality report, presets, keyframe reduction
+- [x] i. Mobile, Playwright smoke test (mock estimator), screenshots, docs
+- [ ] j. (stretch) Face blendshapes → MMD morphs — not implemented. Planned approach: MediaPipe Face Landmarker blendshapes (eyeBlink, jawOpen, mouthPucker, mouthSmile, …) mapped to まばたき/あ/い/う/え/お/笑い with per-morph gain, written as VMD morph keys.
