@@ -949,6 +949,44 @@ export class BabylonStudioEngine implements StudioEngine {
     this.models.get(id)?.model.morph.resetMorphWeights();
   }
 
+  getBoneWorldPositions(id: string): Record<string, [number, number, number]> | null {
+    const m = this.models.get(id);
+    if (!m) return null;
+    const world = m.mesh.computeWorldMatrix(true);
+    const tmp = new Vector3();
+    const out: Record<string, [number, number, number]> = {};
+    for (const b of m.model.runtimeBones) {
+      b.getWorldTranslationToRef(tmp);
+      Vector3.TransformCoordinatesToRef(tmp, world, tmp);
+      out[b.name] = [tmp.x, tmp.y, tmp.z];
+    }
+    return out;
+  }
+
+  getSkeleton(
+    id: string,
+  ): { name: string; bones: { name: string; parent: number; position: [number, number, number] }[] } | null {
+    const m = this.models.get(id);
+    if (!m) return null;
+    // MMD bones carry no rest rotation: model-space rest position = sum of local rest offsets.
+    const abs: [number, number, number][] = [];
+    const bones = m.info.bones.map((b) => ({
+      name: b.name,
+      parent: b.parent,
+      position: [0, 0, 0] as [number, number, number],
+    }));
+    const resolve = (i: number, depth = 0): [number, number, number] => {
+      if (abs[i]) return abs[i];
+      const r = m.restPositions[i];
+      const p = bones[i].parent;
+      const base = p >= 0 && depth < 512 ? resolve(p, depth + 1) : ([0, 0, 0] as [number, number, number]);
+      abs[i] = [base[0] + r.x, base[1] + r.y, base[2] + r.z];
+      return abs[i];
+    };
+    bones.forEach((b, i) => (b.position = resolve(i)));
+    return { name: m.name, bones };
+  }
+
   getModelState(id: string): ModelRuntimeState | null {
     const m = this.models.get(id);
     if (!m) return null;

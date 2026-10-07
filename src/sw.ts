@@ -56,6 +56,15 @@ registerRoute(
   new CacheFirst({ cacheName: 'mmd-sample', plugins: [new ExpirationPlugin({ maxEntries: 20 })] }),
 );
 
+// Video to VMD: the MediaPipe runtime (self-hosted) and pose model (Google's CDN) load on first use and
+// are cached so later conversions work offline. User videos never pass through the service worker cache.
+registerRoute(
+  ({ url }) =>
+    (url.origin === self.location.origin && url.pathname.includes('/mediapipe/')) ||
+    (url.hostname === 'storage.googleapis.com' && url.pathname.startsWith('/mediapipe-models/')),
+  new CacheFirst({ cacheName: 'mmd-pose-model', plugins: [new ExpirationPlugin({ maxEntries: 8 })] }),
+);
+
 self.addEventListener('message', (event) => {
   if ((event.data as { type?: string } | null)?.type === 'SKIP_WAITING') void self.skipWaiting();
 });

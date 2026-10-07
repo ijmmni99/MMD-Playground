@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { computeLayoutMode, type LayoutMode } from '@/lib/layoutMode';
 
-export type SheetTab = 'scene' | 'models' | 'inspector' | 'timeline' | 'capture' | 'more';
+export type SheetTab = 'scene' | 'models' | 'inspector' | 'timeline' | 'capture' | 'more' | 'video2vmd';
 export type SheetSnap = 'closed' | 'peek' | 'half' | 'full';
 
 export interface LayoutState {

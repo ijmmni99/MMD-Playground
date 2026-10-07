@@ -95,6 +95,12 @@ export interface StudioEngine {
   getMorphWeights(id: string): Record<string, number>;
   resetMorphs(id: string): void;
   getModelState(id: string): ModelRuntimeState | null;
+  /** Current world positions of a model's bones (by name), as rendered. */
+  getBoneWorldPositions(id: string): Record<string, [number, number, number]> | null;
+  /** Rest skeleton (model-space bone positions and hierarchy), for motion retargeting. */
+  getSkeleton(
+    id: string,
+  ): { name: string; bones: { name: string; parent: number; position: [number, number, number] }[] } | null;
 
   // motion / media
   loadMotion(modelId: string, file: VFile | null): Promise<MotionInfo | null>;

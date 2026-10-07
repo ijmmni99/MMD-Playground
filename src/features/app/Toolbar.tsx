@@ -1,18 +1,19 @@
 import {
+  Box,
   Code2,
   Download,
   FilePlus2,
   FolderOpen,
   Keyboard,
   LayoutPanelLeft,
+  MoreHorizontal,
   PanelBottom,
   PanelRight,
+  PersonStanding,
   Redo2,
   Save,
-  Upload,
   Undo2,
-  Box,
-  MoreHorizontal,
+  Upload,
 } from 'lucide-react';
 import { useLayout } from '@/store/layout';
 import { useState } from 'react';
@@ -130,7 +131,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
       </IconButton>
       <div className="flex-1" />
       <div className="mr-2 flex rounded-md border border-line p-0.5" role="tablist" aria-label="Mode">
-        {(['studio', 'playground'] as const).map((m) => (
+        {(['studio', 'playground', 'video2vmd'] as const).map((m) => (
           <button
             key={m}
             type="button"
@@ -143,7 +144,8 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             )}
           >
             {m === 'playground' && <Code2 size={13} />}
-            {m}
+            {m === 'video2vmd' && <PersonStanding size={13} />}
+            {m === 'video2vmd' ? (compact ? 'Video' : 'Video → VMD') : m}
           </button>
         ))}
       </div>

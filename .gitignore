@@ -7,3 +7,5 @@ test-results
 .dbg.mjs
 .dbg2.mjs
 .shots.mjs
+public/mediapipe/
+.v2v*.mjs

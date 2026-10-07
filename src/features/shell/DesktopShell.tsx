@@ -8,6 +8,7 @@ import { Viewport } from '@/features/viewport/Viewport';
 import { useStudio } from '@/store/studio';
 
 const Playground = lazy(() => import('@/features/playground/Playground'));
+const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
 
 export interface PanelToggles {
   left: boolean;
@@ -36,13 +37,13 @@ export function DesktopShell() {
     else panel.collapse();
   };
 
-  // The playground editor needs more room than the scene list.
+  // The playground editor and the video converter need more room than the scene list.
   const sceneWidth = useRef<number | null>(null);
   useEffect(() => {
     const panel = leftRef.current;
     if (!panel) return;
-    if (mode === 'playground') {
-      sceneWidth.current = panel.getSize().asPercentage;
+    if (mode !== 'studio') {
+      sceneWidth.current ??= panel.getSize().asPercentage;
       if (panel.isCollapsed()) panel.expand();
       if (panel.getSize().asPercentage < 34) panel.resize('34%');
     } else if (sceneWidth.current !== null) {
@@ -84,7 +85,15 @@ export function DesktopShell() {
               collapsedSize={0}
               onResize={(size) => setCollapsed((c) => ({ ...c, left: size.inPixels < 2 }))}
             >
-              {mode === 'playground' ? (
+              {mode === 'video2vmd' ? (
+                <Suspense
+                  fallback={
+                    <div className="grid h-full place-items-center bg-bg-panel text-fg-muted">Loading…</div>
+                  }
+                >
+                  <Video2VmdPanel />
+                </Suspense>
+              ) : mode === 'playground' ? (
                 <Suspense
                   fallback={
                     <div className="grid h-full place-items-center bg-bg-panel text-fg-muted">

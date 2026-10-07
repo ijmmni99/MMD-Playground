@@ -11,6 +11,7 @@ const ExportPanel = lazy(() =>
   import('@/features/export/ExportPanel').then((m) => ({ default: m.ExportPanel })),
 );
 const MoreMenu = lazy(() => import('./MoreMenu'));
+const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
 
 const Loading = () => <div className="p-6 text-center text-fg-muted">Loading…</div>;
 
@@ -38,6 +39,12 @@ export function TabContent({ tab }: { tab: SheetTab }) {
       return (
         <Suspense fallback={<Loading />}>
           <ExportPanel />
+        </Suspense>
+      );
+    case 'video2vmd':
+      return (
+        <Suspense fallback={<Loading />}>
+          <Video2VmdPanel />
         </Suspense>
       );
     case 'more':

@@ -1,5 +1,6 @@
 import { DEFAULT_CAMERA, DEFAULT_SETTINGS, DEFAULT_TRANSFORM } from '@/engine/defaults';
 import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/types';
+import type { Video2VmdDoc } from '@/store/video2vmd';
 
 export const PROJECT_VERSION = 1;
 export const PROJECT_EXT = '.mmdstudio.zip';
@@ -33,6 +34,8 @@ export interface ProjectDoc {
   hdr: FileRef | null;
   models: ProjectModel[];
   thumbnail?: string;
+  /** Video to VMD session (source video, pose data, settings). */
+  video2vmd?: Video2VmdDoc;
 }
 
 export interface ProjectSummary {
@@ -136,6 +139,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     hdr: isFileRef(json.hdr) ? json.hdr : null,
     models,
     thumbnail: typeof json.thumbnail === 'string' ? json.thumbnail : undefined,
+    video2vmd: parseVideo2Vmd(json.video2vmd),
   };
 }
 
@@ -149,6 +153,8 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
   if (doc.audio) ids.add(doc.audio.file.blobId);
   if (doc.cameraMotion) ids.add(doc.cameraMotion.blobId);
   if (doc.hdr) ids.add(doc.hdr.blobId);
+  if (doc.video2vmd?.video) ids.add(doc.video2vmd.video.blobId);
+  if (doc.video2vmd?.pose) ids.add(doc.video2vmd.pose.blobId);
   return ids;
 }
 
@@ -190,4 +196,20 @@ export async function importProjectZip(blob: Blob): Promise<{ doc: ProjectDoc; b
   for (const e of entries) if (e.path.startsWith('blobs/')) blobs.set(e.path.slice(6), new Blob([e.data]));
   for (const id of projectBlobIds(doc)) if (!blobs.has(id)) throw new Error(`Archive is missing asset ${id}`);
   return { doc: { ...doc, id: newProjectId(), updatedAt: Date.now() }, blobs };
+}
+
+function parseVideo2Vmd(v: unknown): Video2VmdDoc | undefined {
+  if (!isObj(v) || !isObj(v.settings)) return undefined;
+  const steps = ['import', 'detect', 'clean', 'retarget', 'preview', 'export'];
+  return {
+    video: isFileRef(v.video) ? v.video : null,
+    videoInfo: isObj(v.videoInfo) ? (v.videoInfo as unknown as Video2VmdDoc['videoInfo']) : null,
+    pose: isFileRef(v.pose) ? v.pose : null,
+    settings: v.settings as unknown as Video2VmdDoc['settings'],
+    trim: Array.isArray(v.trim) && v.trim.length === 2 ? (v.trim as [number, number]) : [0, 0],
+    crop: isObj(v.crop) ? (v.crop as unknown as Video2VmdDoc['crop']) : null,
+    downscale: v.downscale === true,
+    targetModelId: typeof v.targetModelId === 'string' ? v.targetModelId : null,
+    step: typeof v.step === 'string' && steps.includes(v.step) ? (v.step as Video2VmdDoc['step']) : 'import',
+  };
 }

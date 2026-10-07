@@ -61,6 +61,7 @@ export default defineConfig({
           '**/*.worker-*.js',
           '**/Playground-*.js',
           '**/sample/**',
+          '**/mediapipe/**',
           '**/lspLanguageFeatures-*.js',
         ],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,

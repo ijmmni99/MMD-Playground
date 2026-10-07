@@ -5,6 +5,7 @@ import {
   FolderOpen,
   Info,
   Keyboard,
+  PersonStanding,
   Redo2,
   Save,
   Smartphone,
@@ -19,7 +20,7 @@ import { exportProjectArchive, newProject, renameProject, saveNow } from '@/feat
 import { installState, promptInstall, useInstall } from '@/features/pwa/install';
 import { redo, undo, updateSettings } from '@/store/actions';
 import { useHistory } from '@/store/history';
-import { useLayout } from '@/store/layout';
+import { openSheet, setSideTab, useLayout } from '@/store/layout';
 import { setPref, usePrefs } from '@/store/prefs';
 import { studio, toast, useStudio } from '@/store/studio';
 
@@ -105,6 +106,15 @@ export default function MoreMenu() {
             }}
           />
         </div>
+      </Section>
+      <Section title="Tools">
+        <Action
+          icon={<PersonStanding size={18} />}
+          label="Video to VMD (dance video → motion)"
+          onClick={() =>
+            mode === 'phone-landscape' ? setSideTab('video2vmd') : openSheet('video2vmd', 'full')
+          }
+        />
       </Section>
       <Section title="Edit">
         <div className="grid grid-cols-2 gap-2">

@@ -11,4 +11,5 @@ export const TABS: { id: SheetTab; label: string; icon: ReactNode }[] = [
   { id: 'more', label: 'More', icon: <MoreHorizontal size={20} /> },
 ];
 
-export const tabLabel = (t: SheetTab): string => TABS.find((x) => x.id === t)?.label ?? t;
+export const tabLabel = (t: SheetTab): string =>
+  TABS.find((x) => x.id === t)?.label ?? (t === 'video2vmd' ? 'Video to VMD' : t);

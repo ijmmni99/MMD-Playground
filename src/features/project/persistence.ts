@@ -14,6 +14,7 @@ import { engineOrNull, whenEngine } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
 import { initialPlayback, studio, toast, useStudio } from '@/store/studio';
 import { registerProjectImporter, restoreModel } from '@/store/actions';
+import { buildVideo2VmdDoc, restoreVideo2Vmd } from '@/features/video2vmd/actions';
 
 const { get, set } = studio;
 const LAST_PROJECT = 'lastProjectId';
@@ -55,6 +56,7 @@ export function buildProjectDoc(): ProjectDoc {
     cameraMotion: s.cameraMotion?.ref ?? null,
     hdr: s.hdrRef,
     models,
+    video2vmd: buildVideo2VmdDoc(),
   };
 }
 
@@ -214,6 +216,12 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
       },
     });
     engine.setActiveModel(get().selectedModelId);
+    try {
+      await restoreVideo2Vmd(doc.video2vmd);
+    } catch (e) {
+      failures.push(`video to VMD: ${String(e)}`);
+    }
+    set((s) => ({ project: { ...s.project, dirty: false } }));
     await store.setMeta(LAST_PROJECT, doc.id);
     if (failures.length) toast('warning', `Some items could not be restored: ${failures.join('; ')}`, 10000);
   } finally {
@@ -262,7 +270,7 @@ export async function hasRestorableProject(): Promise<boolean> {
   try {
     const id = await store.getMeta<string>(LAST_PROJECT);
     const doc = id ? await store.loadProject(id) : undefined;
-    return !!doc && (doc.models.length > 0 || !!doc.audio || !!doc.cameraMotion);
+    return !!doc && (doc.models.length > 0 || !!doc.audio || !!doc.cameraMotion || !!doc.video2vmd?.pose);
   } catch {
     return false;
   }

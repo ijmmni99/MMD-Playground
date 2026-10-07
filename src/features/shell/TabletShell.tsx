@@ -11,6 +11,7 @@ import { useStudio } from '@/store/studio';
 import type { PanelToggles } from './DesktopShell';
 
 const Playground = lazy(() => import('@/features/playground/Playground'));
+const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
 
 function Drawer({
   side,
@@ -58,7 +59,7 @@ export function TabletShell() {
   const drawers = useLayout((s) => s.drawers);
   const mode = useStudio((s) => s.mode);
   useEffect(() => {
-    if (mode === 'playground') useLayout.setState((s) => ({ drawers: { ...s.drawers, left: true } }));
+    if (mode !== 'studio') useLayout.setState((s) => ({ drawers: { ...s.drawers, left: true } }));
   }, [mode]);
   const toggles: PanelToggles = { ...drawers, toggle: toggleDrawer };
   return (
@@ -73,10 +74,16 @@ export function TabletShell() {
           <Drawer
             side="left"
             open={drawers.left}
-            label={mode === 'playground' ? 'Playground' : 'Scene panel'}
+            label={
+              mode === 'playground' ? 'Playground' : mode === 'video2vmd' ? 'Video to VMD' : 'Scene panel'
+            }
             onClose={() => toggleDrawer('left')}
           >
-            {mode === 'playground' ? (
+            {mode === 'video2vmd' ? (
+              <Suspense fallback={<div className="p-4 text-fg-muted">Loading…</div>}>
+                <Video2VmdPanel />
+              </Suspense>
+            ) : mode === 'playground' ? (
               <Suspense fallback={<div className="p-4 text-fg-muted">Loading editor…</div>}>
                 <Playground />
               </Suspense>
