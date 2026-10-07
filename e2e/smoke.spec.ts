@@ -38,7 +38,7 @@ test('load model + motion + audio, play, screenshot, restore after reload', asyn
   // Upload through the real file chooser. Files arrive without folders, so texture
   // references resolve through the basename fallback.
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Open files…' }).click();
+  await page.getByRole('button', { name: 'Open files / ZIP…' }).click();
   await (await chooser).setFiles(files);
 
   const models = page.getByTestId('model-list').getByRole('option');

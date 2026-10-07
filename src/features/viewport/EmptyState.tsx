@@ -1,6 +1,11 @@
 import { ExternalLink, FolderOpen, Sparkles, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/controls';
-import { loadSample, openFilePicker, openFolderPicker } from '@/features/app/filePickers';
+import {
+  folderPickSupported,
+  loadSample,
+  openFilePicker,
+  openFolderPicker,
+} from '@/features/app/filePickers';
 
 const SOURCES = [
   { name: 'BowlRoll', url: 'https://bowlroll.net/', note: 'Large MMD model & motion archive (JP)' },
@@ -30,13 +35,20 @@ export function EmptyState() {
           <b className="text-fg">.vmd motion</b>, a camera VMD and an <b className="text-fg">audio file</b>{' '}
           anywhere onto this window. Everything stays in your browser.
         </p>
+        {!folderPickSupported && (
+          <p className="mt-2 rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-[12px] text-fg">
+            On iPhone/iPad: zip the model folder (Files app → long-press → Compress) and upload the .zip.
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="primary" onClick={() => void openFilePicker()}>
-            <Upload size={14} /> Open files…
+            <Upload size={14} /> {folderPickSupported ? 'Open files / ZIP…' : 'Upload ZIP or files…'}
           </Button>
-          <Button onClick={() => void openFolderPicker()}>
-            <FolderOpen size={14} /> Open folder…
-          </Button>
+          {folderPickSupported && (
+            <Button onClick={() => void openFolderPicker()}>
+              <FolderOpen size={14} /> Open folder…
+            </Button>
+          )}
           <Button onClick={() => void loadSample()} data-testid="load-sample">
             <Sparkles size={14} /> Try the built-in sample
           </Button>

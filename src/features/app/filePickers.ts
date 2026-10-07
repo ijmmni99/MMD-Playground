@@ -5,13 +5,30 @@ import { toast } from '@/store/studio';
 export const ACCEPT =
   '.pmx,.pmd,.bpmx,.vmd,.mp3,.wav,.ogg,.m4a,.flac,.zip,.hdr,.env,.json,.png,.jpg,.jpeg,.bmp,.tga,.dds,.sph,.spa';
 
+/** iOS/iPadOS: no folder picking, and `accept` greys out unknown extensions like .pmx/.vmd. */
+export const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+export const folderPickSupported =
+  !isIOS && typeof document !== 'undefined' && 'webkitdirectory' in document.createElement('input');
+
 function pick(configure: (input: HTMLInputElement) => void): Promise<FileList | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     configure(input);
-    input.onchange = () => resolve(input.files);
-    input.oncancel = () => resolve(null);
+    if (isIOS) input.removeAttribute('accept');
+    // Some browsers (iOS Safari) only fire change events for inputs attached to the document.
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    const done = (files: FileList | null): void => {
+      input.remove();
+      resolve(files);
+    };
+    input.onchange = () => done(input.files);
+    input.oncancel = () => done(null);
     input.click();
   });
 }
@@ -25,6 +42,13 @@ export async function openFilePicker(accept = ACCEPT): Promise<void> {
 }
 
 export async function openFolderPicker(): Promise<void> {
+  if (!folderPickSupported) {
+    toast(
+      'info',
+      'Folder picking is not supported on this device — upload a .zip of the model folder instead.',
+    );
+    return openFilePicker();
+  }
   const files = await pick((i) => {
     i.webkitdirectory = true;
     i.multiple = true;

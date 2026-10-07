@@ -45,7 +45,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
         </div>
         <span className="hidden font-semibold sm:inline">MMD Studio</span>
       </div>
-      <div className="flex min-w-0 items-center gap-1.5">
+      <div className="hidden min-w-0 items-center gap-1.5 sm:flex">
         {editing ? (
           <input
             autoFocus

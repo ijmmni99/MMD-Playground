@@ -57,3 +57,15 @@ describe('import planning', () => {
     expect(plan.projects).toHaveLength(1);
   });
 });
+
+describe('nested archives', () => {
+  it('expands a ZIP inside a ZIP', async () => {
+    const inner = await zipFiles([{ path: 'm/model.pmx', data: 'x' }]);
+    const outer = await zipFiles([
+      { path: 'inner.zip', data: inner },
+      { path: 'readme.txt', data: 'hi' },
+    ]);
+    const files = await expandZips([{ path: 'download.zip', blob: outer }], unzip);
+    expect(files.map((f) => f.path).sort()).toEqual(['download/inner/m/model.pmx', 'download/readme.txt']);
+  });
+});

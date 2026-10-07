@@ -42,7 +42,12 @@ export async function importFileList(list: FileList | File[]): Promise<void> {
 export async function importFiles(raw: VFile[]): Promise<void> {
   if (!raw.length) return;
   const taskId = `import-${Date.now()}`;
-  setTask(taskId, 'Reading files…', 0, false);
+  setTask(
+    taskId,
+    raw.length === 1 ? `Reading ${basename(raw[0].path)}…` : `Reading ${raw.length} files…`,
+    0,
+    false,
+  );
   try {
     const projectFiles = raw.filter((f) => f.path.toLowerCase().endsWith('.mmdstudio.zip'));
     if (projectFiles.length) {
@@ -94,7 +99,15 @@ export async function importFiles(raw: VFile[]): Promise<void> {
       !plan.hdr.length &&
       !plan.poses.length
     ) {
-      toast('warning', 'No supported files found. Drop PMX/PMD, VMD, audio, HDR or ZIP files.');
+      const seen = files
+        .slice(0, 5)
+        .map((f) => basename(f.path))
+        .join(', ');
+      toast(
+        'warning',
+        `No PMX/PMD model, VMD, audio or HDR found in: ${seen}${files.length > 5 ? '…' : ''}`,
+        9000,
+      );
     }
   } catch (e) {
     toast('error', `Import failed: ${errMsg(e)}`);

@@ -60,6 +60,7 @@ export function collectFromFileList(list: FileList | File[]): VFile[] {
 export async function expandZips(
   files: VFile[],
   unzip: (blob: Blob) => Promise<ZipEntry[]> = lazyUnzip,
+  depth = 0,
 ): Promise<VFile[]> {
   const out: VFile[] = [];
   for (const f of files) {
@@ -69,9 +70,12 @@ export async function expandZips(
     }
     const entries = await unzip(f.blob);
     const prefix = normalizePath(`${dirname(f.path)}/${stripExt(basename(f.path))}`);
-    for (const e of entries) {
-      out.push({ path: normalizePath(`${prefix}/${e.path}`), blob: new Blob([e.data]) });
-    }
+    const inner = entries.map((e) => ({
+      path: normalizePath(`${prefix}/${e.path}`),
+      blob: new Blob([e.data]),
+    }));
+    // Download packs often nest the real archive inside another ZIP.
+    out.push(...(depth < 2 ? await expandZips(inner, unzip, depth + 1) : inner));
   }
   return out;
 }
