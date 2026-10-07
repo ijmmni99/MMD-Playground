@@ -38,6 +38,7 @@ import {
   setGizmoMode,
   setMaterial,
   setModelPhysics,
+  setModelStage,
   setMorph,
   setTransform,
 } from '@/store/actions';
@@ -59,6 +60,14 @@ export function ModelInspector() {
           {model.info.fileName} · {model.info.vertexCount.toLocaleString()} verts · {model.info.bones.length}{' '}
           bones · {model.info.rigidBodyCount} rigid bodies
         </div>
+      </div>
+      <div className="border-b border-line px-3 py-2">
+        <ToggleRow
+          label="Stage (scenery)"
+          checked={model.stage}
+          onChange={(v) => setModelStage(model.id, v)}
+          hint="Not selectable by tapping, never gets motions, camera frames the dancers, floor grid hidden"
+        />
       </div>
       <TransformSection model={model} />
       <PhysicsSection model={model} />

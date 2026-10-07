@@ -6,6 +6,7 @@ import {
   FileAudio,
   Film,
   FolderInput,
+  Mountain,
   Music,
   Plus,
   Trash2,
@@ -20,6 +21,7 @@ import { cn } from '@/components/ui/cn';
 import {
   addAudioPicker,
   addModelPicker,
+  addStagePicker,
   addMotionPicker,
   importProjectPicker,
   importZipPicker,
@@ -51,9 +53,14 @@ export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
       {!embedded && (
         <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
           <span className="panel-title">Scene</span>
-          <IconButton label="Add model or files" onClick={() => void openFilePicker()} size="sm">
-            <Plus size={14} />
-          </IconButton>
+          <div className="flex items-center">
+            <IconButton label="Add stage (scenery model)" onClick={() => void addStagePicker()} size="sm">
+              <Mountain size={14} />
+            </IconButton>
+            <IconButton label="Add model or files" onClick={() => void openFilePicker()} size="sm">
+              <Plus size={14} />
+            </IconButton>
+          </div>
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -93,6 +100,13 @@ export function AddButtons() {
       icon: <UserPlus size={18} />,
       run: addModelPicker,
       testid: 'add-model',
+    },
+    {
+      label: 'Add stage',
+      hint: 'scenery .pmx or .zip',
+      icon: <Mountain size={18} />,
+      run: addStagePicker,
+      testid: 'add-stage',
     },
     {
       label: 'Add motion',
@@ -166,7 +180,11 @@ function ModelRow({ model, selected }: { model: ModelUI; selected: boolean }) {
       )}
     >
       <div className="flex items-center gap-1.5">
-        <User size={14} className={selected ? 'text-accent' : 'text-fg-dim'} />
+        {model.stage ? (
+          <Mountain size={14} className={selected ? 'text-accent' : 'text-fg-dim'} aria-label="Stage" />
+        ) : (
+          <User size={14} className={selected ? 'text-accent' : 'text-fg-dim'} />
+        )}
         {editing ? (
           <input
             autoFocus

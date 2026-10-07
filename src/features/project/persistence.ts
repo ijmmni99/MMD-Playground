@@ -35,6 +35,7 @@ export function buildProjectDoc(): ProjectDoc {
       state: {
         visible: m.visible,
         physics: m.physics,
+        stage: m.stage,
         transform: m.transform,
         materials: m.materials,
         morphs: rt?.morphs ?? m.morphs,

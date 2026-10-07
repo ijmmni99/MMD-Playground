@@ -113,6 +113,7 @@ interface ModelEntry {
   info: ModelInfo;
   physics: boolean;
   visible: boolean;
+  stage: boolean;
   motion: { animation: MmdAnimation; handle: MmdRuntimeAnimationHandle } | null;
   baseOutline: number[];
   materialState: { visible: boolean; outline: boolean; alpha: number }[];
@@ -480,7 +481,7 @@ export class BabylonStudioEngine implements StudioEngine {
 
     // viewport
     if (this.appliedQuality !== s.viewport.quality) this.applyQuality(s.viewport.quality);
-    this.grid.setEnabled(s.viewport.showGrid);
+    this.grid.setEnabled(s.viewport.showGrid && !this.hasVisibleStage());
     if (s.viewport.showAxes && !this.axes) this.axes = new AxesViewer(scene, 3);
     if (!s.viewport.showAxes && this.axes) {
       this.axes.dispose();
@@ -511,7 +512,7 @@ export class BabylonStudioEngine implements StudioEngine {
       : ShadowGenerator.QUALITY_LOW;
     this.dirLight.shadowEnabled = l.shadows;
     (this.shadowGround.material as ShadowOnlyMaterial).alpha = 1 - l.shadowDarkness;
-    this.shadowGround.setEnabled(l.shadows && s.background.showGround);
+    this.shadowGround.setEnabled(l.shadows && s.background.showGround && !this.hasVisibleStage());
 
     // background
     this.applyBackground(s, prev);
@@ -773,6 +774,7 @@ export class BabylonStudioEngine implements StudioEngine {
         info,
         physics: true,
         visible: true,
+        stage: false,
         motion: null,
         baseOutline,
         materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
@@ -805,6 +807,7 @@ export class BabylonStudioEngine implements StudioEngine {
     if (state.transform) this.setModelTransform(entry.id, state.transform);
     if (state.visible !== undefined) this.setModelVisible(entry.id, state.visible);
     if (state.physics !== undefined) entry.physics = state.physics;
+    if (state.stage) this.setModelStage(entry.id, true);
     if (state.materials) {
       state.materials.forEach((m, i) => {
         if (entry.materialState[i]) entry.materialState[i] = { ...entry.materialState[i], ...m };
@@ -827,6 +830,7 @@ export class BabylonStudioEngine implements StudioEngine {
     m.container.dispose();
     this.models.delete(id);
     this.updateDuration();
+    this.refreshStageEnvironment();
     this.events.emit('modelRemoved', id);
   }
 
@@ -845,6 +849,35 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!m) return;
     m.visible = visible;
     m.mesh.setEnabled(visible);
+    if (m.stage) this.refreshStageEnvironment();
+  }
+
+  setModelStage(id: string, stage: boolean): void {
+    const m = this.models.get(id);
+    if (!m) return;
+    m.stage = stage;
+    for (const mesh of m.container.meshes) {
+      mesh.isPickable = !stage;
+      // A huge stage as shadow caster stretches the shadow map and blurs the dancers' shadows.
+      if (mesh.getTotalVertices() === 0) continue;
+      if (stage) this.shadowGen.removeShadowCaster(mesh, false);
+      else this.shadowGen.addShadowCaster(mesh, false);
+    }
+    if (stage && this.activeModelId === id) this.setActiveModel(null);
+    if (stage && this.selected?.modelId === id) this.selectBone(null, null);
+    this.refreshStageEnvironment();
+  }
+
+  private hasVisibleStage(): boolean {
+    return [...this.models.values()].some((m) => m.stage && m.visible);
+  }
+
+  /** A visible stage brings its own floor: hide the grid and the shadow-catcher ground. */
+  private refreshStageEnvironment(): void {
+    const s = this.settings;
+    const hasStage = this.hasVisibleStage();
+    this.grid.setEnabled(s.viewport.showGrid && !hasStage);
+    this.shadowGround.setEnabled(s.lighting.shadows && s.background.showGround && !hasStage);
   }
 
   setModelPhysics(id: string, enabled: boolean): void {
@@ -922,6 +955,7 @@ export class BabylonStudioEngine implements StudioEngine {
     return {
       visible: m.visible,
       physics: m.physics,
+      stage: m.stage,
       transform: structuredClone(m.transform),
       materials: structuredClone(m.materialState),
       morphs: Object.fromEntries(Object.entries(this.getMorphWeights(id)).filter(([, v]) => v !== 0)),
@@ -1098,11 +1132,21 @@ export class BabylonStudioEngine implements StudioEngine {
     this.scheduleCameraEmit();
   }
 
+  /** Visible performers to frame; stages only when nothing else is loaded. */
+  private framingModels(): ModelEntry[] {
+    const visible = [...this.models.values()].filter((m) => m.visible);
+    const performers = visible.filter((m) => !m.stage);
+    return performers.length ? performers : visible;
+  }
+
+  /** First performer (non-stage) model, for camera defaults. */
+  private defaultModelId(): string | undefined {
+    return this.framingModels()[0]?.id;
+  }
+
   /** World-space bounds from bone positions (mesh bounds in babylon-mmd are padded for skinning). */
   private modelBounds(id?: string): { center: Vector3; size: Vector3 } {
-    const entries = id
-      ? [this.models.get(id)].filter((m): m is ModelEntry => !!m)
-      : [...this.models.values()].filter((m) => m.visible);
+    const entries = id ? [this.models.get(id)].filter((m): m is ModelEntry => !!m) : this.framingModels();
     if (!entries.length) return { center: new Vector3(0, 10, 0), size: new Vector3(10, 20, 10) };
     const min = new Vector3(Infinity, Infinity, Infinity);
     const max = new Vector3(-Infinity, -Infinity, -Infinity);
@@ -1135,7 +1179,7 @@ export class BabylonStudioEngine implements StudioEngine {
 
   applyCameraPreset(preset: CameraPreset, modelId?: string): void {
     if (this.cameraMode !== 'orbit') this.setCameraMode('orbit');
-    const id = modelId ?? this.selected?.modelId ?? [...this.models.keys()][0];
+    const id = modelId ?? this.selected?.modelId ?? this.defaultModelId();
     const { center, size } = this.modelBounds(id);
     const fit = (h: number): number => h / 2 / Math.tan(this.orbit.fov / 2) + size.z / 2;
     const radius = fit(Math.max(size.y, size.x * 0.75) * 1.1);
@@ -1235,7 +1279,7 @@ export class BabylonStudioEngine implements StudioEngine {
   }
 
   focusDofOnHead(modelId?: string): number | null {
-    const id = modelId ?? this.selected?.modelId ?? [...this.models.keys()][0];
+    const id = modelId ?? this.selected?.modelId ?? this.defaultModelId();
     if (!id) return null;
     const head = this.findBoneWorld(id, HEAD_BONES) ?? this.modelBounds(id).center;
     const cam = this.scene.activeCamera;
@@ -1304,7 +1348,11 @@ export class BabylonStudioEngine implements StudioEngine {
       const hit = nearestWithin(screen, { x, y }, radius);
       if (hit >= 0) return { modelId: active.id, bone: hit };
     }
-    const pick = this.scene.pick(x / scaling, y / scaling, (mesh) => mesh.isEnabled() && mesh.isVisible);
+    const pick = this.scene.pick(
+      x / scaling,
+      y / scaling,
+      (mesh) => mesh.isPickable && mesh.isEnabled() && mesh.isVisible,
+    );
     if (pick?.hit && pick.pickedMesh) {
       for (const m of this.models.values()) {
         if (m.container.meshes.includes(pick.pickedMesh)) return { modelId: m.id, bone: null };

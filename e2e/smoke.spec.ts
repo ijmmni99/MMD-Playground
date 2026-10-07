@@ -118,3 +118,45 @@ test('first visit defers the 3D engine until it is needed', async ({ page }) => 
   await page.getByTestId('load-sample').first().click();
   await waitForEngine(page);
 });
+
+test('stage: loads as scenery, keeps the dancer selected, motions go to the dancer', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?engine=1');
+  await waitForEngine(page);
+  await page.getByLabel('Render quality').selectOption('low');
+  const model = ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png'].map((f) =>
+    join(fixtures, f),
+  );
+  const rows = page.getByTestId('model-list').getByRole('option');
+
+  let chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Open files / ZIP…' }).click();
+  await (await chooser).setFiles(model);
+  await expect(rows).toHaveCount(1);
+
+  chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add stage (scenery model)' }).click();
+  await (await chooser).setFiles(model);
+  await expect(rows).toHaveCount(2);
+  // The dancer stays selected; the stage row carries the stage icon.
+  await expect(rows.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await expect(rows.nth(1)).toHaveAttribute('aria-selected', 'false');
+  await expect(rows.nth(1).getByLabel('Stage')).toBeVisible();
+
+  // Even with the stage selected, a new motion goes to the dancer.
+  await rows.nth(1).click();
+  chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add model or files' }).click();
+  await (await chooser).setFiles([join(fixtures, 'dance.vmd')]);
+  await expect(rows.nth(0)).toContainText('dance.vmd');
+  await expect(rows.nth(1)).not.toContainText('dance.vmd');
+
+  // The stage flag survives a reload.
+  await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 30_000 });
+  await page.reload();
+  await waitForEngine(page);
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(1).getByLabel('Stage')).toBeVisible();
+  expect(errors).toEqual([]);
+});

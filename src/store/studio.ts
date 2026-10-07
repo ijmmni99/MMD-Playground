@@ -27,6 +27,8 @@ export interface ModelUI {
   name: string;
   visible: boolean;
   physics: boolean;
+  /** Stage scenery: not a motion target, not tap-selectable, ignored for camera framing. */
+  stage: boolean;
   transform: TransformState;
   materials: MaterialUIState[];
   morphs: Record<string, number>;

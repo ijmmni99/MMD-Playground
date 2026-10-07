@@ -106,6 +106,12 @@ export async function addModelPicker(): Promise<void> {
   if (files.length) await importFiles(files);
 }
 
+/** Stage scenery: same files as a model, loaded as a stage. */
+export async function addStagePicker(): Promise<void> {
+  const files = await pickFiles('model', true);
+  if (files.length) await importFiles(files, { asStage: true });
+}
+
 export async function addMotionPicker(): Promise<void> {
   const [file] = await pickFiles('motion');
   if (!file) return;
@@ -113,7 +119,7 @@ export async function addMotionPicker(): Promise<void> {
     toast('warning', `${file.path} is not a .vmd motion file`);
     return;
   }
-  if (!studio.get().models.length)
+  if (!studio.get().models.some((m) => !m.stage))
     toast('info', 'Tip: add a model first — motions attach to the selected model.');
   // The import planner attaches model motions to the selected model and detects camera VMDs.
   await importFiles([file]);

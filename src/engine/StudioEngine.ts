@@ -83,6 +83,8 @@ export interface StudioEngine {
   listModels(): string[];
   setModelVisible(id: string, visible: boolean): void;
   setModelPhysics(id: string, enabled: boolean): void;
+  /** Mark a model as stage scenery (see ModelRuntimeState.stage). */
+  setModelStage(id: string, stage: boolean): void;
   setModelTransform(id: string, transform: TransformState): void;
   setMaterialState(
     id: string,

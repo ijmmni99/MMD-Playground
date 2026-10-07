@@ -203,6 +203,8 @@ export interface ModelRuntimeState {
   transform: TransformState;
   materials: { visible: boolean; outline: boolean; alpha: number }[];
   morphs: Record<string, number>;
+  /** Scenery (MMD stage): never picked by taps, ignored for camera framing, hides the floor grid. */
+  stage?: boolean;
 }
 
 /** Pseudo MIME type for the frame-stepped PNG-sequence ZIP export (no video encoder needed). */

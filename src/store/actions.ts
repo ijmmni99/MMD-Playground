@@ -49,7 +49,19 @@ export async function importFileList(list: FileList | File[]): Promise<void> {
 }
 
 /** Import an arbitrary set of files: models, motions, camera motions, audio, HDRs, projects, poses. */
-export async function importFiles(raw: VFile[]): Promise<void> {
+/** Stage-like names (stage, ステージ, 舞台, ...) are loaded as scenery automatically. */
+const STAGE_NAME = /stage|ステージ|舞台|背景/i;
+export const looksLikeStage = (...names: string[]): boolean => names.some((n) => STAGE_NAME.test(n));
+
+/** The model new motions and poses go to: the selected one unless it's a stage, else the first performer. */
+function performerId(): string | undefined {
+  const { models, selectedModelId } = get();
+  const selected = models.find((m) => m.id === selectedModelId);
+  if (selected && !selected.stage) return selected.id;
+  return models.find((m) => !m.stage)?.id;
+}
+
+export async function importFiles(raw: VFile[], opts: { asStage?: boolean } = {}): Promise<void> {
   if (!raw.length) return;
   const taskId = `import-${Date.now()}`;
   setTask(
@@ -90,15 +102,15 @@ export async function importFiles(raw: VFile[]): Promise<void> {
         false,
       );
       try {
-        const id = await addModel(m.files, m.mainPath);
+        const id = await addModel(m.files, m.mainPath, { stage: opts.asStage });
         newModelIds.push(id);
       } catch (e) {
         toast('error', `Failed to load ${basename(m.mainPath)}: ${friendlyError(e)}`);
       }
     }
-    // Motions: pair with new models in order, otherwise go to the selected model.
+    // Motions: pair with new models in order, otherwise go to the selected performer (never a stage).
     for (const [i, motion] of plan.motions.entries()) {
-      const target = newModelIds[i] ?? newModelIds[0] ?? get().selectedModelId ?? get().models[0]?.id;
+      const target = newModelIds[i] ?? newModelIds[0] ?? performerId();
       if (!target) {
         toast('warning', `Load a model before adding motion ${basename(motion.path)}`);
         continue;
@@ -109,7 +121,7 @@ export async function importFiles(raw: VFile[]): Promise<void> {
     if (plan.audio[0]) await setAudio(plan.audio[0]);
     if (plan.hdr[0]) await setHdr(plan.hdr[0]);
     for (const p of plan.poses) {
-      const target = get().selectedModelId ?? newModelIds[0];
+      const target = performerId() ?? newModelIds[0];
       if (target) await loadPoseFile(target, p.blob);
     }
     if (newModelIds.length && !get().cameraMotion) {
@@ -148,18 +160,25 @@ export async function importFiles(raw: VFile[]): Promise<void> {
 export async function addModel(
   files: VFile[],
   mainPath: string,
-  opts: { name?: string; select?: boolean } = {},
+  opts: { name?: string; select?: boolean; stage?: boolean } = {},
 ): Promise<string> {
   const engine = await whenEngine();
   const refs = await registerFiles(files);
   const info = await engine.loadModel(files, mainPath, { name: opts.name });
+  const stage = opts.stage ?? looksLikeStage(info.name, info.fileName, mainPath);
+  if (stage) {
+    // Scenery: no hair/cloth simulation needed, and it must never steal the selection.
+    engine.setModelStage(info.id, true);
+    engine.setModelPhysics(info.id, false);
+  }
   const state = engine.getModelState(info.id)!;
   const model: ModelUI = {
     id: info.id,
     info,
     name: info.name,
     visible: true,
-    physics: true,
+    physics: !stage,
+    stage,
     transform: state.transform,
     materials: state.materials,
     morphs: {},
@@ -170,12 +189,17 @@ export async function addModel(
   };
   set((s) => ({
     models: [...s.models, model],
-    selectedModelId: opts.select === false ? s.selectedModelId : info.id,
+    selectedModelId: opts.select === false || stage ? s.selectedModelId : info.id,
     selectedBone: null,
   }));
   engine.setActiveModel(get().selectedModelId);
   markDirty();
-  toast('success', `Loaded ${info.name}`);
+  toast(
+    'success',
+    stage
+      ? `Loaded ${info.name} as a stage (switch off “Stage” in its panel if it's a character)`
+      : `Loaded ${info.name}`,
+  );
   return info.id;
 }
 
@@ -191,6 +215,7 @@ export async function restoreModel(pm: ProjectModel): Promise<void> {
     name: pm.name,
     visible: pm.state.visible,
     physics: pm.state.physics,
+    stage: !!pm.state.stage,
     transform: state.transform,
     materials: state.materials,
     morphs: { ...pm.state.morphs },
@@ -226,7 +251,7 @@ export async function duplicateModel(id: string): Promise<void> {
   const engine = engineOrNull();
   if (!src || !engine) return;
   const files = await resolveRefs(src.files);
-  const newId = await addModel(files, src.mainPath, { name: `${src.name} (copy)` });
+  const newId = await addModel(files, src.mainPath, { name: `${src.name} (copy)`, stage: src.stage });
   const t = src.transform;
   setTransform(newId, { ...t, position: [t.position[0] + 8, t.position[1], t.position[2]] }, false);
   setModelPhysics(newId, src.physics);
@@ -278,6 +303,18 @@ export function recordTransformEdit(modelId: string, before: TransformState, aft
 export function setModelVisible(id: string, visible: boolean): void {
   engineOrNull()?.setModelVisible(id, visible);
   updateModel(id, { visible });
+}
+
+/** Turn a model into stage scenery or back into a performer. */
+export function setModelStage(id: string, stage: boolean): void {
+  const engine = engineOrNull();
+  engine?.setModelStage(id, stage);
+  updateModel(id, { stage });
+  if (stage) {
+    setModelPhysics(id, false);
+    if (get().selectedModelId === id) selectModel(performerId() ?? null);
+  }
+  markDirty();
 }
 
 export function setModelPhysics(id: string, physics: boolean): void {
