@@ -4,3 +4,6 @@ dist
 node_modules
 playwright-report
 test-results
+.dbg.mjs
+.dbg2.mjs
+.shots.mjs
