@@ -45,6 +45,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     // The service worker would cache builds across runs; tests always want the fresh build.
     serviceWorkers: 'block',
+    // Drawers/sheets animate in; without motion they settle at once, so hit-testing is stable.
+    contextOptions: { reducedMotion: 'reduce' },
   },
   projects: [
     {
