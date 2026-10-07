@@ -1,0 +1,10 @@
+import { chromium, devices } from '@playwright/test';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const { defaultBrowserType, ...ipad } = devices['iPad (gen 7)'];
+const page = await (await browser.newContext({ ...ipad, viewport: { width: 1080, height: 810 }, serviceWorkers: 'block' })).newPage();
+await page.goto('http://127.0.0.1:4173/');
+await page.waitForFunction(() => window.__studio, null, { timeout: 60000, polling: 500 });
+await page.waitForTimeout(2000);
+console.log(await page.evaluate(() => [matchMedia('(pointer: coarse)').matches, document.documentElement.dataset.layout, [...document.querySelectorAll('button')].map(b => b.textContent?.trim() || b.getAttribute('aria-label')).filter(Boolean).slice(0, 60).join(' | ')]));
+await page.screenshot({ path: '/tmp/claude-0/-home-user-MMD-Playground/bd968442-710f-5c96-a08b-80d7e07c67cf/scratchpad/ipadl.png' });
+await browser.close();

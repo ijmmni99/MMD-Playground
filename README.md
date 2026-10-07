@@ -144,12 +144,76 @@ flowchart LR
 - **Audio sync.** The MMD runtime is the master clock. `AudioSync` follows it at `time + offset` and re-seeks only when drift exceeds 80 ms. Audio goes through Web Audio so the recorder can capture it.
 - **Frame-stepped recording.** This mode overrides the engine's delta time to `1000/fps`. Every frame is rendered, including the physics step, and encoded with WebCodecs at an exact timestamp. The audio is cut from the decoded buffer and muxed by mediabunny.
 
+## Mobile & tablet
+
+MMD Studio is touch-first on phones and tablets and can be installed as an app (PWA).
+
+| Device / size                     | Layout                                                                                                                                                                                                                                                                           |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phone portrait (< 640 px)         | Full-screen viewport. Panels open as **bottom sheets** (peek / half / full; drag the handle, fling, or swipe down to dismiss). The tab bar has Scene · Models · Inspector · Timeline · Capture · More. A compact transport (play, frame step, scrub bar, time) is always visible |
+| Phone landscape (height < 500 px) | Viewport on the left, one collapsible side panel with an icon rail on the right, transport over the viewport                                                                                                                                                                     |
+| Tablet (640–1024 px)              | Viewport with overlay drawers (collapsed by default), a bottom timeline, a compact toolbar and a **More** menu                                                                                                                                                                   |
+| Desktop (> 1024 px)               | The original dockable three-panel layout (unchanged)                                                                                                                                                                                                                             |
+
+Rotating the device switches layouts without restarting the 3D engine, so the scene, camera and playback survive.
+
+**Gestures**
+
+| Gesture                               | Action                                                 |
+| ------------------------------------- | ------------------------------------------------------ |
+| One-finger drag                       | Orbit the camera                                       |
+| Two-finger pinch / drag               | Zoom / pan                                             |
+| Double-tap                            | Focus the selected model                               |
+| Tap a model                           | Select it                                              |
+| Tap near a bone of the selected model | Select the bone (rotate / move gizmo, larger on touch) |
+| Toolbar buttons                       | Rotate / move bone, scale model                        |
+| Timeline: drag / pinch                | Scrub / zoom the time range (two-finger drag pans)     |
+| Long-press an icon                    | Show its label                                         |
+| Hold a − / + stepper                  | Fine-adjust a slider value, with repeat                |
+
+**Loading on a phone:** tap **Add model** and pick the `.pmx` plus its textures, or better, a **.zip** of the model folder (on iPhone: Files app → long-press the folder → Compress). Then use **Add motion** and **Add audio**. On Android you can also share files to the installed app.
+
+**Install:** More → _Install app_. On iPhone/iPad: Safari → Share → _Add to Home Screen_. The service worker caches the app shell and the Bullet WASM for offline use. Your projects stay in IndexedDB and are never cached by the service worker.
+
+**Performance:** touch devices start on the **Low** preset:
+
+- pixel ratio capped at 1.5 (2 on higher presets)
+- MSAA off, FXAA on
+- 1024 px shadow maps
+- textures larger than 1024 px (2048 px on higher presets) are downscaled
+- fewer physics substeps
+
+**Adaptive quality** (More menu, on by default on mobile) steps quality down when the frame rate stays below 30 fps for 3 s. Rendering pauses when a full-height sheet covers the viewport, and playback pauses when the app goes to the background.
+
+**Mobile limitations**
+
+- **Recording on iOS:** older iOS Safari can't encode video. The Capture panel then offers a **PNG-sequence ZIP** (frame-stepped, no audio) instead.
+- **iOS audio:** audio starts after the first tap, because iOS requires a user gesture.
+- **Memory:** before loading a PMX larger than 30 MB on a low-memory device, the app asks for confirmation. If the system resets the GPU context, the scene is rebuilt from the autosaved project.
+- **Folder picking** isn't available on phones. Use a ZIP.
+- **Playground on phones** is a read-only runner for the 5 examples. The full Monaco editor is available on tablet and desktop.
+
+### Testing on a real phone
+
+Some APIs (service worker, share, clipboard, `crypto.subtle`) need a secure context. Serve the build over HTTPS on your LAN:
+
+```bash
+pnpm build
+# one-time: create a locally trusted certificate (https://github.com/FiloSottile/mkcert)
+mkcert -install && mkcert 192.168.1.20 localhost   # use your computer's LAN IP
+pnpm exec vite preview --host --https.cert 192.168.1.20+1.pem --https.key 192.168.1.20+1-key.pem
+```
+
+Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Install mkcert's root CA on the phone (iOS: Settings → General → About → Certificate Trust Settings) or accept the warning once.
+
 ## Tests
 
-- **Unit (Vitest, 48 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection.
-- **E2E (Playwright):** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example.
+- **Unit (Vitest, 85 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+- **E2E (Playwright):**
+  - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example.
+  - **Device matrix:** iPhone 14 and iPad (WebKit) and Pixel 7 (Chromium), each in portrait and landscape. Each run checks for horizontal overflow, the expected layout, sheet / side-panel / drawer navigation, loading a model and motion through the Add buttons, touch orbit and pinch zoom, play/pause, and console errors. If headless WebKit has no WebGL2, only the layout checks run.
 
-Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch to the Low quality preset. Inside a container that already has Chromium, set `PW_CHROMIUM_PATH=/path/to/chrome`.
+Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch to the Low quality preset. Inside a container that already has Chromium, set `PW_CHROMIUM_PATH=/path/to/chrome`. Without WebKit, `PW_WEBKIT_AS_CHROMIUM=1` runs the iPhone/iPad profiles on Chromium.
 
 ## Compatibility
 
