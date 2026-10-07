@@ -158,10 +158,17 @@ test('layout, navigation, touch camera, file loading and transport', async ({ pa
   test.skip(!engine, 'WebGL2 is unavailable in this headless browser; layout checks passed.');
 
   // ---- load a model through the file input ("Add model" button)
-  if (shell === 'tablet-shell') await page.getByRole('button', { name: 'Toggle left panel' }).click();
   const chooser = page.waitForEvent('filechooser');
-  // Several "Add model" buttons may exist (welcome card + scene panel); use one actually on screen.
-  await (await onScreen(page, 'add-model')).click();
+  if (shell === 'tablet-shell') {
+    // The drawer opens over the welcome card: wait for it, then use its own button.
+    await page.getByRole('button', { name: 'Toggle left panel' }).click();
+    const drawer = page.getByTestId('drawer-left');
+    await expect(drawer).toHaveAttribute('data-open', 'true');
+    await drawer.getByTestId('add-model').click();
+  } else {
+    // Several "Add model" buttons may exist (welcome card + scene panel); use one actually on screen.
+    await (await onScreen(page, 'add-model')).click();
+  }
   await (await chooser).setFiles(modelFiles);
   await expect
     .poll(() => page.evaluate(() => window.__studio!.listModels().length), { timeout: 90_000 })
