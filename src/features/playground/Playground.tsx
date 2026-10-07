@@ -67,7 +67,10 @@ export default function Playground() {
     setLogs((l) => [...l.slice(-300), { id: ++logSeq, level, text: args.map(format).join(' ') }]);
   }, []);
 
-  useEffect(() => logEnd.current?.scrollIntoView({ block: 'end' }), [logs]);
+  // Block body: in newer browsers scrollIntoView() returns a Promise, which React would treat as a cleanup.
+  useEffect(() => {
+    logEnd.current?.scrollIntoView({ block: 'end' });
+  }, [logs]);
   useEffect(() => () => disposeRef.current?.(), []);
 
   const stop = useCallback(() => {

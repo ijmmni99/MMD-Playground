@@ -279,7 +279,9 @@ export function Timeline() {
   );
 
   // redraw on data changes
-  useEffect(() => draw(), [draw, view]);
+  useEffect(() => {
+    draw();
+  }, [draw, view]);
 
   // smooth playhead while playing (+ auto page)
   useEffect(() => {

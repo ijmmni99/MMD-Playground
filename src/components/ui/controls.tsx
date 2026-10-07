@@ -294,7 +294,9 @@ export function NumberField({
   className?: string;
 }) {
   const [text, setText] = useState(value.toFixed(precision));
-  useEffect(() => setText(value.toFixed(precision)), [value, precision]);
+  useEffect(() => {
+    setText(value.toFixed(precision));
+  }, [value, precision]);
   const commit = (): void => {
     const v = Number.parseFloat(text);
     if (Number.isFinite(v)) onChange(v);

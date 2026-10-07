@@ -69,7 +69,9 @@ function ProjectList() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const current = useStudio((s) => s.project.id);
   const refresh = (): void => void listProjects().then(setProjects);
-  useEffect(refresh, []);
+  useEffect(() => {
+    refresh();
+  }, []);
   return (
     <div>
       <div className="mb-3 flex gap-2">
