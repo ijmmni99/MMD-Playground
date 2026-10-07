@@ -60,6 +60,7 @@ export default defineConfig({
           '**/editor.api-*.js',
           '**/*.worker-*.js',
           '**/Playground-*.js',
+          '**/toggleHighContrast-*.js',
           '**/sample/**',
           '**/mediapipe/**',
           '**/lspLanguageFeatures-*.js',

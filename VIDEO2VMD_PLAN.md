@@ -68,38 +68,44 @@ src/store/video2vmd.ts         Zustand slice (session state, settings, results)
 
 Landmark numbers are MediaPipe Pose indices; L/R are the dancer's sides.
 
-| MMD bone                 | Primary direction (target)                          | Twist / secondary                                               | Notes                                                            |
-| ------------------------ | --------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| センター                 | translation: hip centre (image-space root track)    | —                                                               | Root motion. Ground contact keeps feet on the floor.             |
-| グルーブ                 | —                                                   | —                                                               | Left at rest; optional vertical bounce is carried by センター.   |
-| 下半身                   | hips lateral R→L (24→23)                            | spine up (hip mid → shoulder mid)                               | Pelvis yaw / roll / tilt.                                        |
-| 上半身 (+ 上半身2)       | shoulders lateral R→L (12→11)                       | spine up                                                        | Split 50 / 50 between 上半身 and 上半身2 when both exist.        |
-| 首, 頭                   | ears lateral (8→7)                                  | face forward (ear mid → nose 0)                                 | Split 40 / 60 neck / head. Clamped to ±60° yaw, ±45° pitch/roll. |
-| 左/右 肩                 | neck base → shoulder (11/12)                        | upper-body frame                                                | Damped 50 %, clamped ±20°.                                       |
-| 左/右 腕                 | shoulder → elbow (11→13, 12→14)                     | elbow hinge normal (upper × fore); previous frame when straight | —                                                                |
-| 左/右 ひじ               | elbow → wrist (13→15, 14→16)                        | same hinge normal                                               | Hinge: one-way bend, clamped 0–165°.                             |
-| 左/右 手首               | wrist → mid(index, pinky) (15→19/17)                | index − pinky                                                   | Damped 50 %, clamped ±70°.                                       |
-| 左/右 足                 | hip → knee (23→25, 24→26)                           | knee hinge normal; −pelvis lateral when straight                | —                                                                |
-| 左/右 ひざ               | knee → ankle (25→27, 26→28)                         | same hinge normal                                               | Hinge: bends backward only, clamped 0–160°.                      |
-| 左/右 足首               | ankle → foot index (27→31, 28→32)                   | knee hinge normal                                               | Clamped ±60°.                                                    |
-| 左/右 足ＩＫ             | translation: solved ankle position (contact-pinned) | rotation: foot world rotation                                   | IK mode only.                                                    |
-| 左/右 つま先ＩＫ         | 0 (follows the 足ＩＫ rotation as its child)        | —                                                               | IK mode only.                                                    |
-| fingers, 腕捩/手捩, eyes | rest                                                | —                                                               | Not tracked.                                                     |
+| MMD bone                 | Primary direction (target)                          | Twist / secondary                                               | Notes                                                                                                                    |
+| ------------------------ | --------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| センター                 | translation: hip centre (image-space root track)    | —                                                               | Root motion. Ground contact keeps feet on the floor.                                                                     |
+| グルーブ                 | —                                                   | —                                                               | Left at rest; optional vertical bounce is carried by センター.                                                           |
+| 下半身                   | hips lateral R→L (24→23)                            | spine up (hip mid → shoulder mid)                               | Pelvis yaw / roll / tilt.                                                                                                |
+| 上半身 (+ 上半身2)       | shoulders lateral R→L (12→11)                       | spine up                                                        | Split 50 / 50 between 上半身 and 上半身2 when both exist.                                                                |
+| 首, 頭                   | ears lateral (8→7)                                  | face forward (ear mid → nose 0)                                 | Split 40 / 60 neck / head. Clamped to ±60° yaw, ±45° pitch/roll.                                                         |
+| 左/右 肩                 | —                                                   | —                                                               | Left at rest: both shoulder landmarks lie on one line, so there is no independent clavicle signal.                       |
+| 左/右 腕                 | shoulder → elbow (11→13, 12→14)                     | elbow hinge normal (upper × fore); previous frame when straight | —                                                                                                                        |
+| 左/右 ひじ               | elbow → wrist (13→15, 14→16)                        | same hinge normal                                               | Hinge: one-way bend, clamped 0–165°.                                                                                     |
+| 左/右 手首               | wrist → mid(index, pinky) (15→19/17)                | index − pinky                                                   | Damped 50 %, clamped ±70°.                                                                                               |
+| 左/右 足                 | hip → knee (23→25, 24→26)                           | knee hinge normal; −pelvis lateral when straight                | —                                                                                                                        |
+| 左/右 ひざ               | knee → ankle (25→27, 26→28)                         | same hinge normal                                               | Hinge: bends backward only, clamped 0–160°.                                                                              |
+| 左/右 足首               | ankle → foot index (27→31, 28→32), pitch-calibrated | knee hinge normal                                               | The person's flat-foot pitch (frames where the foot is lowest) is mapped onto the rig's 足首→つま先 pitch. Clamped ±60°. |
+| 左/右 足ＩＫ             | translation: solved ankle position (contact-pinned) | rotation: foot world rotation                                   | IK mode only.                                                                                                            |
+| 左/右 つま先ＩＫ         | 0 (follows the 足ＩＫ rotation as its child)        | —                                                               | IK mode only.                                                                                                            |
+| fingers, 腕捩/手捩, eyes | rest                                                | —                                                               | Not tracked.                                                                                                             |
 
 **FK-only vs IK-assisted.**
 
 - **FK-only:** the VMD contains a property (IK) keyframe at frame 0 that disables 左足ＩＫ, 右足ＩＫ, 左つま先ＩＫ and 右つま先ＩＫ. The FK leg rotations then play as computed.
 - **IK-assisted (default):** foot IK targets are keyed. They are pinned during detected contacts to remove foot skating.
 
+**Root motion.**
+
+- The image-space hip track is converted to metres with a weak-perspective model. Pixels per metre is the second-largest projected/true limb-length ratio; depth comes from the change in that scale.
+- **Leg odometry:** while a foot is planted, センター moves so that foot stays put. The image track drives flight phases, plus a slow (0.15 Hz) drift correction toward it.
+- **Height:** a residual places the supporting foot on the floor. It is interpolated through jumps, and no foot may go below the floor.
+
 ## Milestones
 
-- [ ] a. Tab shell + video import (metadata, trim, crop, warnings) + deterministic frame extraction (progress, cancel)
-- [ ] b. PoseEstimator interface, MediaPipe implementation in a Worker, skeleton overlay
-- [ ] c. Cleaning: gaps, One Euro, outliers, bone-length normalisation, 30 fps resample
-- [ ] d. VMD writer + byte-level and round-trip tests (built first)
-- [ ] e. Retargeting FK against the selected PMX (or the standard fallback skeleton)
-- [ ] f. Root motion, ground contact, foot contacts, foot IK
-- [ ] g. Preview: apply to model, side-by-side synced playback, audio passthrough
+- [x] a. Tab shell + video import (metadata, trim, crop, warnings) + deterministic frame extraction (progress, cancel)
+- [x] b. PoseEstimator interface, MediaPipe implementation in a Worker, skeleton overlay
+- [x] c. Cleaning: gaps, One Euro, outliers, bone-length normalisation, 30 fps resample
+- [x] d. VMD writer + byte-level and round-trip tests (built first)
+- [x] e. Retargeting FK against the selected PMX (or the standard fallback skeleton)
+- [x] f. Root motion, ground contact, foot contacts, foot IK
+- [x] g. Preview: apply to model, side-by-side synced playback, audio passthrough
 - [ ] h. Export (.vmd, pose JSON), persistence, quality report, presets, keyframe reduction
 - [ ] i. Mobile, Playwright smoke test (mock estimator), screenshots, docs
 - [ ] j. (stretch) Face blendshapes → MMD morphs

@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "fixtures": "node scripts/make-fixtures.mjs",
+    "fixtures": "node scripts/make-fixtures.mjs && node scripts/make-mannequin.mjs",
     "predev": "node scripts/copy-mediapipe.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs",
     "fixtures:video": "jiti scripts/make-video-fixture.ts"

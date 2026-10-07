@@ -320,6 +320,26 @@ describe('retargeting', () => {
     }
   });
 
+  it('leg odometry keeps planted feet in place even without IK', () => {
+    const { result } = run({ footIk: false });
+    expect(result.footSkateBefore).toBeGreaterThan(0);
+    expect(result.footSkateAfter).toBeLessThan(result.footSkateBefore * 0.5);
+  });
+
+  it('calibrates foot pitch so planted toes rest on the floor', () => {
+    const { result, skeleton } = run();
+    const toe = skeleton.bones.findIndex((b) => b.name === '左つま先');
+    const ys: number[] = [];
+    result.contacts.forEach((c, f) => {
+      if (!c[0]) return;
+      const { locals, center } = posesAt(result, f);
+      ys.push(forwardKinematics(skeleton, locals, center).positions[toe][1]);
+    });
+    ys.sort((a, b) => a - b);
+    // Median planted toe height within ~0.35 units (3 cm) of the floor.
+    expect(Math.abs(ys[ys.length >> 1])).toBeLessThan(0.35);
+  });
+
   it('upper-body preset leaves legs and センター alone', () => {
     const { result } = run({ lowerBody: false, footIk: false, rootStrength: 0 });
     expect(result.bones).not.toContain('センター');

@@ -185,6 +185,31 @@ export function retarget(
 
   const prevArmHinge: Record<Side, Vec3 | null> = { 左: null, 右: null };
 
+  // Foot pitch calibration: a person's ankle→toe direction is pitched differently from an MMD rig's
+  // 足首→つま先, so map the person's flat-foot pitch (frames where the foot is lowest) onto the rig's.
+  const pitchOf = (d: Vec3): number => Math.atan2(-d[1], Math.hypot(d[0], d[2]));
+  const withPitch = (d: Vec3, pitch: number): Vec3 => {
+    const h = normalize([d[0], 0, d[2]], FORWARD);
+    return [h[0] * Math.cos(pitch), -Math.sin(pitch), h[2] * Math.cos(pitch)];
+  };
+  const pitchOffset = Object.fromEntries(
+    SIDES.map((s) => {
+      const L = ls(s);
+      const order = track.world
+        .map((P, i): [number, number] => [
+          P[L.ankle][1] - Math.min(P[LM.leftAnkle][1], P[LM.rightAnkle][1]),
+          i,
+        ])
+        .sort((a, b) => a[0] - b[0])
+        .slice(0, Math.max(1, Math.floor(track.frameCount * 0.4)));
+      const pitches = order
+        .map(([, i]) => pitchOf(sub(track.world[i][L.toe], track.world[i][L.ankle])))
+        .sort((a, b) => a - b);
+      const neutral = pitches[pitches.length >> 1] ?? 0;
+      return [s, pitchOf(rest[s].foot) - neutral];
+    }),
+  ) as Record<Side, number>;
+
   const solveFrame = (P: Vec3[]): FrameSolve => {
     const hipMid = mid(P[LM.leftHip], P[LM.rightHip]);
     const shMid = mid(P[LM.leftShoulder], P[LM.rightShoulder]);
@@ -254,7 +279,9 @@ export function retarget(
         drivers.set(BONE.knee(s), (wp) => ({
           local: hinge(qmul(qconj(wp), kneeWorld), R.kneeHinge, -3 * DEG, 160 * DEG),
         }));
-        const footWorld = frameRotation(R.foot, R.kneeHinge, sub(P[L.toe], P[L.ankle]), kneeN);
+        const footDir = sub(P[L.toe], P[L.ankle]);
+        const footTarget = withPitch(footDir, pitchOf(footDir) + pitchOffset[s]);
+        const footWorld = frameRotation(R.foot, R.kneeHinge, footTarget, kneeN);
         drivers.set(BONE.ankle(s), (wp) => ({ local: clampAngle(qmul(qconj(wp), footWorld), 60 * DEG) }));
       }
     }
@@ -448,21 +475,66 @@ export function retarget(
       // Never let a foot sink below the floor.
       centerOffset[f][1] = root[f][1] + Math.max(v, -lowest[f]);
     });
-    const finalPos = solves.map((s, f) => fk(s, centerOffset[f]));
-    ankles = [0, 1].map((k) => finalPos.map((pos) => pos[feetIdx[k].ankle]));
-    footSkateBefore =
+    const skateOf = (tracks: Vec3[][]): number =>
       (footSkate(
-        ankles[0],
+        tracks[0],
         contacts.map((c) => c[0]),
         track.fps,
       ) +
         footSkate(
-          ankles[1],
+          tracks[1],
           contacts.map((c) => c[1]),
           track.fps,
         )) /
       2;
-    footSkateAfter = footSkateBefore;
+    footSkateBefore = skateOf([0, 1].map((k) => pre.map((pos) => pos[feetIdx[k].ankle])));
+
+    // Leg odometry: while a foot is planted, move the root so that foot stays put; the image-based root
+    // drives flight phases, plus a slow drift correction toward it.
+    if (settings.rootStrength > 0) {
+      const rel = [0, 1].map((k) =>
+        solves.map((s, f) => fk(s, [0, centerOffset[f][1], 0])[feetIdx[k].ankle]),
+      );
+      const odo: Vec3[] = [[root[0][0], 0, root[0][2]]];
+      for (let f = 1; f < n; f++) {
+        let dx = 0;
+        let dz = 0;
+        let count = 0;
+        for (let k = 0; k < 2; k++) {
+          if (!contacts[f][k] || !contacts[f - 1][k]) continue;
+          dx -= rel[k][f][0] - rel[k][f - 1][0];
+          dz -= rel[k][f][2] - rel[k][f - 1][2];
+          count++;
+        }
+        if (count) {
+          dx /= count;
+          dz /= count;
+        } else {
+          dx = root[f][0] - root[f - 1][0];
+          dz = root[f][2] - root[f - 1][2];
+        }
+        odo.push([odo[f - 1][0] + dx, 0, odo[f - 1][2] + dz]);
+      }
+      const driftX = oneEuroSeries(
+        root.map((r, f) => r[0] - odo[f][0]),
+        track.fps,
+        0.15,
+        0,
+      );
+      const driftZ = oneEuroSeries(
+        root.map((r, f) => r[2] - odo[f][2]),
+        track.fps,
+        0.15,
+        0,
+      );
+      for (let f = 0; f < n; f++) {
+        centerOffset[f][0] = odo[f][0] + driftX[f];
+        centerOffset[f][2] = odo[f][2] + driftZ[f];
+      }
+    }
+    const finalPos = solves.map((s, f) => fk(s, centerOffset[f]));
+    ankles = [0, 1].map((k) => finalPos.map((pos) => pos[feetIdx[k].ankle]));
+    footSkateAfter = skateOf(ankles);
   }
 
   // ---- keys ----------------------------------------------------------------------------------------
