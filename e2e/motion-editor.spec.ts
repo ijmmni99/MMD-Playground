@@ -189,3 +189,84 @@ test('motion editor: dope sheet, key edits, undo/redo, camera, export, persist',
   expect(await boneFrames(page, '上半身')).toContain(7);
   expect(errors).toEqual([]);
 });
+
+interface StudioIk extends Studio {
+  getBoneWorldPositions(id: string): Record<string, [number, number, number]>;
+  getSkeleton(id: string): { bones: { name: string }[] };
+  selectBone(id: string | null, bone: number | null): void;
+  getBoneTransform(id: string, bone: number): { rotation: number[]; position: number[] };
+  setBoneTransform(id: string, bone: number, t: { rotation: number[]; position: number[] }): void;
+}
+type WI = Window & { __studio?: StudioIk; __motionEditor?: MotionEditorProbe };
+
+test('motion editor: IK drag + key, bake IK→FK, fit IK, foot pins', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await boot(page);
+  await openFiles(page, [PMX, DANCE]);
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+  await page.getByTestId('open-editor').click();
+  await expect(page.getByTestId('dope-sheet')).toBeVisible();
+  await expect.poll(() => boneFrames(page, '左足ＩＫ')).not.toEqual([]);
+  await page.getByTestId('me-ik').click();
+  await expect(page.getByTestId('me-ik-panel')).toBeVisible();
+  await page.getByLabel('Show IK chains, targets, knee direction').check();
+
+  // Drag the left foot IK target (as the move gizmo would) at a new frame and key it: the IK bone and,
+  // with "key FK chain" on, the solved knee/thigh get keys.
+  await page.evaluate(() => (window as WI).__studio!.seek(33));
+  await page.evaluate(() => {
+    const st = (window as WI).__studio!;
+    const id = st.listModels()[0];
+    const i = st.getSkeleton(id).bones.findIndex((b) => b.name === '左足ＩＫ');
+    st.selectBone(id, i);
+    const t = st.getBoneTransform(id, i);
+    st.setBoneTransform(id, i, { rotation: t.rotation, position: [t.position[0], t.position[1] + 1.5, t.position[2] - 1] });
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/__shots/me-ik.png' });
+  await page.getByTestId('me-key').click();
+  await expect.poll(() => boneFrames(page, '左足ＩＫ')).toContain(33);
+  expect(await boneFrames(page, '左ひざ')).toContain(33);
+  await page.evaluate(() => (window as WI).__studio!.selectBone(null, null));
+
+  // Bake IK → FK over 0–40: pose unchanged (tiny error), knee keyed densely, IK off in range.
+  const range = page.getByTestId('me-range');
+  await range.getByLabel('From').fill('0');
+  await range.getByLabel('To').fill('40');
+  await page.getByLabel('Reduce keys').uncheck();
+  await page.getByTestId('ik-bake').click();
+  await expect(page.getByTestId('ik-result')).toContainText('Bake IK → FK: 41 frames');
+  const err = async () => parseFloat((await page.getByTestId('ik-result').textContent())!.split('error ')[1]);
+  expect(await err()).toBeLessThan(0.02);
+  expect((await boneFrames(page, '左ひざ')).filter((f) => f <= 40).length).toBe(41);
+
+  // Fit IK from FK on the same range: the IK targets land where FK put the feet.
+  await page.getByTestId('ik-fit').click();
+  await expect(page.getByTestId('ik-result')).toContainText('Fit IK from FK');
+  expect(await err()).toBeLessThan(0.02);
+
+  const ankle = (f: number) =>
+    page.evaluate(async (frame) => {
+      const st = (window as WI).__studio!;
+      st.seek(frame);
+      await new Promise((r) => setTimeout(r, 200));
+      return st.getBoneWorldPositions(st.listModels()[0])['左足首'];
+    }, f);
+  await page.waitForTimeout(300);
+  const free = [await ankle(55), await ankle(85)];
+  expect(Math.hypot(...free[0].map((v, i) => v - free[1][i]))).toBeGreaterThan(0.1);
+  // Pin the left foot over 50–90: the ankle stays put in world space.
+  await range.getByLabel('From').fill('50');
+  await range.getByLabel('To').fill('90');
+  await page.getByTestId('ik-pin').click();
+  await expect(page.getByTestId('ik-pins').locator('li')).toHaveCount(1);
+  await expect(page.getByTestId('ik-pins')).toContainText('50–90');
+  await page.waitForTimeout(300);
+  const a = await ankle(55);
+  const b = await ankle(85);
+  expect(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])).toBeLessThan(0.01);
+  await page.screenshot({ path: 'e2e/__shots/me-ik-panel.png' });
+  expect(errors).toEqual([]);
+});

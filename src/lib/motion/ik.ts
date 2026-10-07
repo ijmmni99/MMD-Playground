@@ -191,3 +191,93 @@ export function syntheticLeg(): IkChainDef {
     unitAngle: 2,
   };
 }
+
+// ---------------------------------------------------------------- IK ↔ FK writes
+
+/** IK enabled state of `bone` at frame f from the property track (default on). */
+export function ikStateAt(clip: MotionClip, bone: string, f: number): boolean {
+  let state = true;
+  for (const k of clip.props) {
+    if (k.f > f) break;
+    if (bone in k.ik) state = k.ik[bone];
+  }
+  return state;
+}
+
+/**
+ * Set IK solvers on/off over [from, to] via the property track, restoring the previous state at to + 1.
+ * Property keys inside the range keep their other bones' states.
+ */
+export function setIkRange(
+  clip: MotionClip,
+  bones: readonly string[],
+  from: number,
+  to: number,
+  enabled: boolean,
+): MotionClip {
+  const props = [...clip.props].sort((a, b) => a.f - b.f);
+  const stateAt = (f: number): { visible: boolean; ik: Record<string, boolean> } => {
+    let visible = true;
+    const ik: Record<string, boolean> = {};
+    for (const k of props) {
+      if (k.f > f) break;
+      visible = k.visible;
+      Object.assign(ik, k.ik);
+    }
+    return { visible, ik };
+  };
+  const after = stateAt(to + 1);
+  const restore = Object.fromEntries(bones.map((b) => [b, after.ik[b] ?? true]));
+  const startState = stateAt(from);
+  const map = new Map(props.map((k) => [k.f, { ...k, ik: { ...k.ik } }]));
+  const put = (
+    f: number,
+    base: { visible: boolean; ik: Record<string, boolean> },
+    patch: Record<string, boolean>,
+  ): void => {
+    const cur = map.get(f) ?? { f, visible: base.visible, ik: { ...base.ik } };
+    map.set(f, { ...cur, ik: { ...cur.ik, ...patch } });
+  };
+  const off = Object.fromEntries(bones.map((b) => [b, enabled]));
+  put(from, startState, off);
+  for (const k of props) if (k.f > from && k.f <= to) put(k.f, k, off);
+  put(to + 1, stateAt(to + 1), restore);
+  return { ...clip, props: [...map.values()].sort((a, b) => a.f - b.f) };
+}
+
+/** Replace [from, to] of bone tracks with per-frame keys (positions from the existing track if omitted). */
+export function writeDenseKeys(
+  clip: MotionClip,
+  from: number,
+  to: number,
+  keys: Record<string, { f: number; p?: Vec3; r: Quat }[]>,
+): MotionClip {
+  const bones = clip.bones.map((t) => ({ ...t }));
+  for (const [name, list] of Object.entries(keys)) {
+    if (!list.length) continue;
+    const i = bones.findIndex((t) => t.name === name);
+    const old = i >= 0 ? bones[i].keys : [];
+    const dense: BoneKey[] = list.map((k) => ({
+      f: k.f,
+      p: k.p ?? sampleBone(old, k.f).p,
+      r: qnormalize(k.r),
+      ip: linearCurves(BONE_CHANNELS),
+    }));
+    // Keep the value just outside the range so neighbouring segments don't change.
+    const edge: BoneKey[] = [];
+    for (const f of [from - 1, to + 1]) {
+      if (f < 0 || !old.length || old.some((k) => k.f === f)) continue;
+      const s = sampleBone(old, f);
+      if (f > to && !old.some((k) => k.f > to)) continue;
+      if (f < from && !old.some((k) => k.f < from)) continue;
+      edge.push({ f, p: s.p, r: s.r, ip: linearCurves(BONE_CHANNELS) });
+    }
+    const track = {
+      name,
+      keys: [...old.filter((k) => k.f < from || k.f > to), ...edge, ...dense].sort((a, b) => a.f - b.f),
+    };
+    if (i >= 0) bones[i] = track;
+    else bones.push(track);
+  }
+  return { ...clip, bones };
+}

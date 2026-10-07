@@ -8,6 +8,7 @@ import {
   Color3,
   Color4,
   CreateGround,
+  CreateLineSystem,
   CubeTexture,
   DefaultRenderingPipeline,
   DirectionalLight,
@@ -35,6 +36,7 @@ import {
   WebGPUEngine,
   type AbstractMesh,
   type BaseTexture,
+  type LinesMesh,
 } from '@babylonjs/core';
 import { GridMaterial, ShadowOnlyMaterial } from '@babylonjs/materials';
 import {
@@ -124,6 +126,8 @@ interface ModelEntry {
   /** IK chains from the PMX (bone indices). */
   ikChains: { bone: number; target: number; links: number[] }[];
   ikEnabled: boolean;
+  /** Original `beforePhysics` (wrapped when IK is disabled so the property track can't re-enable it). */
+  rawBeforePhysics?: (frame: number | null) => void;
 }
 
 let idCounter = 0;
@@ -1190,11 +1194,14 @@ export class BabylonStudioEngine implements StudioEngine {
     const states = m.model.ikSolverStates.slice();
     const out: ReturnType<StudioEngine['sampleModel']> = [];
     const model = m.model as MmdModel & { beforePhysics(frame: number | null): void; afterPhysics(): void };
+    const before = m.rawBeforePhysics ?? model.beforePhysics.bind(model);
+    const ik = opts.ik ?? m.ikEnabled;
     for (const f of frames) {
-      model.beforePhysics(f);
-      if (opts.ik === false) {
+      before(f);
+      if (!ik) {
+        // Animation (property track) re-enables solvers; recompute the pose without them.
         m.model.ikSolverStates.fill(0);
-        model.beforePhysics(f);
+        before(null);
       }
       model.afterPhysics();
       out.push({
@@ -1215,13 +1222,114 @@ export class BabylonStudioEngine implements StudioEngine {
     return m.ikChains.map((c) => ({ bone: name(c.bone), target: name(c.target), links: c.links.map(name) }));
   }
 
-  /** Debug: turn all IK solvers of a model on or off. */
+  /** Turn all IK solvers of a model on or off (holds during playback, whatever the property track says). */
   setIkEnabled(modelId: string, enabled: boolean): void {
     const m = this.models.get(modelId);
     if (!m) return;
     m.ikEnabled = enabled;
+    const model = m.model as MmdModel & { beforePhysics(frame: number | null): void };
+    if (!m.rawBeforePhysics) {
+      const raw = model.beforePhysics.bind(model);
+      m.rawBeforePhysics = raw;
+      model.beforePhysics = (frame: number | null): void => {
+        raw(frame);
+        if (!m.ikEnabled && frame !== null) {
+          m.model.ikSolverStates.fill(0);
+          raw(null);
+        }
+      };
+    }
     m.model.ikSolverStates.fill(enabled ? 1 : 0);
     this.refreshPose();
+  }
+
+  /**
+   * Fit IK targets to the FK pose: for each frame, evaluate with IK off and compute the VMD key
+   * (position offset + rotation) that puts each IK bone on its chain's target bone. Parent IK bones are
+   * fitted first so child IK bones (つま先ＩＫ under 足ＩＫ) are expressed relative to the fitted parent.
+   */
+  fitIkTargets(
+    modelId: string,
+    frames: number[],
+    ikBones: string[],
+  ): Record<string, { f: number; p: [number, number, number]; r: [number, number, number, number] }[]> {
+    const m = this.models.get(modelId);
+    const out: ReturnType<StudioEngine['fitIkTargets']> = {};
+    if (!m) return out;
+    const bones = m.model.runtimeBones;
+    const depth = (i: number): number => {
+      let d = 0;
+      for (let b = bones[i].parentBone; b; b = b.parentBone) d++;
+      return d;
+    };
+    const chains = ikBones
+      .map((n) => m.ikChains.find((c) => bones[c.bone]?.name === n))
+      .filter((c): c is NonNullable<typeof c> => !!c)
+      .sort((a, b) => depth(a.bone) - depth(b.bone));
+    for (const c of chains) out[bones[c.bone].name] = [];
+    const model = m.model as MmdModel & { beforePhysics(frame: number | null): void; afterPhysics(): void };
+    const before = m.rawBeforePhysics ?? model.beforePhysics.bind(model);
+    const states = m.model.ikSolverStates.slice();
+    const tmpQ = new Quaternion();
+    const tmpT = new Vector3();
+    for (const f of frames) {
+      before(f);
+      m.model.ikSolverStates.fill(0);
+      before(null);
+      model.afterPhysics();
+      const fitted = new Map<number, Matrix>();
+      for (const c of chains) {
+        const parent = bones[c.bone].parentBone;
+        const pi = parent ? bones.indexOf(parent) : -1;
+        const parentWorld =
+          pi < 0 ? Matrix.Identity() : (fitted.get(pi) ?? parent!.getWorldMatrixToRef(new Matrix()).clone());
+        const targetWorld = bones[c.target].getWorldMatrixToRef(new Matrix()).clone();
+        // Row-vector convention: W = L · P  ⇒  L = W · P⁻¹.
+        const local = targetWorld.multiply(Matrix.Invert(parentWorld));
+        local.decompose(undefined, tmpQ, tmpT);
+        const rest = m.restPositions[c.bone];
+        out[bones[c.bone].name].push({
+          f,
+          p: [tmpT.x - rest.x, tmpT.y - rest.y, tmpT.z - rest.z],
+          r: [tmpQ.x, tmpQ.y, tmpQ.z, tmpQ.w],
+        });
+        fitted.set(c.bone, targetWorld);
+      }
+    }
+    m.model.ikSolverStates.set(states);
+    void this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    return out;
+  }
+
+  private overlays = new Map<string, LinesMesh>();
+  /** Debug/editor overlay lines in world space, drawn on top (utility layer). Null removes the overlay. */
+  setOverlayLines(
+    id: string,
+    segments:
+      { a: [number, number, number]; b: [number, number, number]; color: [number, number, number] }[] | null,
+  ): void {
+    const old = this.overlays.get(id);
+    if (!segments || !segments.length) {
+      old?.dispose();
+      this.overlays.delete(id);
+      return;
+    }
+    const lines = segments.map((sg) => [new Vector3(...sg.a), new Vector3(...sg.b)]);
+    const colors = segments.map((sg) => {
+      const c = new Color4(sg.color[0], sg.color[1], sg.color[2], 1);
+      return [c, c];
+    });
+    const sameShape = old && old.getTotalVertices() === lines.length * 2;
+    const mesh = CreateLineSystem(
+      `overlay-${id}`,
+      { lines, colors, updatable: true, instance: sameShape ? old : undefined },
+      this.utilLayer.utilityLayerScene,
+    );
+    if (!sameShape) {
+      old?.dispose();
+      mesh.isPickable = false;
+      this.overlays.set(id, mesh);
+    }
   }
 
   async loadCameraMotion(file: VFile | null): Promise<CameraMotionInfo | null> {

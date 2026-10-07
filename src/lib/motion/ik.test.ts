@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { dist, type Vec3 } from '@/lib/math3d';
 import { sampleBone } from './evaluate';
-import { applyPins, chainPositions, hingeAngle, pinWeight, solveIk, syntheticLeg } from './ik';
+import {
+  applyPins,
+  chainPositions,
+  hingeAngle,
+  ikStateAt,
+  pinWeight,
+  setIkRange,
+  solveIk,
+  syntheticLeg,
+  writeDenseKeys,
+} from './ik';
 import { BONE_CHANNELS, linearCurves, type MotionClip } from './types';
 import { emptyClip } from './types';
 
@@ -106,5 +116,49 @@ describe('CCD IK (MMD semantics)', () => {
     // Replay FK only: effector must land on the original IK targets.
     const err = baked.map((rot, i) => dist(chainPositions(leg, rot).effector, targets[i]));
     expect(Math.max(...err)).toBeLessThan(0.05);
+  });
+});
+
+describe('IK ↔ FK writes', () => {
+  it('turns IK off over a range and restores it after', () => {
+    const clip: MotionClip = {
+      ...emptyClip(),
+      props: [
+        { f: 0, visible: true, ik: { 左足ＩＫ: true, 右足ＩＫ: true } },
+        { f: 50, visible: false, ik: { 左足ＩＫ: true, 右足ＩＫ: false } },
+      ],
+    };
+    const out = setIkRange(clip, ['左足ＩＫ'], 20, 60, false);
+    expect(ikStateAt(out, '左足ＩＫ', 19)).toBe(true);
+    for (const f of [20, 40, 50, 60]) expect(ikStateAt(out, '左足ＩＫ', f)).toBe(false);
+    expect(ikStateAt(out, '左足ＩＫ', 61)).toBe(true);
+    // Other bones and visibility untouched.
+    expect(ikStateAt(out, '右足ＩＫ', 55)).toBe(false);
+    expect(ikStateAt(out, '右足ＩＫ', 30)).toBe(true);
+    expect(out.props.find((k) => k.f === 50)!.visible).toBe(false);
+    // Default (no property track) → on outside the range.
+    const bare = setIkRange(emptyClip(), ['左足ＩＫ'], 5, 10, false);
+    expect(ikStateAt(bare, '左足ＩＫ', 4)).toBe(true);
+    expect(ikStateAt(bare, '左足ＩＫ', 7)).toBe(false);
+    expect(ikStateAt(bare, '左足ＩＫ', 11)).toBe(true);
+  });
+
+  it('writes dense keys without changing motion outside the range', () => {
+    const keys = [0, 30, 60].map((f) => ({
+      f,
+      p: [f / 10, 0, 0] as Vec3,
+      r: [0, 0, 0, 1] as [number, number, number, number],
+      ip: linearCurves(BONE_CHANNELS),
+    }));
+    const clip: MotionClip = { ...emptyClip(), bones: [{ name: '左ひざ', keys }] };
+    const dense = Array.from({ length: 11 }, (_, i) => ({
+      f: 20 + i,
+      r: [0, 0, 0.1, 0.995] as [number, number, number, number],
+    }));
+    const out = writeDenseKeys(clip, 20, 30, { 左ひざ: dense });
+    const t = out.bones[0].keys;
+    expect(t.filter((k) => k.f >= 20 && k.f <= 30).length).toBe(11);
+    for (const f of [5, 19, 45, 60]) expect(sampleBone(t, f).p[0]).toBeCloseTo(sampleBone(keys, f).p[0], 3);
+    expect(sampleBone(t, 25).p[0]).toBeCloseTo(2.5, 3);
   });
 });

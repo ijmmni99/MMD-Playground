@@ -44,6 +44,8 @@ export interface MotionEditorState {
   pip: boolean;
   cameraPath: boolean;
   ikOverlay: boolean;
+  /** Models whose IK solvers are switched off (FK posing / debug). */
+  ikOff: Record<string, boolean>;
   /** Collapsed dope-sheet groups. */
   collapsed: Record<string, boolean>;
   /** Tool range [from, to] (inclusive), null = whole clip. Shift-drag on the ruler sets it. */
@@ -81,6 +83,7 @@ export const useMotionEditor = create<MotionEditorState>(() => ({
   pip: false,
   cameraPath: false,
   ikOverlay: false,
+  ikOff: {},
   collapsed: { fingers: true, other: true },
   range: null,
   view: { start: 0, span: 300 },

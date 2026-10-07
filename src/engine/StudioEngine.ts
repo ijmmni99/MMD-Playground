@@ -128,6 +128,18 @@ export interface StudioEngine {
   ): { r: Record<string, [number, number, number, number]>; pos: Record<string, [number, number, number]> }[];
   getIkChains(modelId: string): { bone: string; target: string; links: string[] }[];
   setIkEnabled(modelId: string, enabled: boolean): void;
+  /** VMD keys that place each IK bone on its chain target in the FK pose (per frame). */
+  fitIkTargets(
+    modelId: string,
+    frames: number[],
+    ikBones: string[],
+  ): Record<string, { f: number; p: [number, number, number]; r: [number, number, number, number] }[]>;
+  /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */
+  setOverlayLines(
+    id: string,
+    segments:
+      { a: [number, number, number]; b: [number, number, number]; color: [number, number, number] }[] | null,
+  ): void;
   loadAudio(file: VFile | null): Promise<AudioInfo | null>;
   setAudioOffset(ms: number): void;
   setVolume(volume: number): void;
