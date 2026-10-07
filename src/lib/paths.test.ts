@@ -1,6 +1,7 @@
 import Encoding from 'encoding-japanese';
 import { describe, expect, it } from 'vitest';
-import { basename, classify, decodeZipName, dirname, extname, joinPath, normalizePath, PathResolver } from './paths';
+import { basename, classify, dirname, extname, joinPath, normalizePath, PathResolver } from './paths';
+import { decodeZipName } from './zipNames';
 
 describe('normalizePath', () => {
   it('converts backslashes and resolves dot segments', () => {

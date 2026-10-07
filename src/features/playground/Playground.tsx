@@ -150,7 +150,7 @@ export default function Playground() {
         </IconButton>
       </div>
       <Group orientation="vertical" id="playground-split">
-        <Panel id="editor" minSize="20%">
+        <Panel id="pg-editor" minSize="20%">
           {showDocs ? (
             <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-relaxed text-fg-muted">{STUDIO_DTS.trim()}</pre>
           ) : (
@@ -170,7 +170,7 @@ export default function Playground() {
           )}
         </Panel>
         <Separator className="resize-handle h-px" aria-label="Resize console" />
-        <Panel id="console" defaultSize="30%" minSize="60px">
+        <Panel id="pg-console" defaultSize="30%" minSize="60px">
           <div className="flex h-full flex-col">
             <div className="flex h-7 shrink-0 items-center justify-between border-b border-line px-2">
               <span className="panel-title">Console</span>

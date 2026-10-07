@@ -45,6 +45,8 @@ export async function recordRealtime(a: RealtimeArgs): Promise<Blob> {
   };
   const stopped = new Promise<void>((resolve) => (recorder.onstop = () => resolve()));
   recorder.start(250);
+  // Give the encoder a first frame before the animation clock starts.
+  await new Promise((r) => setTimeout(r, 120));
   await a.begin();
   const total = Math.max(1, o.endFrame - o.startFrame);
   await new Promise<void>((resolve, reject) => {
@@ -64,6 +66,7 @@ export async function recordRealtime(a: RealtimeArgs): Promise<Blob> {
     video.getTracks().forEach((t) => t.stop());
   });
   await stopped;
+  if (!chunks.length) throw new Error('No video data was captured — try the frame-stepped format');
   a.onProgress({ phase: 'done', progress: 1, frame: o.endFrame });
   return new Blob(chunks, { type: o.mimeType.split(';')[0] });
 }

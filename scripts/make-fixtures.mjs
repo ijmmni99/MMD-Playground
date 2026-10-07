@@ -382,6 +382,19 @@ function wav(seconds = 8, rate = 22050) {
   return Buffer.concat([h, data]);
 }
 
+// Tiny Radiance HDR panorama with flat (non-RLE) RGBE scanlines.
+function hdr(w = 16, h = 8) {
+  const header = Buffer.from(`#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y ${h} +X ${w}\n`, 'ascii');
+  const px = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    // sky blue on top, warm ground below; exponent 129 => values ~[0,2)
+    const [r, g, b] = y < h / 2 ? [90, 150, 255] : [200, 140, 90];
+    px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 129;
+  }
+  return Buffer.concat([header, px]);
+}
+
 const files = {
   'Blocky/blocky.pmx': writePmx(),
   'Blocky/tex/skin.png': png(64, 64, (x, y) => ((x >> 3) + (y >> 3)) % 2 ? [255, 222, 200, 255] : [245, 205, 185, 255]),
@@ -390,8 +403,9 @@ const files = {
   'camera.vmd': writeVmd({ modelName: 'カメラ・照明', cameraKeys }),
   'beat.wav': wav(),
 };
+const e2eOnly = { 'sky.hdr': hdr() };
 for (const root of ['public/sample', 'e2e/fixtures']) {
-  for (const [p, data] of Object.entries(files)) {
+  for (const [p, data] of Object.entries(root === 'e2e/fixtures' ? { ...files, ...e2eOnly } : files)) {
     const full = join(root, p);
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, data);

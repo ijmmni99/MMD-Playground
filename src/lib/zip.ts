@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
-import { decodeZipName, normalizePath } from './paths';
+import { normalizePath } from './paths';
+import { decodeZipName } from './zipNames';
 
 export interface ZipEntry {
   path: string;

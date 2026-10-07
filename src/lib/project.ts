@@ -1,6 +1,5 @@
 import { DEFAULT_CAMERA, DEFAULT_SETTINGS, DEFAULT_TRANSFORM } from '@/engine/defaults';
 import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/types';
-import { unzipBuffer, zipFiles } from './zip';
 
 export const PROJECT_VERSION = 1;
 export const PROJECT_EXT = '.mmdstudio.zip';
@@ -161,11 +160,13 @@ export async function exportProjectZip(doc: ProjectDoc, getBlob: (id: string) =>
     if (!blob) throw new Error(`Missing asset ${id} — cannot export project`);
     files.push({ path: `blobs/${id}`, data: blob });
   }
+  const { zipFiles } = await import('./zip');
   return zipFiles(files);
 }
 
 /** Read a project ZIP. The returned doc gets a fresh id so it never overwrites an existing project. */
 export async function importProjectZip(blob: Blob): Promise<{ doc: ProjectDoc; blobs: Map<string, Blob> }> {
+  const { unzipBuffer } = await import('./zip');
   const entries = await unzipBuffer(await blob.arrayBuffer());
   const json = entries.find((e) => e.path === 'project.json');
   if (!json) throw new Error('project.json not found in archive');

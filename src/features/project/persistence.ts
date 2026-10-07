@@ -12,7 +12,7 @@ import {
 import { engineOrNull, whenEngine } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
 import { initialPlayback, studio, toast, useStudio } from '@/store/studio';
-import { restoreModel } from '@/store/actions';
+import { registerProjectImporter, restoreModel } from '@/store/actions';
 
 const { get, set } = studio;
 const LAST_PROJECT = 'lastProjectId';
@@ -266,3 +266,5 @@ export async function importProjectArchive(blob: Blob): Promise<void> {
   await openProject(doc);
   toast('success', `Imported project “${doc.name}”`);
 }
+
+registerProjectImporter(importProjectArchive);

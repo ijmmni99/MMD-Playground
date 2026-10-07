@@ -16,6 +16,12 @@ const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(
 
 // ---------------------------------------------------------------- import
 
+/** Registered by the persistence module (avoids an import cycle). */
+let projectArchiveImporter: ((blob: Blob) => Promise<void>) | null = null;
+export function registerProjectImporter(fn: (blob: Blob) => Promise<void>): void {
+  projectArchiveImporter = fn;
+}
+
 export async function importDataTransfer(dt: DataTransfer): Promise<void> {
   const files = await collectFromDataTransfer(dt);
   await importFiles(files);
@@ -33,8 +39,8 @@ export async function importFiles(raw: VFile[]): Promise<void> {
   try {
     const projectFiles = raw.filter((f) => f.path.toLowerCase().endsWith('.mmdstudio.zip'));
     if (projectFiles.length) {
-      const { importProjectArchive } = await import('@/features/project/persistence');
-      await importProjectArchive(projectFiles[0].blob);
+      if (!projectArchiveImporter) throw new Error('Project import is not available yet');
+      await projectArchiveImporter(projectFiles[0].blob);
       return;
     }
     const files = await expandZips(raw);

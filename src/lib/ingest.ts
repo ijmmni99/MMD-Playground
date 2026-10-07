@@ -1,7 +1,9 @@
 import type { VFile } from '@/engine/types';
 import { basename, classify, dirname, normalizePath, stripExt } from './paths';
 import { summarizeVmd } from './vmd';
-import { unzipInWorker, type ZipEntry } from './zip';
+import type { ZipEntry } from './zip';
+
+const lazyUnzip = async (blob: Blob): Promise<ZipEntry[]> => (await import('./zip')).unzipInWorker(blob);
 
 // ---------------------------------------------------------------- collection
 
@@ -55,7 +57,7 @@ export function collectFromFileList(list: FileList | File[]): VFile[] {
 /** Replace each non-project ZIP with its entries, placed under a folder named after the archive. */
 export async function expandZips(
   files: VFile[],
-  unzip: (blob: Blob) => Promise<ZipEntry[]> = unzipInWorker,
+  unzip: (blob: Blob) => Promise<ZipEntry[]> = lazyUnzip,
 ): Promise<VFile[]> {
   const out: VFile[] = [];
   for (const f of files) {

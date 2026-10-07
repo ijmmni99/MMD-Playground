@@ -548,25 +548,28 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!file) return;
     const url = URL.createObjectURL(file.blob);
     const isEnv = file.path.toLowerCase().endsWith('.env');
-    const tex: BaseTexture = isEnv
-      ? new CubeTexture(url, this.scene, null, false, null, null, null, undefined, true, '.env')
-      : new HDRCubeTexture(url, this.scene, 512, false, true, false, true);
-    await new Promise<void>((resolve, reject) => {
-      const done = (): void => resolve();
-      if (tex.isReady()) done();
-      else {
-        const t = setInterval(() => {
-          if (tex.isReady()) {
-            clearInterval(t);
-            done();
-          }
-        }, 50);
-        setTimeout(() => {
-          clearInterval(t);
-          if (!tex.isReady()) reject(new Error('Environment texture failed to load'));
-        }, 30000);
-      }
-    }).finally(() => URL.revokeObjectURL(url));
+    let tex: BaseTexture | null = null;
+    try {
+      tex = await new Promise<BaseTexture>((resolve, reject) => {
+        const fail = (message?: string, exception?: unknown): void => {
+          const detail = exception instanceof Error ? exception.message : typeof exception === 'string' ? exception : '';
+          reject(new Error(message || detail || 'Environment texture failed to load'));
+        };
+        const timer = setTimeout(() => fail('Timed out loading environment texture'), 60_000);
+        const done = (t: BaseTexture): void => {
+          clearTimeout(timer);
+          resolve(t);
+        };
+        // onLoad may fire synchronously from the constructor, so defer reading the instance.
+        let created: BaseTexture | null = null;
+        const onLoad = (): void => void setTimeout(() => created && done(created));
+        created = isEnv
+          ? new CubeTexture(url, this.scene, null, false, null, onLoad, (m, e) => fail(m, e), undefined, true, '.env')
+          : new HDRCubeTexture(url, this.scene, 256, false, true, false, true, onLoad, (m, e) => fail(m, e));
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
     this.hdrTexture = tex;
     this.scene.environmentTexture = tex;
     this.skybox = this.scene.createDefaultSkybox(tex, false, 1500, 0) ?? null;
@@ -1322,6 +1325,9 @@ export class BabylonStudioEngine implements StudioEngine {
     this.pause();
     try {
       await this.runtime.seekAnimation(o.startFrame, true);
+      // Warm up at the capture size so resizing and shader compilation don't eat into the take.
+      this.scene.render();
+      this.scene.render();
       if (o.deterministic) {
         const engine = this.engine;
         const originalDelta = engine.getDeltaTime.bind(engine);
@@ -1344,6 +1350,10 @@ export class BabylonStudioEngine implements StudioEngine {
         }
       }
       // realtime: the normal render loop is paused while capturing; drive it ourselves.
+      // Clamp frame deltas so a single slow frame can't jump the animation past the range.
+      const engine = this.engine;
+      const originalDelta = engine.getDeltaTime.bind(engine);
+      engine.getDeltaTime = () => Math.min(originalDelta(), 1000 / 15);
       let raf = 0;
       const tick = (): void => {
         this.scene.render();
@@ -1363,6 +1373,7 @@ export class BabylonStudioEngine implements StudioEngine {
         });
       } finally {
         cancelAnimationFrame(raf);
+        engine.getDeltaTime = originalDelta;
       }
     } finally {
       this.pause();
