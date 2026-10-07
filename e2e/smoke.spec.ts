@@ -89,6 +89,12 @@ test('load model + motion + audio, play, screenshot, restore after reload', asyn
 });
 
 test('built-in sample and playground script', async ({ page }) => {
+  // Surface page diagnostics in CI logs.
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning')
+      console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`);
+  });
+  page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
   await page.goto('/');
   await waitForEngine(page);
   await page.getByLabel('Render quality').selectOption('low');
@@ -98,6 +104,7 @@ test('built-in sample and playground script', async ({ page }) => {
   await page.getByRole('tab', { name: 'playground' }).click();
   await expect(page.getByTestId('playground').locator('.monaco-editor')).toBeVisible({ timeout: 60_000 });
   await page.getByLabel('Load example').selectOption('blink');
-  await page.getByTestId('run-script').click();
+  // dispatchEvent does not wait for input acknowledgement, which can stall under software GL.
+  await page.getByTestId('run-script').dispatchEvent('click');
   await expect(page.getByTestId('console')).toContainText('Blinking with morph: まばたき');
 });
