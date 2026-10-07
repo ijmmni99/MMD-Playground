@@ -16,7 +16,11 @@ const TABS: { id: RightTab; label: string; icon: React.ReactNode }[] = [
 export function Inspector() {
   const tab = useStudio((s) => s.rightTab);
   return (
-    <Tabs.Root value={tab} onValueChange={(v) => studio.set({ rightTab: v as RightTab })} className="flex h-full flex-col bg-bg-panel">
+    <Tabs.Root
+      value={tab}
+      onValueChange={(v) => studio.set({ rightTab: v as RightTab })}
+      className="flex h-full flex-col bg-bg-panel"
+    >
       <Tabs.List aria-label="Inspector" className="flex h-9 shrink-0 border-b border-line px-1">
         {TABS.map((t) => (
           <Tabs.Trigger

@@ -74,10 +74,23 @@ export interface StudioState {
   toasts: Toast[];
   tasks: Record<string, { label: string; progress: number }>;
 
-  project: { id: string; name: string; createdAt: number; dirty: boolean; lastSavedAt: number | null; restoring: boolean };
+  project: {
+    id: string;
+    name: string;
+    createdAt: number;
+    dirty: boolean;
+    lastSavedAt: number | null;
+    restoring: boolean;
+  };
 }
 
-export const initialPlayback: PlaybackState = { playing: false, frame: 0, duration: 0, speed: 1, loop: false };
+export const initialPlayback: PlaybackState = {
+  playing: false,
+  frame: 0,
+  duration: 0,
+  speed: 1,
+  loop: false,
+};
 
 export const useStudio = create<StudioState>(() => ({
   engineReady: false,
@@ -102,7 +115,14 @@ export const useStudio = create<StudioState>(() => ({
   dragActive: false,
   toasts: [],
   tasks: {},
-  project: { id: '', name: 'Untitled project', createdAt: Date.now(), dirty: false, lastSavedAt: null, restoring: false },
+  project: {
+    id: '',
+    name: 'Untitled project',
+    createdAt: Date.now(),
+    dirty: false,
+    lastSavedAt: null,
+    restoring: false,
+  },
 }));
 
 const set = useStudio.setState;
@@ -129,12 +149,15 @@ export function setTask(id: string, label: string, progress: number, done: boole
 }
 
 export function markDirty(): void {
-  if (!get().project.restoring && !get().project.dirty) set((s) => ({ project: { ...s.project, dirty: true } }));
+  if (!get().project.restoring && !get().project.dirty)
+    set((s) => ({ project: { ...s.project, dirty: true } }));
 }
 
 export function updateModel(id: string, patch: Partial<ModelUI> | ((m: ModelUI) => Partial<ModelUI>)): void {
   set((s) => ({
-    models: s.models.map((m) => (m.id === id ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m)),
+    models: s.models.map((m) =>
+      m.id === id ? { ...m, ...(typeof patch === 'function' ? patch(m) : patch) } : m,
+    ),
   }));
   markDirty();
 }

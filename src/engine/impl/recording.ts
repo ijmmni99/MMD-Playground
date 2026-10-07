@@ -106,7 +106,12 @@ export async function recordDeterministic(a: DeterministicArgs): Promise<Blob> {
   let audioCodec: AudioCodec | null = null;
   if (a.audioBuffer) {
     for (const c of audioCodecs) {
-      if (await canEncodeAudio(c, { numberOfChannels: a.audioBuffer.numberOfChannels, sampleRate: a.audioBuffer.sampleRate })) {
+      if (
+        await canEncodeAudio(c, {
+          numberOfChannels: a.audioBuffer.numberOfChannels,
+          sampleRate: a.audioBuffer.sampleRate,
+        })
+      ) {
         audioCodec = c;
         break;
       }
@@ -114,8 +119,15 @@ export async function recordDeterministic(a: DeterministicArgs): Promise<Blob> {
   }
 
   const target = new BufferTarget();
-  const output = new Output({ format: mp4 ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(), target });
-  const videoSource = new CanvasSource(a.canvas, { codec: videoCodec, bitrate: o.bitrate, keyFrameInterval: 2 });
+  const output = new Output({
+    format: mp4 ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(),
+    target,
+  });
+  const videoSource = new CanvasSource(a.canvas, {
+    codec: videoCodec,
+    bitrate: o.bitrate,
+    keyFrameInterval: 2,
+  });
   output.addVideoTrack(videoSource, { frameRate: o.fps });
   let audioSource: AudioBufferSource | null = null;
   if (audioCodec && a.audioBuffer) {
@@ -132,7 +144,11 @@ export async function recordDeterministic(a: DeterministicArgs): Promise<Blob> {
       a.renderFrame();
       await videoSource.add(i / o.fps, 1 / o.fps);
       if (i % 5 === 0) {
-        a.onProgress({ phase: 'recording', progress: i / frameCount, frame: o.startFrame + (i / o.fps) * 30 });
+        a.onProgress({
+          phase: 'recording',
+          progress: i / frameCount,
+          frame: o.startFrame + (i / o.fps) * 30,
+        });
         // yield so the UI can update
         await new Promise((r) => setTimeout(r, 0));
       }

@@ -20,7 +20,11 @@ describe('import planning', () => {
     const plan = await planImport(files);
     expect(plan.models).toHaveLength(1);
     expect(plan.models[0].mainPath).toBe('Blocky/blocky.pmx');
-    expect(plan.models[0].files.map((f) => f.path).sort()).toEqual(['Blocky/blocky.pmx', 'Blocky/tex/hair.png', 'Blocky/tex/skin.png']);
+    expect(plan.models[0].files.map((f) => f.path).sort()).toEqual([
+      'Blocky/blocky.pmx',
+      'Blocky/tex/hair.png',
+      'Blocky/tex/skin.png',
+    ]);
     expect(plan.motions.map((f) => f.path)).toEqual(['dance.vmd']);
     expect(plan.cameraMotions.map((f) => f.path)).toEqual(['camera.vmd']);
     expect(plan.audio.map((f) => f.path)).toEqual(['beat.wav']);
@@ -33,8 +37,16 @@ describe('import planning', () => {
       { path: 'tex/skin.png', data: await fixture('Blocky/tex/skin.png').blob.arrayBuffer() },
       { path: 'motion.vmd', data: await fixture('dance.vmd').blob.arrayBuffer() },
     ]);
-    const files = await expandZips([{ path: 'downloads/MyPack.zip', blob: pack }, fixture('beat.wav')], unzip);
-    expect(files.map((f) => f.path).sort()).toEqual(['beat.wav', 'downloads/MyPack/model.pmx', 'downloads/MyPack/motion.vmd', 'downloads/MyPack/tex/skin.png']);
+    const files = await expandZips(
+      [{ path: 'downloads/MyPack.zip', blob: pack }, fixture('beat.wav')],
+      unzip,
+    );
+    expect(files.map((f) => f.path).sort()).toEqual([
+      'beat.wav',
+      'downloads/MyPack/model.pmx',
+      'downloads/MyPack/motion.vmd',
+      'downloads/MyPack/tex/skin.png',
+    ]);
     const plan = await planImport(files);
     expect(plan.models[0].files.map((f) => f.path)).toContain('downloads/MyPack/tex/skin.png');
     expect(plan.motions).toHaveLength(1);

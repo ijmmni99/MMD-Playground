@@ -50,7 +50,9 @@ function format(v: unknown): string {
 }
 
 let logSeq = 0;
-const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor as new (...args: string[]) => (...a: unknown[]) => Promise<unknown>;
+const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor as new (
+  ...args: string[]
+) => (...a: unknown[]) => Promise<unknown>;
 
 export default function Playground() {
   const [code, setCode] = useState(() => localStorage.getItem(STORAGE_KEY) ?? DEFAULT_SCRIPT);
@@ -152,7 +154,9 @@ export default function Playground() {
       <Group orientation="vertical" id="playground-split">
         <Panel id="pg-editor" minSize="20%">
           {showDocs ? (
-            <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-relaxed text-fg-muted">{STUDIO_DTS.trim()}</pre>
+            <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] leading-relaxed text-fg-muted">
+              {STUDIO_DTS.trim()}
+            </pre>
           ) : (
             <Editor
               height="100%"
@@ -165,7 +169,14 @@ export default function Playground() {
                 localStorage.setItem(STORAGE_KEY, v ?? '');
               }}
               onMount={onMount}
-              options={{ minimap: { enabled: false }, fontSize: 12, tabSize: 2, scrollBeyondLastLine: false, automaticLayout: true, wordWrap: 'on' }}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 12,
+                tabSize: 2,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                wordWrap: 'on',
+              }}
             />
           )}
         </Panel>
@@ -178,9 +189,22 @@ export default function Playground() {
                 <Eraser size={12} />
               </IconButton>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-2 font-mono text-[11px] leading-relaxed" role="log" aria-live="polite" data-testid="console">
+            <div
+              className="min-h-0 flex-1 overflow-auto p-2 font-mono text-[11px] leading-relaxed"
+              role="log"
+              aria-live="polite"
+              data-testid="console"
+            >
               {logs.map((l) => (
-                <div key={l.id} className={cn('whitespace-pre-wrap break-words border-b border-line/40 py-0.5', l.level === 'error' && 'text-danger', l.level === 'warn' && 'text-warn', l.level === 'info' && 'text-fg-dim')}>
+                <div
+                  key={l.id}
+                  className={cn(
+                    'whitespace-pre-wrap break-words border-b border-line/40 py-0.5',
+                    l.level === 'error' && 'text-danger',
+                    l.level === 'warn' && 'text-warn',
+                    l.level === 'info' && 'text-fg-dim',
+                  )}
+                >
                   {l.text}
                 </div>
               ))}

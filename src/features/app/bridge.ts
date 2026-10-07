@@ -15,8 +15,14 @@ export function connectEngine(engine: StudioEngine): () => void {
     engine.events.on('cameraChanged', (c) => {
       const prev = get().camera;
       set({ camera: c });
-      if (prev.mode !== c.mode || Math.abs(prev.radius - c.radius) > 1e-3 || prev.alpha !== c.alpha || prev.beta !== c.beta) {
-        if (!get().project.restoring && get().models.length) set((s) => ({ project: { ...s.project, dirty: true } }));
+      if (
+        prev.mode !== c.mode ||
+        Math.abs(prev.radius - c.radius) > 1e-3 ||
+        prev.alpha !== c.alpha ||
+        prev.beta !== c.beta
+      ) {
+        if (!get().project.restoring && get().models.length)
+          set((s) => ({ project: { ...s.project, dirty: true } }));
       }
     }),
     engine.events.on('boneEdited', (e) => recordBoneEdit(e.modelId, e.bone, e.before, e.after)),

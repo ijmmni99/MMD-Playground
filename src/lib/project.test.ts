@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@/engine/defaults';
-import { createEmptyProject, exportProjectZip, importProjectZip, mergeDefaults, parseProjectDoc, projectBlobIds, type ProjectDoc } from './project';
+import {
+  createEmptyProject,
+  exportProjectZip,
+  importProjectZip,
+  mergeDefaults,
+  parseProjectDoc,
+  projectBlobIds,
+  type ProjectDoc,
+} from './project';
 
 function sampleDoc(): ProjectDoc {
   const doc = createEmptyProject('Dance night');
@@ -13,7 +21,13 @@ function sampleDoc(): ProjectDoc {
       { blobId: 'bbb', path: 'Blocky/tex/skin.png' },
     ],
     motion: { blobId: 'ccc', path: 'dance.vmd' },
-    state: { visible: true, physics: false, transform: { position: [1, 2, 3], rotation: [0, 90, 0], scale: 1.5 }, materials: [{ visible: false, outline: true, alpha: 0.5 }], morphs: { まばたき: 1 } },
+    state: {
+      visible: true,
+      physics: false,
+      transform: { position: [1, 2, 3], rotation: [0, 90, 0], scale: 1.5 },
+      materials: [{ visible: false, outline: true, alpha: 0.5 }],
+      morphs: { まばたき: 1 },
+    },
   });
   doc.audio = { file: { blobId: 'ddd', path: 'song.mp3' }, offsetMs: 120, volume: 0.8 };
   doc.cameraMotion = { blobId: 'eee', path: 'cam.vmd' };
@@ -53,7 +67,10 @@ describe('project serialization', () => {
   });
 
   it('mergeDefaults keeps types', () => {
-    expect(mergeDefaults({ a: 1, b: { c: 'x' } }, { a: '2', b: { c: 'y', d: 1 } })).toEqual({ a: 1, b: { c: 'y' } });
+    expect(mergeDefaults({ a: 1, b: { c: 'x' } }, { a: '2', b: { c: 'y', d: 1 } })).toEqual({
+      a: 1,
+      b: { c: 'y' },
+    });
   });
 
   it('exports and imports a .mmdstudio.zip', async () => {

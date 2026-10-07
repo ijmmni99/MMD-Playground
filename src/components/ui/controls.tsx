@@ -7,30 +7,36 @@ import { cn } from './cn';
 
 type Variant = 'default' | 'primary' | 'ghost' | 'danger';
 
-export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }>(
-  function Button({ variant = 'default', size = 'md', className, ...rest }, ref) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={cn(
-          'inline-flex select-none items-center justify-center gap-1.5 rounded font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
-          size === 'sm' ? 'h-6 px-2 text-[11px]' : 'h-7 px-2.5 text-[12px]',
-          variant === 'primary' && 'bg-accent text-white hover:bg-accent-hover',
-          variant === 'default' && 'border border-line bg-bg-raised text-fg hover:bg-bg-hover',
-          variant === 'ghost' && 'text-fg-muted hover:bg-bg-hover hover:text-fg',
-          variant === 'danger' && 'border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20',
-          className,
-        )}
-        {...rest}
-      />
-    );
-  },
-);
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }
+>(function Button({ variant = 'default', size = 'md', className, ...rest }, ref) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(
+        'inline-flex select-none items-center justify-center gap-1.5 rounded font-medium transition-colors disabled:pointer-events-none disabled:opacity-40',
+        size === 'sm' ? 'h-6 px-2 text-[11px]' : 'h-7 px-2.5 text-[12px]',
+        variant === 'primary' && 'bg-accent text-white hover:bg-accent-hover',
+        variant === 'default' && 'border border-line bg-bg-raised text-fg hover:bg-bg-hover',
+        variant === 'ghost' && 'text-fg-muted hover:bg-bg-hover hover:text-fg',
+        variant === 'danger' && 'border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20',
+        className,
+      )}
+      {...rest}
+    />
+  );
+});
 
 export const IconButton = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean; tooltip?: string; size?: 'sm' | 'md' }
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    label: string;
+    active?: boolean;
+    tooltip?: string;
+    size?: 'sm' | 'md';
+  }
 >(function IconButton({ label, active, className, children, tooltip, size = 'md', ...rest }, ref) {
   const btn = (
     <button
@@ -52,7 +58,15 @@ export const IconButton = forwardRef<
   return <Tip content={tooltip ?? label}>{btn}</Tip>;
 });
 
-export function Tip({ content, children, side = 'bottom' }: { content: ReactNode; children: ReactNode; side?: 'top' | 'bottom' | 'left' | 'right' }) {
+export function Tip({
+  content,
+  children,
+  side = 'bottom',
+}: {
+  content: ReactNode;
+  children: ReactNode;
+  side?: 'top' | 'bottom' | 'left' | 'right';
+}) {
   return (
     <RTooltip.Root delayDuration={350}>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
@@ -69,7 +83,17 @@ export function Tip({ content, children, side = 'bottom' }: { content: ReactNode
   );
 }
 
-export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <RSwitch.Root
       checked={checked}
@@ -152,8 +176,19 @@ export function SliderRow({
       <span className="truncate text-[12px] text-fg-muted" title={label}>
         {label}
       </span>
-      <Slider label={label} value={value} onChange={onChange} onCommit={onCommit} min={min} max={max} step={step} disabled={disabled} />
-      <span className="text-right font-mono text-[11px] tabular-nums text-fg-muted">{format ? format(value) : value.toFixed(2)}</span>
+      <Slider
+        label={label}
+        value={value}
+        onChange={onChange}
+        onCommit={onCommit}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+      />
+      <span className="text-right font-mono text-[11px] tabular-nums text-fg-muted">
+        {format ? format(value) : value.toFixed(2)}
+      </span>
     </div>
   );
 }
@@ -169,7 +204,19 @@ export function Row({ label, children, hint }: { label: string; children: ReactN
   );
 }
 
-export function ToggleRow({ label, checked, onChange, disabled, hint }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; hint?: string }) {
+export function ToggleRow({
+  label,
+  checked,
+  onChange,
+  disabled,
+  hint,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  hint?: string;
+}) {
   return (
     <Row label={label} hint={hint}>
       <Switch label={label} checked={checked} onChange={onChange} disabled={disabled} />
@@ -177,16 +224,42 @@ export function ToggleRow({ label, checked, onChange, disabled, hint }: { label:
   );
 }
 
-export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+export function ColorRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <Row label={label}>
       <span className="font-mono text-[11px] text-fg-dim">{value}</span>
-      <input type="color" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className="h-5 w-8" />
+      <input
+        type="color"
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-5 w-8"
+      />
     </Row>
   );
 }
 
-export function Select<T extends string>({ label, value, options, onChange, hideLabel }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; hideLabel?: boolean }) {
+export function Select<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  hideLabel,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  hideLabel?: boolean;
+}) {
   const select = (
     <select
       aria-label={label}
@@ -205,7 +278,21 @@ export function Select<T extends string>({ label, value, options, onChange, hide
 }
 
 /** Number field that commits on blur/Enter and supports arrow-key nudging. */
-export function NumberField({ label, value, onChange, step = 0.1, precision = 2, className }: { label: string; value: number; onChange: (v: number) => void; step?: number; precision?: number; className?: string }) {
+export function NumberField({
+  label,
+  value,
+  onChange,
+  step = 0.1,
+  precision = 2,
+  className,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  precision?: number;
+  className?: string;
+}) {
   const [text, setText] = useState(value.toFixed(precision));
   useEffect(() => setText(value.toFixed(precision)), [value, precision]);
   const commit = (): void => {
@@ -235,7 +322,17 @@ export function NumberField({ label, value, onChange, step = 0.1, precision = 2,
   );
 }
 
-export function Section({ title, children, defaultOpen = true, actions }: { title: string; children: ReactNode; defaultOpen?: boolean; actions?: ReactNode }) {
+export function Section({
+  title,
+  children,
+  defaultOpen = true,
+  actions,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  actions?: ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
   return (
@@ -267,5 +364,9 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">{children}</kbd>;
+  return (
+    <kbd className="rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
+      {children}
+    </kbd>
+  );
 }

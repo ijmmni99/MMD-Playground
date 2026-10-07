@@ -34,7 +34,11 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
   const [busy, setBusy] = useState(false);
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-bg-panel px-2" role="toolbar" aria-label="Main toolbar">
+    <header
+      className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-bg-panel px-2"
+      role="toolbar"
+      aria-label="Main toolbar"
+    >
       <div className="mr-2 flex items-center gap-2 pl-1">
         <div className="grid h-6 w-6 place-items-center rounded-md bg-accent text-white">
           <Box size={14} />
@@ -68,7 +72,11 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             {project.name}
           </button>
         )}
-        <span className={cn('text-[11px]', project.dirty ? 'text-warn' : 'text-fg-dim')} aria-live="polite" data-testid="save-status">
+        <span
+          className={cn('text-[11px]', project.dirty ? 'text-warn' : 'text-fg-dim')}
+          aria-live="polite"
+          data-testid="save-status"
+        >
           {project.dirty ? 'Unsaved' : project.lastSavedAt ? 'Saved' : ''}
         </span>
       </div>
@@ -79,7 +87,10 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
       <IconButton label="Projects…" onClick={() => studio.set({ dialog: 'projects' })}>
         <FolderOpen size={15} />
       </IconButton>
-      <IconButton label="Save project (Ctrl+S)" onClick={() => void saveNow({ thumbnail: true, announce: true })}>
+      <IconButton
+        label="Save project (Ctrl+S)"
+        onClick={() => void saveNow({ thumbnail: true, announce: true })}
+      >
         <Save size={15} />
       </IconButton>
       <IconButton
@@ -118,7 +129,10 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             role="tab"
             aria-selected={mode === m}
             onClick={() => studio.set({ mode: m })}
-            className={cn('flex h-6 items-center gap-1 rounded px-2.5 text-[12px] capitalize', mode === m ? 'bg-bg-hover text-fg' : 'text-fg-muted hover:text-fg')}
+            className={cn(
+              'flex h-6 items-center gap-1 rounded px-2.5 text-[12px] capitalize',
+              mode === m ? 'bg-bg-hover text-fg' : 'text-fg-muted hover:text-fg',
+            )}
           >
             {m === 'playground' && <Code2 size={13} />}
             {m}
@@ -151,7 +165,12 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
       <IconButton label="Keyboard shortcuts (?)" onClick={() => studio.set({ dialog: 'shortcuts' })}>
         <Keyboard size={15} />
       </IconButton>
-      <Button variant="ghost" size="sm" className="hidden lg:inline-flex" onClick={() => studio.set({ dialog: 'about' })}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="hidden lg:inline-flex"
+        onClick={() => studio.set({ dialog: 'about' })}
+      >
         About
       </Button>
     </header>

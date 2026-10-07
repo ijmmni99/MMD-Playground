@@ -98,7 +98,9 @@ export function startAutosave(): () => void {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         if (get().project.dirty && !get().project.restoring) {
-          saveNow().catch((e) => toast('error', `Autosave failed: ${e instanceof Error ? e.message : String(e)}`));
+          saveNow().catch((e) =>
+            toast('error', `Autosave failed: ${e instanceof Error ? e.message : String(e)}`),
+          );
         }
       }, AUTOSAVE_MS);
     }
@@ -149,7 +151,12 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
     engine.applySettings(doc.settings);
     const failures: string[] = [];
     for (const [i, m] of doc.models.entries()) {
-      set((s) => ({ tasks: { ...s.tasks, [taskId]: { label: `Restoring ${m.name}…`, progress: i / Math.max(1, doc.models.length) } } }));
+      set((s) => ({
+        tasks: {
+          ...s.tasks,
+          [taskId]: { label: `Restoring ${m.name}…`, progress: i / Math.max(1, doc.models.length) },
+        },
+      }));
       try {
         await restoreModel(m);
       } catch (e) {
@@ -169,7 +176,12 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
         const info = await engine.loadAudio(await resolveRef(doc.audio.file));
         engine.setAudioOffset(doc.audio.offsetMs);
         engine.setVolume(doc.audio.volume);
-        if (info) set({ audio: { info, ref: doc.audio.file }, audioOffsetMs: doc.audio.offsetMs, volume: doc.audio.volume });
+        if (info)
+          set({
+            audio: { info, ref: doc.audio.file },
+            audioOffsetMs: doc.audio.offsetMs,
+            volume: doc.audio.volume,
+          });
       } catch (e) {
         failures.push(`audio: ${String(e)}`);
       }
@@ -190,7 +202,14 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
     set({
       selectedModelId: get().models[0]?.id ?? null,
       camera: engine.getCameraState(),
-      project: { id: doc.id, name: doc.name, createdAt: doc.createdAt, dirty: false, lastSavedAt: doc.updatedAt, restoring: false },
+      project: {
+        id: doc.id,
+        name: doc.name,
+        createdAt: doc.createdAt,
+        dirty: false,
+        lastSavedAt: doc.updatedAt,
+        restoring: false,
+      },
     });
     await store.setMeta(LAST_PROJECT, doc.id);
     if (failures.length) toast('warning', `Some items could not be restored: ${failures.join('; ')}`, 10000);
@@ -206,7 +225,11 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
 export async function newProject(): Promise<void> {
   if (get().project.dirty) await saveNow();
   const doc = createEmptyProject();
-  await openProject({ ...doc, settings: structuredClone(DEFAULT_SETTINGS), camera: structuredClone(DEFAULT_CAMERA) });
+  await openProject({
+    ...doc,
+    settings: structuredClone(DEFAULT_SETTINGS),
+    camera: structuredClone(DEFAULT_CAMERA),
+  });
   await store.saveProject(doc);
 }
 

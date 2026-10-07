@@ -80,7 +80,8 @@ export class PathResolver<T extends { path: string }> {
   }
 }
 
-export type AssetKind = 'model' | 'motion' | 'audio' | 'texture' | 'zip' | 'hdr' | 'project' | 'pose' | 'other';
+export type AssetKind =
+  'model' | 'motion' | 'audio' | 'texture' | 'zip' | 'hdr' | 'project' | 'pose' | 'other';
 
 export function classify(path: string): AssetKind {
   const lower = path.toLowerCase();

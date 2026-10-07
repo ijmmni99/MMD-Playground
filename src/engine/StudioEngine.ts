@@ -77,7 +77,11 @@ export interface StudioEngine {
   setModelVisible(id: string, visible: boolean): void;
   setModelPhysics(id: string, enabled: boolean): void;
   setModelTransform(id: string, transform: TransformState): void;
-  setMaterialState(id: string, index: number, state: { visible?: boolean; outline?: boolean; alpha?: number }): void;
+  setMaterialState(
+    id: string,
+    index: number,
+    state: { visible?: boolean; outline?: boolean; alpha?: number },
+  ): void;
   setMorph(id: string, name: string, weight: number): void;
   getMorphWeights(id: string): Record<string, number>;
   resetMorphs(id: string): void;

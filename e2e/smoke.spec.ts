@@ -3,14 +3,28 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
-const files = ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png', 'dance.vmd', 'camera.vmd', 'beat.wav'].map((f) => join(fixtures, f));
+const files = [
+  'Blocky/blocky.pmx',
+  'Blocky/tex/skin.png',
+  'Blocky/tex/hair.png',
+  'dance.vmd',
+  'camera.vmd',
+  'beat.wav',
+].map((f) => join(fixtures, f));
 
 async function waitForEngine(page: Page): Promise<void> {
-  await page.waitForFunction(() => (window as unknown as { __studio?: unknown }).__studio !== undefined, null, { timeout: 90_000, polling: 500 });
+  await page.waitForFunction(
+    () => (window as unknown as { __studio?: unknown }).__studio !== undefined,
+    null,
+    { timeout: 90_000, polling: 500 },
+  );
 }
 
 const frame = (page: Page): Promise<number> =>
-  page.evaluate(() => (window as unknown as { __studio: { getPlayback(): { frame: number } } }).__studio.getPlayback().frame);
+  page.evaluate(
+    () =>
+      (window as unknown as { __studio: { getPlayback(): { frame: number } } }).__studio.getPlayback().frame,
+  );
 
 test('load model + motion + audio, play, screenshot, restore after reload', async ({ page }) => {
   const errors: string[] = [];

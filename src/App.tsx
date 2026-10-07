@@ -60,7 +60,12 @@ export default function App() {
     if (window.innerWidth < 1100 && !localStorage.getItem('mmd-layout-h')) leftRef.current?.collapse();
   }, [leftRef]);
 
-  const toggles: PanelToggles = { left: !collapsed.left, right: !collapsed.right, bottom: !collapsed.bottom, toggle };
+  const toggles: PanelToggles = {
+    left: !collapsed.left,
+    right: !collapsed.right,
+    bottom: !collapsed.bottom,
+    toggle,
+  };
 
   return (
     <RTooltip.Provider>
@@ -68,7 +73,12 @@ export default function App() {
         <Toolbar panels={toggles} />
         <MobileNotice />
         <div className="min-h-0 flex-1">
-          <Group orientation="horizontal" id="mmd-layout-h" defaultLayout={outer.defaultLayout} onLayoutChanged={outer.onLayoutChanged}>
+          <Group
+            orientation="horizontal"
+            id="mmd-layout-h"
+            defaultLayout={outer.defaultLayout}
+            onLayoutChanged={outer.onLayoutChanged}
+          >
             <Panel
               id="left"
               panelRef={leftRef}
@@ -80,7 +90,13 @@ export default function App() {
               onResize={(size) => setCollapsed((c) => ({ ...c, left: size.inPixels < 2 }))}
             >
               {mode === 'playground' ? (
-                <Suspense fallback={<div className="grid h-full place-items-center bg-bg-panel text-fg-muted">Loading editor…</div>}>
+                <Suspense
+                  fallback={
+                    <div className="grid h-full place-items-center bg-bg-panel text-fg-muted">
+                      Loading editor…
+                    </div>
+                  }
+                >
                   <Playground />
                 </Suspense>
               ) : (
@@ -89,7 +105,12 @@ export default function App() {
             </Panel>
             <Separator className="resize-handle w-px" aria-label="Resize left panel" />
             <Panel id="center" minSize="30%">
-              <Group orientation="vertical" id="mmd-layout-v" defaultLayout={inner.defaultLayout} onLayoutChanged={inner.onLayoutChanged}>
+              <Group
+                orientation="vertical"
+                id="mmd-layout-v"
+                defaultLayout={inner.defaultLayout}
+                onLayoutChanged={inner.onLayoutChanged}
+              >
                 <Panel id="viewport" minSize="25%">
                   <Viewport />
                 </Panel>
@@ -131,11 +152,18 @@ export default function App() {
 }
 
 function MobileNotice() {
-  const [hidden, setHidden] = useState(() => window.innerWidth >= 700 || sessionStorage.getItem('mmd-mobile-ok') === '1');
+  const [hidden, setHidden] = useState(
+    () => window.innerWidth >= 700 || sessionStorage.getItem('mmd-mobile-ok') === '1',
+  );
   if (hidden) return null;
   return (
-    <div role="status" className="flex items-center gap-3 border-b border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn">
-      <span className="flex-1">MMD Studio is designed for desktop or tablet screens. Some panels may be cramped on a phone.</span>
+    <div
+      role="status"
+      className="flex items-center gap-3 border-b border-warn/30 bg-warn/10 px-3 py-2 text-[12px] text-warn"
+    >
+      <span className="flex-1">
+        MMD Studio is designed for desktop or tablet screens. Some panels may be cramped on a phone.
+      </span>
       <button
         type="button"
         className="rounded border border-warn/40 px-2 py-0.5 hover:bg-warn/20"

@@ -1,4 +1,18 @@
-import { ChevronDown, ChevronRight, Pause, Play, Repeat, SkipBack, SkipForward, Square, StepBack, StepForward, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Pause,
+  Play,
+  Repeat,
+  SkipBack,
+  SkipForward,
+  Square,
+  StepBack,
+  StepForward,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton, NumberField, Select } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
@@ -57,21 +71,72 @@ export function Timeline() {
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
-    if (audio) out.push({ key: 'audio', label: `♪ ${audio.info.name}`, kind: 'audio', color: '#4fd18b', depth: 0 });
-    if (cameraMotion) out.push({ key: 'camera', label: `Camera · ${cameraMotion.info.name}`, kind: 'camera', frames: cameraMotion.info.frames, color: '#f5b84a', depth: 0 });
+    if (audio)
+      out.push({ key: 'audio', label: `♪ ${audio.info.name}`, kind: 'audio', color: '#4fd18b', depth: 0 });
+    if (cameraMotion)
+      out.push({
+        key: 'camera',
+        label: `Camera · ${cameraMotion.info.name}`,
+        kind: 'camera',
+        frames: cameraMotion.info.frames,
+        color: '#f5b84a',
+        depth: 0,
+      });
     for (const m of models) {
       if (!m.motion) continue;
       const bones = m.motion.groups.filter((g) => g.kind === 'bone');
       const morphs = m.motion.groups.filter((g) => g.kind === 'morph');
       const key = `m:${m.id}`;
-      out.push({ key, label: m.name, kind: 'model', frames: mergeFrames(m.motion.groups.map((g) => g.frames)), color: '#6d8bff', depth: 0, expandable: true });
+      out.push({
+        key,
+        label: m.name,
+        kind: 'model',
+        frames: mergeFrames(m.motion.groups.map((g) => g.frames)),
+        color: '#6d8bff',
+        depth: 0,
+        expandable: true,
+      });
       if (!expanded[key]) continue;
       const bk = `${key}:bones`;
-      out.push({ key: bk, label: `Bones (${bones.length})`, kind: 'bones', frames: mergeFrames(bones.map((g) => g.frames)), color: '#859dff', depth: 1, expandable: bones.length > 0 });
-      if (expanded[bk]) for (const g of bones) out.push({ key: `${bk}:${g.name}`, label: g.name, kind: 'track', frames: g.frames, color: '#a3b5ff', depth: 2 });
+      out.push({
+        key: bk,
+        label: `Bones (${bones.length})`,
+        kind: 'bones',
+        frames: mergeFrames(bones.map((g) => g.frames)),
+        color: '#859dff',
+        depth: 1,
+        expandable: bones.length > 0,
+      });
+      if (expanded[bk])
+        for (const g of bones)
+          out.push({
+            key: `${bk}:${g.name}`,
+            label: g.name,
+            kind: 'track',
+            frames: g.frames,
+            color: '#a3b5ff',
+            depth: 2,
+          });
       const mk = `${key}:morphs`;
-      out.push({ key: mk, label: `Morphs (${morphs.length})`, kind: 'morphs', frames: mergeFrames(morphs.map((g) => g.frames)), color: '#e58bd8', depth: 1, expandable: morphs.length > 0 });
-      if (expanded[mk]) for (const g of morphs) out.push({ key: `${mk}:${g.name}`, label: g.name, kind: 'track', frames: g.frames, color: '#f0aee6', depth: 2 });
+      out.push({
+        key: mk,
+        label: `Morphs (${morphs.length})`,
+        kind: 'morphs',
+        frames: mergeFrames(morphs.map((g) => g.frames)),
+        color: '#e58bd8',
+        depth: 1,
+        expandable: morphs.length > 0,
+      });
+      if (expanded[mk])
+        for (const g of morphs)
+          out.push({
+            key: `${mk}:${g.name}`,
+            label: g.name,
+            kind: 'track',
+            frames: g.frames,
+            color: '#f0aee6',
+            depth: 2,
+          });
     }
     return out;
   }, [models, cameraMotion, audio, expanded]);
@@ -122,7 +187,11 @@ export function Timeline() {
         r.fillStyle = '#3a4150';
         r.fillRect(x, RULER_H - 8, 1, 8);
         r.fillStyle = '#9aa1b2';
-        r.fillText(step >= MMD_FPS && f % MMD_FPS === 0 ? formatTimecode(f).slice(0, 5) : String(f), x + 3, 4);
+        r.fillText(
+          step >= MMD_FPS && f % MMD_FPS === 0 ? formatTimecode(f).slice(0, 5) : String(f),
+          x + 3,
+          4,
+        );
       }
       if (duration > 0) {
         const endX = frameToX(duration, v);
@@ -143,7 +212,8 @@ export function Timeline() {
       }
       // grid
       ctx.fillStyle = 'rgba(255,255,255,0.035)';
-      for (let f = first; frameToX(f, v) < width; f += step) ctx.fillRect(Math.round(frameToX(f, v)), 0, 1, height);
+      for (let f = first; frameToX(f, v) < width; f += step)
+        ctx.fillRect(Math.round(frameToX(f, v)), 0, 1, height);
       rows.forEach((row, i) => {
         const y = i * ROW_H - scrollTop;
         if (y + ROW_H < 0 || y > height) return;
@@ -160,7 +230,10 @@ export function Timeline() {
           for (let x = 0; x < width; x++) {
             const fr = xToFrame(x, v) + offsetFrames;
             const idx0 = Math.floor((fr / MMD_FPS) * pps);
-            const idx1 = Math.max(idx0 + 1, Math.floor((xToFrame(x + 1, v) + offsetFrames) / MMD_FPS * pps));
+            const idx1 = Math.max(
+              idx0 + 1,
+              Math.floor(((xToFrame(x + 1, v) + offsetFrames) / MMD_FPS) * pps),
+            );
             if (idx0 < 0 || idx0 >= peaks.length) continue;
             let p = 0;
             for (let k = idx0; k < Math.min(idx1, peaks.length); k++) p = Math.max(p, peaks[k]);
@@ -217,7 +290,8 @@ export function Timeline() {
       if (pb) {
         const v = viewRef.current;
         const x = frameToX(pb.frame, v);
-        if (!scrubbing.current && (x > width - 20 || x < 0)) setView({ ...v, start: Math.max(0, pb.frame - 10 / v.zoom) });
+        if (!scrubbing.current && (x > width - 20 || x < 0))
+          setView({ ...v, start: Math.max(0, pb.frame - 10 / v.zoom) });
         draw(pb.frame);
       }
       raf = requestAnimationFrame(loop);
@@ -283,7 +357,10 @@ export function Timeline() {
     <div className="flex h-full flex-col bg-bg-panel" aria-label="Timeline">
       <TransportBar onFit={fit} onZoom={zoomBy} />
       <div className="flex border-b border-line" style={{ height: RULER_H }}>
-        <div className="flex shrink-0 items-center border-r border-line px-2 text-[11px] text-fg-dim" style={{ width: LABEL_W }}>
+        <div
+          className="flex shrink-0 items-center border-r border-line px-2 text-[11px] text-fg-dim"
+          style={{ width: LABEL_W }}
+        >
           {rows.length ? 'Tracks' : ''}
         </div>
         <canvas
@@ -296,11 +373,21 @@ export function Timeline() {
         />
       </div>
       <div ref={areaRef} className="relative min-h-0 flex-1 overflow-hidden">
-        <div className="absolute inset-0 overflow-y-auto" onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
+        <div
+          className="absolute inset-0 overflow-y-auto"
+          onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        >
           <div style={{ height: Math.max(totalHeight, height) }} className="relative">
-            <div className="absolute left-0 top-0 border-r border-line bg-bg-panel" style={{ width: LABEL_W, height: Math.max(totalHeight, height) }}>
+            <div
+              className="absolute left-0 top-0 border-r border-line bg-bg-panel"
+              style={{ width: LABEL_W, height: Math.max(totalHeight, height) }}
+            >
               {rows.map((row) => (
-                <div key={row.key} className="flex items-center gap-1 truncate border-b border-[#1d212b] pr-2 text-[11px]" style={{ height: ROW_H, paddingLeft: 6 + row.depth * 12 }}>
+                <div
+                  key={row.key}
+                  className="flex items-center gap-1 truncate border-b border-[#1d212b] pr-2 text-[11px]"
+                  style={{ height: ROW_H, paddingLeft: 6 + row.depth * 12 }}
+                >
                   {row.expandable ? (
                     <button
                       type="button"
@@ -315,7 +402,10 @@ export function Timeline() {
                     <span className="inline-block w-3" />
                   )}
                   <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: row.color }} />
-                  <span className={cn('truncate', row.kind === 'track' ? 'text-fg-dim' : 'text-fg-muted')} title={row.label}>
+                  <span
+                    className={cn('truncate', row.kind === 'track' ? 'text-fg-dim' : 'text-fg-muted')}
+                    title={row.label}
+                  >
                     {row.label}
                   </span>
                 </div>
@@ -346,14 +436,23 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
   const pb = useStudio((s) => s.playback);
   const engine = engineOrNull;
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2" role="toolbar" aria-label="Transport">
+    <div
+      className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2"
+      role="toolbar"
+      aria-label="Transport"
+    >
       <IconButton label="Jump to start (Home)" onClick={() => engine()?.seek(0)}>
         <SkipBack size={15} />
       </IconButton>
       <IconButton label="Previous frame (←)" onClick={() => engine()?.stepFrames(-1)}>
         <StepBack size={15} />
       </IconButton>
-      <IconButton label={pb.playing ? 'Pause (Space)' : 'Play (Space)'} onClick={togglePlay} className="bg-accent-soft !text-accent" data-testid="play-toggle">
+      <IconButton
+        label={pb.playing ? 'Pause (Space)' : 'Play (Space)'}
+        onClick={togglePlay}
+        className="bg-accent-soft !text-accent"
+        data-testid="play-toggle"
+      >
         {pb.playing ? <Pause size={16} /> : <Play size={16} />}
       </IconButton>
       <IconButton label="Stop" onClick={() => engine()?.stop()}>
@@ -368,12 +467,22 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
       <IconButton label="Loop (L)" active={pb.loop} onClick={() => setLoop(!pb.loop)}>
         <Repeat size={15} />
       </IconButton>
-      <div className="ml-2 flex items-center gap-2 font-mono text-[12px] tabular-nums" aria-live="off" data-testid="timecode">
+      <div
+        className="ml-2 flex items-center gap-2 font-mono text-[12px] tabular-nums"
+        aria-live="off"
+        data-testid="timecode"
+      >
         <span>{formatTimecode(pb.frame)}</span>
         <span className="text-fg-dim">/ {formatTimecode(pb.duration)}</span>
       </div>
       <div className="ml-2 w-16">
-        <NumberField label="Current frame" value={Math.round(pb.frame)} precision={0} step={1} onChange={(f) => engine()?.seek(f)} />
+        <NumberField
+          label="Current frame"
+          value={Math.round(pb.frame)}
+          precision={0}
+          step={1}
+          onChange={(f) => engine()?.seek(f)}
+        />
       </div>
       <div className="flex-1" />
       <Select

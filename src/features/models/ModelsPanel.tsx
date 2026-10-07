@@ -34,7 +34,12 @@ export function ModelsPanel() {
           {models.length === 0 ? (
             <Empty>No models yet. Drop a PMX/PMD folder or ZIP onto the viewport.</Empty>
           ) : (
-            <ul role="listbox" aria-label="Models" className="-mx-1 flex flex-col gap-0.5" data-testid="model-list">
+            <ul
+              role="listbox"
+              aria-label="Models"
+              className="-mx-1 flex flex-col gap-0.5"
+              data-testid="model-list"
+            >
               {models.map((m) => (
                 <ModelRow key={m.id} model={m} selected={m.id === selected} />
               ))}
@@ -101,10 +106,18 @@ function ModelRow({ model, selected }: { model: ModelUI; selected: boolean }) {
           </span>
         )}
         <div className="flex items-center opacity-70 group-hover:opacity-100">
-          <IconButton size="sm" label={model.visible ? 'Hide model' : 'Show model'} onClick={(e) => (e.stopPropagation(), setModelVisible(model.id, !model.visible))}>
+          <IconButton
+            size="sm"
+            label={model.visible ? 'Hide model' : 'Show model'}
+            onClick={(e) => (e.stopPropagation(), setModelVisible(model.id, !model.visible))}
+          >
             {model.visible ? <Eye size={13} /> : <EyeOff size={13} />}
           </IconButton>
-          <IconButton size="sm" label="Duplicate model" onClick={(e) => (e.stopPropagation(), void duplicateModel(model.id))}>
+          <IconButton
+            size="sm"
+            label="Duplicate model"
+            onClick={(e) => (e.stopPropagation(), void duplicateModel(model.id))}
+          >
             <Copy size={13} />
           </IconButton>
           <IconButton
@@ -174,7 +187,11 @@ function MediaSection() {
         <MediaRow
           icon={<Video size={14} />}
           label="Camera motion"
-          value={cameraMotion ? `${cameraMotion.info.name} · ${formatTimecode(cameraMotion.info.frameCount)}` : null}
+          value={
+            cameraMotion
+              ? `${cameraMotion.info.name} · ${formatTimecode(cameraMotion.info.frameCount)}`
+              : null
+          }
           onPick={async () => {
             const [f] = await pickFiles('.vmd');
             if (f) await setCameraMotion(f);
@@ -195,10 +212,24 @@ function MediaSection() {
           <div className="rounded-md border border-line p-2">
             <Row label="Offset (ms)" hint="Positive values start the audio later than the motion">
               <div className="w-20">
-                <NumberField label="Audio offset in milliseconds" value={offset} step={10} precision={0} onChange={(v) => setAudioOffset(Math.round(v))} />
+                <NumberField
+                  label="Audio offset in milliseconds"
+                  value={offset}
+                  step={10}
+                  precision={0}
+                  onChange={(v) => setAudioOffset(Math.round(v))}
+                />
               </div>
             </Row>
-            <SliderRow label="Volume" value={volume} min={0} max={1.5} step={0.01} onChange={setVolume} format={(v) => `${Math.round(v * 100)}%`} />
+            <SliderRow
+              label="Volume"
+              value={volume}
+              min={0}
+              max={1.5}
+              step={0.01}
+              onChange={setVolume}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
           </div>
         )}
       </div>
@@ -206,7 +237,19 @@ function MediaSection() {
   );
 }
 
-function MediaRow({ icon, label, value, onPick, onClear }: { icon: React.ReactNode; label: string; value: string | null; onPick: () => void; onClear: () => void }) {
+function MediaRow({
+  icon,
+  label,
+  value,
+  onPick,
+  onClear,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | null;
+  onPick: () => void;
+  onClear: () => void;
+}) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-line px-2 py-1.5">
       <span className="text-fg-dim">{icon}</span>

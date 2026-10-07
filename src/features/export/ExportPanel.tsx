@@ -28,15 +28,39 @@ const RES_OPTIONS: { value: ResolutionId; label: string }[] = [
   { value: 'custom', label: 'Custom…' },
 ];
 
-function ResolutionPicker({ value, onChange, custom, setCustom, max }: { value: ResolutionId; onChange: (v: ResolutionId) => void; custom: [number, number]; setCustom: (v: [number, number]) => void; max: number }) {
+function ResolutionPicker({
+  value,
+  onChange,
+  custom,
+  setCustom,
+  max,
+}: {
+  value: ResolutionId;
+  onChange: (v: ResolutionId) => void;
+  custom: [number, number];
+  setCustom: (v: [number, number]) => void;
+  max: number;
+}) {
   return (
     <>
       <Select<ResolutionId> label="Resolution" value={value} onChange={onChange} options={RES_OPTIONS} />
       {value === 'custom' && (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 py-1">
-          <NumberField label="Width" value={custom[0]} precision={0} step={16} onChange={(w) => setCustom([Math.min(max, Math.max(16, Math.round(w))), custom[1]])} />
+          <NumberField
+            label="Width"
+            value={custom[0]}
+            precision={0}
+            step={16}
+            onChange={(w) => setCustom([Math.min(max, Math.max(16, Math.round(w))), custom[1]])}
+          />
           <span className="text-fg-dim">×</span>
-          <NumberField label="Height" value={custom[1]} precision={0} step={16} onChange={(h) => setCustom([custom[0], Math.min(max, Math.max(16, Math.round(h)))])} />
+          <NumberField
+            label="Height"
+            value={custom[1]}
+            precision={0}
+            step={16}
+            onChange={(h) => setCustom([custom[0], Math.min(max, Math.max(16, Math.round(h)))])}
+          />
         </div>
       )}
     </>
@@ -101,7 +125,9 @@ function VideoSection() {
   if (!formats.length) {
     return (
       <Section title="Video">
-        <p className="text-[12px] text-warn">This browser cannot record video (MediaRecorder / WebCodecs unavailable).</p>
+        <p className="text-[12px] text-warn">
+          This browser cannot record video (MediaRecorder / WebCodecs unavailable).
+        </p>
       </Section>
     );
   }
@@ -123,7 +149,17 @@ function VideoSection() {
     setProgress({ phase: 'recording', progress: 0, frame: startFrame });
     try {
       const blob = await engine.record(
-        { width: w, height: h, fps, mimeType: format.mimeType, deterministic: format.deterministic, startFrame, endFrame, includeAudio: audio && hasAudio, bitrate },
+        {
+          width: w,
+          height: h,
+          fps,
+          mimeType: format.mimeType,
+          deterministic: format.deterministic,
+          startFrame,
+          endFrame,
+          includeAudio: audio && hasAudio,
+          bitrate,
+        },
         setProgress,
         ctrl.signal,
       );
@@ -141,17 +177,55 @@ function VideoSection() {
   return (
     <Section title="Video">
       <ResolutionPicker value={res} onChange={setRes} custom={custom} setCustom={setCustom} max={3840} />
-      <Select label="Frame rate" value={String(fps)} onChange={(v) => setFps(Number(v))} options={['24', '30', '60'].map((v) => ({ value: v, label: `${v} fps` }))} />
-      <Select label="Format" value={format?.id ?? ''} onChange={setFormatId} options={formats.map((f) => ({ value: f.id, label: f.label }))} />
+      <Select
+        label="Frame rate"
+        value={String(fps)}
+        onChange={(v) => setFps(Number(v))}
+        options={['24', '30', '60'].map((v) => ({ value: v, label: `${v} fps` }))}
+      />
+      <Select
+        label="Format"
+        value={format?.id ?? ''}
+        onChange={setFormatId}
+        options={formats.map((f) => ({ value: f.id, label: f.label }))}
+      />
       {format && <p className="mb-1 text-[11px] leading-relaxed text-fg-dim">{format.description}</p>}
-      <Select label="Quality" value={quality} onChange={setQuality} options={[{ value: 'standard', label: 'Standard' }, { value: 'high', label: 'High' }]} />
-      <Select label="Range" value={range} onChange={setRange} options={[{ value: 'all', label: `Whole timeline (${formatTimecode(duration)})` }, { value: 'custom', label: 'Custom frames' }]} />
+      <Select
+        label="Quality"
+        value={quality}
+        onChange={setQuality}
+        options={[
+          { value: 'standard', label: 'Standard' },
+          { value: 'high', label: 'High' },
+        ]}
+      />
+      <Select
+        label="Range"
+        value={range}
+        onChange={setRange}
+        options={[
+          { value: 'all', label: `Whole timeline (${formatTimecode(duration)})` },
+          { value: 'custom', label: 'Custom frames' },
+        ]}
+      />
       {range === 'custom' && (
         <div className="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-1 py-1 text-[11px] text-fg-dim">
           from
-          <NumberField label="Start frame" value={start} precision={0} step={1} onChange={(v) => setStart(Math.max(0, Math.round(v)))} />
+          <NumberField
+            label="Start frame"
+            value={start}
+            precision={0}
+            step={1}
+            onChange={(v) => setStart(Math.max(0, Math.round(v)))}
+          />
           to
-          <NumberField label="End frame" value={end} precision={0} step={1} onChange={(v) => setEnd(Math.max(1, Math.round(v)))} />
+          <NumberField
+            label="End frame"
+            value={end}
+            precision={0}
+            step={1}
+            onChange={(v) => setEnd(Math.max(1, Math.round(v)))}
+          />
         </div>
       )}
       <ToggleRow label="Include audio" checked={audio && hasAudio} disabled={!hasAudio} onChange={setAudio} />
@@ -161,20 +235,36 @@ function VideoSection() {
             <span className="capitalize">{progress.phase}…</span>
             <span className="font-mono">{Math.round(progress.progress * 100)}%</span>
           </div>
-          <div className="mb-2 h-1.5 overflow-hidden rounded bg-bg-hover" role="progressbar" aria-valuenow={Math.round(progress.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full bg-danger transition-[width]" style={{ width: `${progress.progress * 100}%` }} />
+          <div
+            className="mb-2 h-1.5 overflow-hidden rounded bg-bg-hover"
+            role="progressbar"
+            aria-valuenow={Math.round(progress.progress * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="h-full bg-danger transition-[width]"
+              style={{ width: `${progress.progress * 100}%` }}
+            />
           </div>
           <Button variant="danger" size="sm" className="w-full" onClick={() => abortRef.current?.abort()}>
             <Square size={11} /> Cancel
           </Button>
         </div>
       ) : (
-        <Button variant="primary" className="mt-2 w-full" onClick={() => void record()} data-testid="record-button">
+        <Button
+          variant="primary"
+          className="mt-2 w-full"
+          onClick={() => void record()}
+          data-testid="record-button"
+        >
           <Circle size={12} className="fill-danger text-danger" /> Record video
         </Button>
       )}
       <Row label="Tip">
-        <span className="max-w-[170px] text-right text-[11px] text-fg-dim">Frame-stepped modes never drop frames, even on slow GPUs.</span>
+        <span className="max-w-[170px] text-right text-[11px] text-fg-dim">
+          Frame-stepped modes never drop frames, even on slow GPUs.
+        </span>
       </Row>
     </Section>
   );

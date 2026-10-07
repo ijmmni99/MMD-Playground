@@ -12,7 +12,12 @@ const ICONS = {
 export function Toasts() {
   const toasts = useStudio((s) => s.toasts);
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2" aria-live="polite" role="region" aria-label="Notifications">
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2"
+      aria-live="polite"
+      role="region"
+      aria-label="Notifications"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -24,7 +29,12 @@ export function Toasts() {
         >
           <span className="mt-0.5 shrink-0">{ICONS[t.kind]}</span>
           <span className="min-w-0 flex-1 break-words leading-relaxed">{t.message}</span>
-          <button type="button" aria-label="Dismiss" className="shrink-0 rounded p-0.5 text-fg-dim hover:text-fg" onClick={() => dismissToast(t.id)}>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            className="shrink-0 rounded p-0.5 text-fg-dim hover:text-fg"
+            onClick={() => dismissToast(t.id)}
+          >
             <X size={13} />
           </button>
         </div>

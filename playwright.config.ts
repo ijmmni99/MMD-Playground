@@ -18,10 +18,17 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: {
       executablePath,
-      args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
+      args: [
+        '--use-angle=swiftshader',
+        '--enable-unsafe-swiftshader',
+        '--ignore-gpu-blocklist',
+        '--autoplay-policy=no-user-gesture-required',
+      ],
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
+  ],
   webServer: {
     command: 'pnpm preview --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',

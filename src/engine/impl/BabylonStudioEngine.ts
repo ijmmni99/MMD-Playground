@@ -90,7 +90,13 @@ import { prepareModelFiles } from './modelFiles';
 import { recordDeterministic, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
 
-const CATEGORY: Record<number, MorphCategory> = { 0: 'system', 1: 'eyebrow', 2: 'eye', 3: 'mouth', 4: 'other' };
+const CATEGORY: Record<number, MorphCategory> = {
+  0: 'system',
+  1: 'eyebrow',
+  2: 'eye',
+  3: 'mouth',
+  4: 'other',
+};
 const HEAD_BONES = ['頭', 'head', 'Head'];
 const DEG = Math.PI / 180;
 
@@ -187,7 +193,11 @@ export class BabylonStudioEngine implements StudioEngine {
     const wantGpu = new URLSearchParams(location.search).has('webgpu');
     if (wantGpu && (await WebGPUEngine.IsSupportedAsync)) {
       try {
-        const gpu = new WebGPUEngine(this.canvas, { antialias: true, stencil: true, premultipliedAlpha: false });
+        const gpu = new WebGPUEngine(this.canvas, {
+          antialias: true,
+          stencil: true,
+          premultipliedAlpha: false,
+        });
         await gpu.initAsync();
         this.webgpu = true;
         return gpu;
@@ -198,10 +208,17 @@ export class BabylonStudioEngine implements StudioEngine {
     const gl = new Engine(
       this.canvas,
       true,
-      { preserveDrawingBuffer: false, stencil: true, alpha: true, premultipliedAlpha: false, powerPreference: 'high-performance' },
+      {
+        preserveDrawingBuffer: false,
+        stencil: true,
+        alpha: true,
+        premultipliedAlpha: false,
+        powerPreference: 'high-performance',
+      },
       true,
     );
-    if (gl.webGLVersion < 2) this.events.emit('warning', 'WebGL2 is not available; some features may not work.');
+    if (gl.webGLVersion < 2)
+      this.events.emit('warning', 'WebGL2 is not available; some features may not work.');
     return gl;
   }
 
@@ -217,7 +234,14 @@ export class BabylonStudioEngine implements StudioEngine {
     this.instrumentation.captureFrameTime = true;
 
     // cameras
-    this.orbit = new ArcRotateCamera('orbit', DEFAULT_CAMERA.alpha, DEFAULT_CAMERA.beta, DEFAULT_CAMERA.radius, new Vector3(...DEFAULT_CAMERA.target), scene);
+    this.orbit = new ArcRotateCamera(
+      'orbit',
+      DEFAULT_CAMERA.alpha,
+      DEFAULT_CAMERA.beta,
+      DEFAULT_CAMERA.radius,
+      new Vector3(...DEFAULT_CAMERA.target),
+      scene,
+    );
     this.orbit.minZ = 0.5;
     this.orbit.maxZ = 5000;
     this.orbit.wheelDeltaPercentage = 0.02;
@@ -285,7 +309,10 @@ export class BabylonStudioEngine implements StudioEngine {
 
     // MMD runtime + physics
     await this.initPhysics();
-    const runtime = (this.runtime = new MmdRuntime(scene, this.physicsRuntime ? new MmdBulletPhysics(this.physicsRuntime) : null));
+    const runtime = (this.runtime = new MmdRuntime(
+      scene,
+      this.physicsRuntime ? new MmdBulletPhysics(this.physicsRuntime) : null,
+    ));
     runtime.loggingEnabled = false;
     runtime.register(scene);
     runtime.addAnimatable(this.mmdCamera);
@@ -413,7 +440,11 @@ export class BabylonStudioEngine implements StudioEngine {
     const l = s.lighting;
     const az = l.dirAzimuth * DEG;
     const el = Math.max(5, l.dirElevation) * DEG;
-    const dir = new Vector3(-Math.sin(az) * Math.cos(el), -Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
+    const dir = new Vector3(
+      -Math.sin(az) * Math.cos(el),
+      -Math.sin(el),
+      Math.cos(az) * Math.cos(el),
+    ).normalize();
     this.dirLight.direction = dir;
     this.dirLight.position = dir.scale(-80);
     this.dirLight.intensity = l.dirIntensity;
@@ -424,7 +455,9 @@ export class BabylonStudioEngine implements StudioEngine {
     this.hemiLight.groundColor = hexColor(l.groundColor);
     this.shadowGen.setDarkness(l.shadowDarkness);
     this.shadowGen.usePercentageCloserFiltering = l.softShadows;
-    this.shadowGen.filteringQuality = l.softShadows ? ShadowGenerator.QUALITY_HIGH : ShadowGenerator.QUALITY_LOW;
+    this.shadowGen.filteringQuality = l.softShadows
+      ? ShadowGenerator.QUALITY_HIGH
+      : ShadowGenerator.QUALITY_LOW;
     this.dirLight.shadowEnabled = l.shadows;
     (this.shadowGround.material as ShadowOnlyMaterial).alpha = 1 - l.shadowDarkness;
     this.shadowGround.setEnabled(l.shadows && s.background.showGround);
@@ -462,7 +495,8 @@ export class BabylonStudioEngine implements StudioEngine {
     ip.vignetteWeight = p.vignetteWeight;
     ip.vignetteBlendMode = ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
     this.setSsao(p.ssao);
-    if (prev.postfx.outlineScale !== p.outlineScale) for (const m of this.models.values()) this.applyMaterials(m);
+    if (prev.postfx.outlineScale !== p.outlineScale)
+      for (const m of this.models.values()) this.applyMaterials(m);
 
     // physics
     if (this.physicsRuntime) {
@@ -475,7 +509,9 @@ export class BabylonStudioEngine implements StudioEngine {
   private applyQuality(q: QualityPreset): void {
     this.appliedQuality = q;
     const dpr = window.devicePixelRatio || 1;
-    this.engine.setHardwareScalingLevel(q === 'low' ? 1.5 : q === 'medium' ? 1 / Math.min(dpr, 1.5) : 1 / dpr);
+    this.engine.setHardwareScalingLevel(
+      q === 'low' ? 1.5 : q === 'medium' ? 1 / Math.min(dpr, 1.5) : 1 / dpr,
+    );
     this.pipeline.samples = q === 'low' ? 1 : q === 'medium' ? 4 : 8;
     const size = q === 'low' ? 1024 : q === 'medium' ? 2048 : 4096;
     const casters = this.shadowGen?.getShadowMap()?.renderList?.slice() ?? [];
@@ -498,7 +534,11 @@ export class BabylonStudioEngine implements StudioEngine {
         this.events.emit('warning', 'SSAO is not supported on this device.');
         return;
       }
-      this.ssao = new SSAO2RenderingPipeline('ssao', this.scene, { ssaoRatio: 0.5, blurRatio: 1 }, [this.orbit, this.fly, this.mmdCamera]);
+      this.ssao = new SSAO2RenderingPipeline('ssao', this.scene, { ssaoRatio: 0.5, blurRatio: 1 }, [
+        this.orbit,
+        this.fly,
+        this.mmdCamera,
+      ]);
       this.ssao.radius = 2;
       this.ssao.totalStrength = 1.2;
       this.ssao.samples = 16;
@@ -520,7 +560,12 @@ export class BabylonStudioEngine implements StudioEngine {
         this.bgLayer = new Layer('bg', null, scene, true);
         this.bgLayer.texture = this.bgTexture;
       }
-      if (!this.bgLayer.isEnabled || prev.background.gradientTop !== b.gradientTop || prev.background.gradientBottom !== b.gradientBottom || prev === this.settings) {
+      if (
+        !this.bgLayer.isEnabled ||
+        prev.background.gradientTop !== b.gradientTop ||
+        prev.background.gradientBottom !== b.gradientBottom ||
+        prev === this.settings
+      ) {
         const ctx = this.bgTexture!.getContext();
         const g = ctx.createLinearGradient(0, 0, 0, 256);
         g.addColorStop(0, b.gradientTop);
@@ -548,11 +593,12 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!file) return;
     const url = URL.createObjectURL(file.blob);
     const isEnv = file.path.toLowerCase().endsWith('.env');
-    let tex: BaseTexture | null = null;
+    let tex: BaseTexture;
     try {
       tex = await new Promise<BaseTexture>((resolve, reject) => {
         const fail = (message?: string, exception?: unknown): void => {
-          const detail = exception instanceof Error ? exception.message : typeof exception === 'string' ? exception : '';
+          const detail =
+            exception instanceof Error ? exception.message : typeof exception === 'string' ? exception : '';
           reject(new Error(message || detail || 'Environment texture failed to load'));
         };
         const timer = setTimeout(() => fail('Timed out loading environment texture'), 60_000);
@@ -564,7 +610,18 @@ export class BabylonStudioEngine implements StudioEngine {
         let created: BaseTexture | null = null;
         const onLoad = (): void => void setTimeout(() => created && done(created));
         created = isEnv
-          ? new CubeTexture(url, this.scene, null, false, null, onLoad, (m, e) => fail(m, e), undefined, true, '.env')
+          ? new CubeTexture(
+              url,
+              this.scene,
+              null,
+              false,
+              null,
+              onLoad,
+              (m, e) => fail(m, e),
+              undefined,
+              true,
+              '.env',
+            )
           : new HDRCubeTexture(url, this.scene, 256, false, true, false, true, onLoad, (m, e) => fail(m, e));
       });
     } finally {
@@ -591,7 +648,12 @@ export class BabylonStudioEngine implements StudioEngine {
         },
         onProgress: (ev) => {
           if (ev.lengthComputable && ev.total > 0) {
-            this.events.emit('progress', { id: progressId, label: `Loading ${fileName}`, progress: ev.loaded / ev.total, done: false });
+            this.events.emit('progress', {
+              id: progressId,
+              label: `Loading ${fileName}`,
+              progress: ev.loaded / ev.total,
+              done: false,
+            });
           }
         },
       });
@@ -616,9 +678,15 @@ export class BabylonStudioEngine implements StudioEngine {
         index: i,
         name: b.name,
         parent: b.parentBone ? (boneIndex.get(b.parentBone) ?? -1) : -1,
-        physics: b.rigidBodyIndices.length > 0 && metadata.rigidBodies.some((rb, ri) => b.rigidBodyIndices.includes(ri) && rb.physicsMode !== 0),
+        physics:
+          b.rigidBodyIndices.length > 0 &&
+          metadata.rigidBodies.some((rb, ri) => b.rigidBodyIndices.includes(ri) && rb.physicsMode !== 0),
       }));
-      const morphs: MorphInfo[] = metadata.morphs.map((m, i) => ({ index: i, name: m.name, category: CATEGORY[m.category] ?? 'other' }));
+      const morphs: MorphInfo[] = metadata.morphs.map((m, i) => ({
+        index: i,
+        name: m.name,
+        category: CATEGORY[m.category] ?? 'other',
+      }));
       const matInfos: MaterialInfo[] = materials.map((mat, i) => ({
         index: i,
         name: mat.name,
@@ -654,10 +722,16 @@ export class BabylonStudioEngine implements StudioEngine {
       };
       this.models.set(id, entry);
       if (prepared.missing.length) {
-        this.events.emit('warning', `${name}: ${prepared.missing.length} texture(s) missing — ${prepared.missing.slice(0, 4).join(', ')}${prepared.missing.length > 4 ? '…' : ''}`);
+        this.events.emit(
+          'warning',
+          `${name}: ${prepared.missing.length} texture(s) missing — ${prepared.missing.slice(0, 4).join(', ')}${prepared.missing.length > 4 ? '…' : ''}`,
+        );
       }
       if (prepared.remapped.length) {
-        this.events.emit('warning', `${name}: ${prepared.remapped.length} texture path(s) resolved by filename only.`);
+        this.events.emit(
+          'warning',
+          `${name}: ${prepared.remapped.length} texture path(s) resolved by filename only.`,
+        );
       }
       if (options.state) this.applyModelState(entry, options.state);
       this.applyMaterials(entry);
@@ -677,7 +751,8 @@ export class BabylonStudioEngine implements StudioEngine {
         if (entry.materialState[i]) entry.materialState[i] = { ...entry.materialState[i], ...m };
       });
     }
-    if (state.morphs) for (const [k, v] of Object.entries(state.morphs)) entry.model.morph.setMorphWeight(k, v);
+    if (state.morphs)
+      for (const [k, v] of Object.entries(state.morphs)) entry.model.morph.setMorphWeight(k, v);
   }
 
   removeModel(id: string): void {
@@ -730,12 +805,20 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!m) return;
     m.transform = structuredClone(t);
     m.mesh.position.set(...t.position);
-    m.mesh.rotationQuaternion = Quaternion.FromEulerAngles(t.rotation[0] * DEG, t.rotation[1] * DEG, t.rotation[2] * DEG);
+    m.mesh.rotationQuaternion = Quaternion.FromEulerAngles(
+      t.rotation[0] * DEG,
+      t.rotation[1] * DEG,
+      t.rotation[2] * DEG,
+    );
     m.mesh.scaling.setAll(Math.max(0.01, t.scale));
     if (m.physics && this.settings.physics.enabled) this.runtime.initializeMmdModelPhysics(m.model);
   }
 
-  setMaterialState(id: string, index: number, state: { visible?: boolean; outline?: boolean; alpha?: number }): void {
+  setMaterialState(
+    id: string,
+    index: number,
+    state: { visible?: boolean; outline?: boolean; alpha?: number },
+  ): void {
     const m = this.models.get(id);
     if (!m || !m.materialState[index]) return;
     m.materialState[index] = { ...m.materialState[index], ...state };
@@ -794,7 +877,8 @@ export class BabylonStudioEngine implements StudioEngine {
       }
     }
     for (const t of animation.morphTracks) {
-      if (t.frameNumbers.length > 0) groups.push({ name: t.name, kind: 'morph', frames: Array.from(t.frameNumbers) });
+      if (t.frameNumbers.length > 0)
+        groups.push({ name: t.name, kind: 'morph', frames: Array.from(t.frameNumbers) });
     }
     return { name, frameCount: animation.endFrame, groups };
   }
@@ -875,7 +959,8 @@ export class BabylonStudioEngine implements StudioEngine {
 
   private updateDuration(): void {
     let frames = 0;
-    for (const m of this.models.values()) if (m.motion) frames = Math.max(frames, m.motion.animation.endFrame);
+    for (const m of this.models.values())
+      if (m.motion) frames = Math.max(frames, m.motion.animation.endFrame);
     if (this.cameraMotion) frames = Math.max(frames, this.cameraMotion.animation.endFrame);
     if (this.audio.loaded) frames = Math.max(frames, (this.audio.duration - this.audio.offsetSeconds) * 30);
     this.runtime.setManualAnimationDuration(frames > 0 ? frames : null);
@@ -955,7 +1040,9 @@ export class BabylonStudioEngine implements StudioEngine {
 
   /** World-space bounds from bone positions (mesh bounds in babylon-mmd are padded for skinning). */
   private modelBounds(id?: string): { center: Vector3; size: Vector3 } {
-    const entries = id ? [this.models.get(id)].filter((m): m is ModelEntry => !!m) : [...this.models.values()].filter((m) => m.visible);
+    const entries = id
+      ? [this.models.get(id)].filter((m): m is ModelEntry => !!m)
+      : [...this.models.values()].filter((m) => m.visible);
     if (!entries.length) return { center: new Vector3(0, 10, 0), size: new Vector3(10, 20, 10) };
     const min = new Vector3(Infinity, Infinity, Infinity);
     const max = new Vector3(-Infinity, -Infinity, -Infinity);
@@ -1010,7 +1097,9 @@ export class BabylonStudioEngine implements StudioEngine {
       case 'face': {
         const head = id ? this.findBoneWorld(id, HEAD_BONES) : null;
         // The head bone sits at the neck joint; aim slightly above it at the face.
-        const target = head ? head.add(new Vector3(0, size.y * 0.06, 0)) : center.add(new Vector3(0, size.y * 0.35, 0));
+        const target = head
+          ? head.add(new Vector3(0, size.y * 0.06, 0))
+          : center.add(new Vector3(0, size.y * 0.35, 0));
         set(-Math.PI / 2, Math.PI / 2.05, Math.max(2, fit(size.y * 0.3)), target);
         break;
       }
@@ -1177,7 +1266,13 @@ export class BabylonStudioEngine implements StudioEngine {
     const before = this.dragging.startLocal;
     this.dragging = null;
     const after = this.getBoneTransform(this.selected.modelId, this.selected.bone);
-    if (after) this.events.emit('boneEdited', { modelId: this.selected.modelId, bone: this.selected.bone, before, after });
+    if (after)
+      this.events.emit('boneEdited', {
+        modelId: this.selected.modelId,
+        bone: this.selected.bone,
+        before,
+        after,
+      });
   }
 
   getBoneTransform(modelId: string, bone: number): BoneLocalTransform | null {
@@ -1204,9 +1299,12 @@ export class BabylonStudioEngine implements StudioEngine {
       const p = b.linkedBone.position.subtract(m.restPositions[i]);
       const rotated = Math.abs(q.w) < 0.99999;
       const moved = p.lengthSquared() > 1e-8;
-      if (rotated || moved) bones.push({ name: b.name, rotation: [q.x, q.y, q.z, q.w], position: [p.x, p.y, p.z] });
+      if (rotated || moved)
+        bones.push({ name: b.name, rotation: [q.x, q.y, q.z, q.w], position: [p.x, p.y, p.z] });
     });
-    const morphs = Object.fromEntries(Object.entries(this.getMorphWeights(modelId)).filter(([, v]) => v !== 0));
+    const morphs = Object.fromEntries(
+      Object.entries(this.getMorphWeights(modelId)).filter(([, v]) => v !== 0),
+    );
     return { version: 1, model: m.name, bones, morphs };
   }
 
@@ -1317,7 +1415,11 @@ export class BabylonStudioEngine implements StudioEngine {
     }
   }
 
-  async record(o: RecordOptions, onProgress: (p: RecordProgress) => void, signal: AbortSignal): Promise<Blob> {
+  async record(
+    o: RecordOptions,
+    onProgress: (p: RecordProgress) => void,
+    signal: AbortSignal,
+  ): Promise<Blob> {
     const restoreCapture = this.prepareCapture(false);
     const restoreSize = this.setRenderSize(o.width, o.height);
     const wasLoop = this.loop;

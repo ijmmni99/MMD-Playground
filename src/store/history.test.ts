@@ -45,7 +45,9 @@ describe('undo/redo history', () => {
     for (const v of [0.1, 0.2, 0.3]) {
       const prev = value;
       value = v;
-      store.getState().push({ label: 'morph', key: 'm:1', undo: () => (value = prev), redo: () => (value = v) });
+      store
+        .getState()
+        .push({ label: 'morph', key: 'm:1', undo: () => (value = prev), redo: () => (value = v) });
       advance(50);
     }
     expect(store.getState().past).toHaveLength(1);

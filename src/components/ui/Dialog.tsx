@@ -32,12 +32,17 @@ export function Dialog({
             <div>
               <RDialog.Title className="text-[15px] font-semibold">{title}</RDialog.Title>
               {description ? (
-                <RDialog.Description className="mt-1 text-[12px] text-fg-muted">{description}</RDialog.Description>
+                <RDialog.Description className="mt-1 text-[12px] text-fg-muted">
+                  {description}
+                </RDialog.Description>
               ) : (
                 <RDialog.Description className="sr-only">{title}</RDialog.Description>
               )}
             </div>
-            <RDialog.Close aria-label="Close" className="rounded p-1 text-fg-muted hover:bg-bg-hover hover:text-fg">
+            <RDialog.Close
+              aria-label="Close"
+              className="rounded p-1 text-fg-muted hover:bg-bg-hover hover:text-fg"
+            >
               <X size={16} />
             </RDialog.Close>
           </div>

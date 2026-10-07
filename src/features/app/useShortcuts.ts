@@ -58,7 +58,11 @@ export function useShortcuts(): void {
       switch (e.key) {
         case ' ':
           // Let buttons/switches handle their own Space activation.
-          if (e.target instanceof HTMLButtonElement || (e.target as HTMLElement)?.getAttribute?.('role') === 'switch') return;
+          if (
+            e.target instanceof HTMLButtonElement ||
+            (e.target as HTMLElement)?.getAttribute?.('role') === 'switch'
+          )
+            return;
           e.preventDefault();
           togglePlay();
           break;

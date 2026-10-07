@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { clampFrame, formatTimecode, frameToSeconds, frameToX, keyframeColumns, rulerStep, secondsToFrame, snapFrame, stepFrame, xToFrame, zoomAt } from './timeline';
+import {
+  clampFrame,
+  formatTimecode,
+  frameToSeconds,
+  frameToX,
+  keyframeColumns,
+  rulerStep,
+  secondsToFrame,
+  snapFrame,
+  stepFrame,
+  xToFrame,
+  zoomAt,
+} from './timeline';
 
 describe('timeline math', () => {
   it('converts between frames and seconds at 30fps', () => {

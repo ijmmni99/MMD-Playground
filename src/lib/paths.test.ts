@@ -55,7 +55,9 @@ describe('decodeZipName', () => {
     expect(decodeZipName(new TextEncoder().encode('初音ミク/顔.png'))).toBe('初音ミク/顔.png');
   });
   it('decodes Shift-JIS', () => {
-    const sjis = Uint8Array.from(Encoding.convert(Encoding.stringToCode('初音ミク/テクスチャ/顔.png'), { to: 'SJIS', from: 'UNICODE' }));
+    const sjis = Uint8Array.from(
+      Encoding.convert(Encoding.stringToCode('初音ミク/テクスチャ/顔.png'), { to: 'SJIS', from: 'UNICODE' }),
+    );
     expect(decodeZipName(sjis)).toBe('初音ミク/テクスチャ/顔.png');
   });
 });

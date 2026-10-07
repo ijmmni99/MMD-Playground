@@ -3,6 +3,7 @@
 Browser-only MikuMikuDance studio. Vite + React 18 + TS (strict) + Babylon.js 9 + babylon-mmd.
 
 ## Key technical decisions
+
 - **Runtime**: babylon-mmd JS `MmdRuntime` + `MmdBulletPhysics` on a single-threaded Bullet WASM
   instance (`MmdWasmInstanceTypeSPR`). Single-threaded because GitHub Pages / static hosts cannot
   send COOP/COEP headers required for SharedArrayBuffer.
@@ -20,17 +21,19 @@ Browser-only MikuMikuDance studio. Vite + React 18 + TS (strict) + Babylon.js 9 
 - **Persistence**: IndexedDB stores project docs + file blobs; autosave is debounced.
 
 ## Milestones
-- [ ] a. Scaffold, engine core, viewport (camera modes, grid/axes, stats, quality presets)
-- [ ] b. Asset loading (drop/picker/folders/ZIP worker), path resolution, model list panel
-- [ ] c. Playback, audio sync + offset, timeline (keyframe ticks, camera track, waveform)
-- [ ] d. Bullet physics + model inspector (morphs, bones+gizmo, materials, transform)
-- [ ] e. Lighting, shadows, background/HDR, post-processing, camera tools
-- [ ] f. Pose save/load, screenshot, video recording (realtime + frame-stepped)
-- [ ] g. IndexedDB autosave, recent projects, .mmdstudio.zip export/import
-- [ ] h. Playground tab (Monaco, studio API, 5 examples, console)
-- [ ] i. Polish, shortcuts, undo/redo, a11y, tests (vitest + Playwright), docs, Docker, CI
+
+- [x] a. Scaffold, engine core, viewport (camera modes, grid/axes, stats, quality presets)
+- [x] b. Asset loading (drop/picker/folders/ZIP worker), path resolution, model list panel
+- [x] c. Playback, audio sync + offset, timeline (keyframe ticks, camera track, waveform)
+- [x] d. Bullet physics + model inspector (morphs, bones+gizmo, materials, transform)
+- [x] e. Lighting, shadows, background/HDR, post-processing, camera tools
+- [x] f. Pose save/load, screenshot, video recording (realtime + frame-stepped)
+- [x] g. IndexedDB autosave, recent projects, .mmdstudio.zip export/import
+- [x] h. Playground tab (Monaco, studio API, 5 examples, console)
+- [x] i. Polish, shortcuts, undo/redo, a11y, tests (vitest + Playwright), docs, Docker, CI
 
 ## Test fixtures
+
 `scripts/make-fixtures.mjs` procedurally generates a tiny PMX (bones, hair chain with rigid
 bodies/joints, morphs, texture in a sub-folder), a model VMD, a camera VMD and a WAV. No
 third-party assets are shipped.

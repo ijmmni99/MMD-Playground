@@ -22,7 +22,9 @@ describe('zip', () => {
       type: 'arraybuffer',
       // JSZip's typings say string, but its runtime (and docs) accept raw bytes here.
       encodeFileName: ((name: string) =>
-        Uint8Array.from(Encoding.convert(Encoding.stringToCode(name), { to: 'SJIS', from: 'UNICODE' }))) as unknown as (name: string) => string,
+        Uint8Array.from(
+          Encoding.convert(Encoding.stringToCode(name), { to: 'SJIS', from: 'UNICODE' }),
+        )) as unknown as (name: string) => string,
     });
     const entries = await unzipBuffer(buf);
     expect(entries.map((e) => e.path).sort()).toEqual(['ミク/model.pmx', 'ミク/テクスチャ/顔.png']);

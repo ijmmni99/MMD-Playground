@@ -40,7 +40,9 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<VFile[]
   const out: VFile[] = [];
   const items = Array.from(dt.items ?? []);
   const entries = items
-    .map((it) => (it.kind === 'file' && 'webkitGetAsEntry' in it ? (it.webkitGetAsEntry() as FsEntry | null) : null))
+    .map((it) =>
+      it.kind === 'file' && 'webkitGetAsEntry' in it ? (it.webkitGetAsEntry() as FsEntry | null) : null,
+    )
     .filter((e): e is FsEntry => e !== null);
   if (entries.length) {
     for (const e of entries) await walkEntry(e, out);
@@ -92,7 +94,16 @@ const topDir = (p: string): string => (p.includes('/') ? p.slice(0, p.indexOf('/
 
 /** Decide what to do with a set of dropped files. */
 export async function planImport(files: VFile[]): Promise<ImportPlan> {
-  const plan: ImportPlan = { models: [], motions: [], cameraMotions: [], audio: [], hdr: [], projects: [], poses: [], ignored: [] };
+  const plan: ImportPlan = {
+    models: [],
+    motions: [],
+    cameraMotions: [],
+    audio: [],
+    hdr: [],
+    projects: [],
+    poses: [],
+    ignored: [],
+  };
   const modelFiles = files.filter((f) => classify(f.path) === 'model');
   for (const m of modelFiles) {
     const dir = dirname(m.path);

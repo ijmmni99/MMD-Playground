@@ -1,7 +1,14 @@
 // Orchestration layer: every user intent goes through here. It talks to the engine (via the typed
 // StudioEngine interface), keeps the Zustand store in sync, records undo history and marks the
 // project dirty for autosave.
-import type { CameraMode, CameraPreset, PoseData, SceneSettings, TransformState, VFile } from '@/engine/types';
+import type {
+  CameraMode,
+  CameraPreset,
+  PoseData,
+  SceneSettings,
+  TransformState,
+  VFile,
+} from '@/engine/types';
 import type { BoneLocalTransform, GizmoMode } from '@/engine/StudioEngine';
 import { registerFile, registerFiles, resolveRef, resolveRefs } from '@/lib/assets';
 import { collectFromDataTransfer, collectFromFileList, expandZips, planImport } from '@/lib/ingest';
@@ -48,7 +55,12 @@ export async function importFiles(raw: VFile[]): Promise<void> {
     const engine = await whenEngine();
     const newModelIds: string[] = [];
     for (const [i, m] of plan.models.entries()) {
-      setTask(taskId, `Loading model ${i + 1}/${plan.models.length}`, i / Math.max(1, plan.models.length), false);
+      setTask(
+        taskId,
+        `Loading model ${i + 1}/${plan.models.length}`,
+        i / Math.max(1, plan.models.length),
+        false,
+      );
       try {
         const id = await addModel(m.files, m.mainPath);
         newModelIds.push(id);
@@ -74,7 +86,14 @@ export async function importFiles(raw: VFile[]): Promise<void> {
     }
     if (newModelIds.length && !get().cameraMotion) engine.focusModel();
     if (plan.ignored.length) toast('info', `Skipped ${plan.ignored.length} unsupported file(s)`);
-    if (!plan.models.length && !plan.motions.length && !plan.cameraMotions.length && !plan.audio.length && !plan.hdr.length && !plan.poses.length) {
+    if (
+      !plan.models.length &&
+      !plan.motions.length &&
+      !plan.cameraMotions.length &&
+      !plan.audio.length &&
+      !plan.hdr.length &&
+      !plan.poses.length
+    ) {
       toast('warning', 'No supported files found. Drop PMX/PMD, VMD, audio, HDR or ZIP files.');
     }
   } catch (e) {
@@ -86,7 +105,11 @@ export async function importFiles(raw: VFile[]): Promise<void> {
 
 // ---------------------------------------------------------------- models
 
-export async function addModel(files: VFile[], mainPath: string, opts: { name?: string; select?: boolean } = {}): Promise<string> {
+export async function addModel(
+  files: VFile[],
+  mainPath: string,
+  opts: { name?: string; select?: boolean } = {},
+): Promise<string> {
   const engine = await whenEngine();
   const refs = await registerFiles(files);
   const info = await engine.loadModel(files, mainPath, { name: opts.name });
@@ -105,7 +128,11 @@ export async function addModel(files: VFile[], mainPath: string, opts: { name?: 
     mainPath,
     files: refs,
   };
-  set((s) => ({ models: [...s.models, model], selectedModelId: opts.select === false ? s.selectedModelId : info.id, selectedBone: null }));
+  set((s) => ({
+    models: [...s.models, model],
+    selectedModelId: opts.select === false ? s.selectedModelId : info.id,
+    selectedBone: null,
+  }));
   markDirty();
   toast('success', `Loaded ${info.name}`);
   return info.id;
@@ -202,7 +229,11 @@ export function setTransform(id: string, transform: TransformState, record = tru
   }
 }
 
-export function setMaterial(id: string, index: number, patch: Partial<{ visible: boolean; outline: boolean; alpha: number }>): void {
+export function setMaterial(
+  id: string,
+  index: number,
+  patch: Partial<{ visible: boolean; outline: boolean; alpha: number }>,
+): void {
   engineOrNull()?.setMaterialState(id, index, patch);
   updateModel(id, (m) => ({ materials: m.materials.map((x, i) => (i === index ? { ...x, ...patch } : x)) }));
 }
@@ -253,7 +284,12 @@ export function setGizmoMode(mode: GizmoMode): void {
   set({ gizmoMode: mode });
 }
 
-export function recordBoneEdit(modelId: string, bone: number, before: BoneLocalTransform, after: BoneLocalTransform): void {
+export function recordBoneEdit(
+  modelId: string,
+  bone: number,
+  before: BoneLocalTransform,
+  after: BoneLocalTransform,
+): void {
   useHistory.getState().push({
     label: 'Pose bone',
     undo: () => engineOrNull()?.setBoneTransform(modelId, bone, before),
@@ -335,7 +371,11 @@ export async function assignMotion(modelId: string, file: VFile | null): Promise
     const ref = file ? await registerFile(file) : null;
     const motion = await engine.loadMotion(modelId, file);
     updateModel(modelId, { motion, motionRef: ref });
-    if (file) toast('success', `Motion ${basename(file.path)} → ${get().models.find((m) => m.id === modelId)?.name ?? 'model'}`);
+    if (file)
+      toast(
+        'success',
+        `Motion ${basename(file.path)} → ${get().models.find((m) => m.id === modelId)?.name ?? 'model'}`,
+      );
   } catch (e) {
     toast('error', `Motion failed: ${errMsg(e)}`);
   }
@@ -385,14 +425,16 @@ export async function setHdr(file: VFile | null): Promise<void> {
     const ref: FileRef | null = file ? await registerFile(file) : null;
     await engine.setHdrEnvironment(file);
     set({ hdrRef: ref });
-    if (file) updateSettings((s) => {
-      s.background.mode = 'hdr';
-      s.background.hdrName = stripExt(basename(file.path));
-    });
-    else updateSettings((s) => {
-      s.background.hdrName = null;
-      if (s.background.mode === 'hdr') s.background.mode = 'gradient';
-    });
+    if (file)
+      updateSettings((s) => {
+        s.background.mode = 'hdr';
+        s.background.hdrName = stripExt(basename(file.path));
+      });
+    else
+      updateSettings((s) => {
+        s.background.hdrName = null;
+        if (s.background.mode === 'hdr') s.background.mode = 'gradient';
+      });
   } catch (e) {
     toast('error', `Environment failed: ${errMsg(e)}`);
   }

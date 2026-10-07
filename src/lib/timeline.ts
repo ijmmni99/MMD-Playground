@@ -42,7 +42,13 @@ export function rulerStep(zoom: number, minPx = 60): number {
 }
 
 /** Zoom around an anchor frame so it stays under the cursor. */
-export function zoomAt(view: TimelineView, anchorFrame: number, factor: number, min = 0.2, max = 40): TimelineView {
+export function zoomAt(
+  view: TimelineView,
+  anchorFrame: number,
+  factor: number,
+  min = 0.2,
+  max = 40,
+): TimelineView {
   const zoom = Math.min(max, Math.max(min, view.zoom * factor));
   const start = Math.max(0, anchorFrame - (anchorFrame - view.start) * (view.zoom / zoom));
   return { start, zoom };

@@ -6,7 +6,13 @@ import { IconButton } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import { setEngine } from '@/store/engineRef';
 import { useStudio, studio } from '@/store/studio';
-import { focusSelected, importDataTransfer, setCameraMode, setGizmoMode, updateSettings } from '@/store/actions';
+import {
+  focusSelected,
+  importDataTransfer,
+  setCameraMode,
+  setGizmoMode,
+  updateSettings,
+} from '@/store/actions';
 import { connectEngine } from '@/features/app/bridge';
 import { restoreLastProject, startAutosave } from '@/features/project/persistence';
 import { EmptyState } from './EmptyState';
@@ -107,18 +113,33 @@ export function Viewport() {
           <div className="max-w-md rounded-lg border border-danger/40 bg-bg-panel p-5">
             <h2 className="mb-2 text-[15px] font-semibold text-danger">The 3D engine could not start</h2>
             <p className="text-fg-muted">{error}</p>
-            <p className="mt-3 text-[12px] text-fg-dim">MMD Studio requires WebGL2. Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.</p>
+            <p className="mt-3 text-[12px] text-fg-dim">
+              MMD Studio requires WebGL2. Try an up-to-date Chrome, Edge, Firefox or Safari with hardware
+              acceleration enabled.
+            </p>
           </div>
         </div>
       )}
       {taskList.length > 0 && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 flex w-72 -translate-x-1/2 flex-col gap-2" aria-live="polite">
+        <div
+          className="pointer-events-none absolute bottom-3 left-1/2 flex w-72 -translate-x-1/2 flex-col gap-2"
+          aria-live="polite"
+        >
           {taskList.map(([id, t]) => (
             <div key={id} className="rounded-md border border-line bg-bg-panel/95 px-3 py-2 shadow-lg">
               <div className="mb-1.5 truncate text-[12px]">{t.label}</div>
-              <div className="h-1 overflow-hidden rounded bg-bg-hover" role="progressbar" aria-valuenow={Math.round(t.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className="h-1 overflow-hidden rounded bg-bg-hover"
+                role="progressbar"
+                aria-valuenow={Math.round(t.progress * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
                 <div
-                  className={cn('h-full bg-accent transition-[width]', t.progress <= 0 && 'w-1/3 animate-pulse')}
+                  className={cn(
+                    'h-full bg-accent transition-[width]',
+                    t.progress <= 0 && 'w-1/3 animate-pulse',
+                  )}
                   style={t.progress > 0 ? { width: `${Math.round(t.progress * 100)}%` } : undefined}
                 />
               </div>
@@ -130,7 +151,9 @@ export function Viewport() {
         <div className="pointer-events-none absolute inset-3 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-accent/10">
           <div className="rounded-lg bg-bg-panel/90 px-5 py-3 text-center">
             <div className="text-[15px] font-semibold">Drop to import</div>
-            <div className="text-[12px] text-fg-muted">PMX/PMD models · VMD motions · audio · ZIP packs · folders</div>
+            <div className="text-[12px] text-fg-muted">
+              PMX/PMD models · VMD motions · audio · ZIP packs · folders
+            </div>
           </div>
         </div>
       )}
@@ -147,12 +170,27 @@ function ViewportToolbar() {
   const modes: { mode: CameraMode; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
     { mode: 'orbit', label: 'Orbit camera', icon: <Rotate3D size={15} /> },
     { mode: 'fly', label: 'Free-fly camera (WASD + Q/E)', icon: <Plane size={15} /> },
-    { mode: 'vmd', label: hasCamMotion ? 'Camera motion (VMD)' : 'Camera motion (load a camera VMD first)', icon: <Video size={15} />, disabled: !hasCamMotion },
+    {
+      mode: 'vmd',
+      label: hasCamMotion ? 'Camera motion (VMD)' : 'Camera motion (load a camera VMD first)',
+      icon: <Video size={15} />,
+      disabled: !hasCamMotion,
+    },
   ];
   return (
-    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-md border border-line bg-bg-panel/90 p-1 shadow backdrop-blur" role="toolbar" aria-label="Viewport tools">
+    <div
+      className="absolute left-2 top-2 flex items-center gap-1 rounded-md border border-line bg-bg-panel/90 p-1 shadow backdrop-blur"
+      role="toolbar"
+      aria-label="Viewport tools"
+    >
       {modes.map((m) => (
-        <IconButton key={m.mode} label={m.label} active={cameraMode === m.mode} disabled={m.disabled} onClick={() => setCameraMode(m.mode)}>
+        <IconButton
+          key={m.mode}
+          label={m.label}
+          active={cameraMode === m.mode}
+          disabled={m.disabled}
+          onClick={() => setCameraMode(m.mode)}
+        >
           {m.icon}
         </IconButton>
       ))}
@@ -160,22 +198,42 @@ function ViewportToolbar() {
       <IconButton label="Focus selected model (F)" onClick={focusSelected}>
         <Focus size={15} />
       </IconButton>
-      <IconButton label="Toggle grid" active={settings.showGrid} onClick={() => updateSettings((s) => void (s.viewport.showGrid = !s.viewport.showGrid))}>
+      <IconButton
+        label="Toggle grid"
+        active={settings.showGrid}
+        onClick={() => updateSettings((s) => void (s.viewport.showGrid = !s.viewport.showGrid))}
+      >
         <Grid3x3 size={15} />
       </IconButton>
-      <IconButton label="Toggle axis gizmo" active={settings.showAxes} onClick={() => updateSettings((s) => void (s.viewport.showAxes = !s.viewport.showAxes))}>
+      <IconButton
+        label="Toggle axis gizmo"
+        active={settings.showAxes}
+        onClick={() => updateSettings((s) => void (s.viewport.showAxes = !s.viewport.showAxes))}
+      >
         <Axis3D size={15} />
       </IconButton>
-      <IconButton label="Toggle stats overlay" active={settings.showStats} onClick={() => updateSettings((s) => void (s.viewport.showStats = !s.viewport.showStats))}>
+      <IconButton
+        label="Toggle stats overlay"
+        active={settings.showStats}
+        onClick={() => updateSettings((s) => void (s.viewport.showStats = !s.viewport.showStats))}
+      >
         <BarChart3 size={15} />
       </IconButton>
       {bone !== null && (
         <>
           <div className="mx-1 h-5 w-px bg-line" />
-          <IconButton label="Rotate bone (R)" active={gizmo === 'rotate'} onClick={() => setGizmoMode('rotate')}>
+          <IconButton
+            label="Rotate bone (R)"
+            active={gizmo === 'rotate'}
+            onClick={() => setGizmoMode('rotate')}
+          >
             <Rotate3D size={15} />
           </IconButton>
-          <IconButton label="Move bone (T)" active={gizmo === 'translate'} onClick={() => setGizmoMode('translate')}>
+          <IconButton
+            label="Move bone (T)"
+            active={gizmo === 'translate'}
+            onClick={() => setGizmoMode('translate')}
+          >
             <Move3D size={15} />
           </IconButton>
         </>
@@ -194,9 +252,15 @@ function StatsOverlay() {
   const stats = useStudio((s) => s.stats);
   if (!show) return null;
   return (
-    <div className="pointer-events-none absolute right-2 top-2 rounded-md border border-line bg-black/60 px-2.5 py-1.5 font-mono text-[11px] leading-5 text-fg" data-testid="stats">
+    <div
+      className="pointer-events-none absolute right-2 top-2 rounded-md border border-line bg-black/60 px-2.5 py-1.5 font-mono text-[11px] leading-5 text-fg"
+      data-testid="stats"
+    >
       <div>
-        FPS <span className={cn('font-semibold', (stats?.fps ?? 60) < 30 ? 'text-warn' : 'text-ok')}>{stats?.fps ?? '–'}</span>
+        FPS{' '}
+        <span className={cn('font-semibold', (stats?.fps ?? 60) < 30 ? 'text-warn' : 'text-ok')}>
+          {stats?.fps ?? '–'}
+        </span>
       </div>
       <div>Frame {stats?.frameTimeMs ?? '–'} ms</div>
       <div>Draw calls {stats?.drawCalls ?? '–'}</div>

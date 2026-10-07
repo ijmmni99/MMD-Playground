@@ -15,6 +15,8 @@ describe('summarizeVmd', () => {
     expect(s.isCamera).toBe(true);
   });
   it('rejects non-VMD data', () => {
-    expect(() => summarizeVmd(new TextEncoder().encode('hello world, not a vmd file').buffer as ArrayBuffer)).toThrow();
+    expect(() =>
+      summarizeVmd(new TextEncoder().encode('hello world, not a vmd file').buffer as ArrayBuffer),
+    ).toThrow();
   });
 });

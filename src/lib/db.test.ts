@@ -1,7 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { createEmptyProject } from './project';
-import { collectGarbage, deleteProject, getBlob, getMeta, hashBlob, listProjects, loadProject, putBlob, resetDbConnection, saveProject, setMeta } from './db';
+import {
+  collectGarbage,
+  deleteProject,
+  getBlob,
+  getMeta,
+  hashBlob,
+  listProjects,
+  loadProject,
+  putBlob,
+  resetDbConnection,
+  saveProject,
+  setMeta,
+} from './db';
 
 beforeEach(() => {
   resetDbConnection();

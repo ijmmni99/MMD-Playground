@@ -11,7 +11,9 @@ export interface ZipEntry {
 export async function unzipBuffer(buffer: ArrayBuffer): Promise<ZipEntry[]> {
   const zip = await JSZip.loadAsync(buffer, {
     decodeFileName: (bytes: string[] | Uint8Array | Buffer) =>
-      decodeZipName(bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes as string[], (c) => Number(c))),
+      decodeZipName(
+        bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes as string[], (c) => Number(c)),
+      ),
   });
   const entries: ZipEntry[] = [];
   const files = Object.values(zip.files).filter((f) => !f.dir && !/(^|\/)(__MACOSX|\.DS_Store)/.test(f.name));

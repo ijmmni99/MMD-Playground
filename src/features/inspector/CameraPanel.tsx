@@ -18,7 +18,9 @@ export function CameraPanel() {
   const camera = useStudio((s) => s.camera);
   const hasCamMotion = useStudio((s) => s.cameraMotion !== null);
   const model = useStudio((s) => s.models.find((m) => m.id === s.selectedModelId) ?? null);
-  const followBones = model ? model.info.bones.filter((b) => FOLLOW_BONES.includes(b.name)).map((b) => b.name) : [];
+  const followBones = model
+    ? model.info.bones.filter((b) => FOLLOW_BONES.includes(b.name)).map((b) => b.name)
+    : [];
   return (
     <div>
       <Section title="Camera">
@@ -32,9 +34,22 @@ export function CameraPanel() {
             ...(hasCamMotion ? [{ value: 'vmd' as const, label: 'Camera VMD' }] : []),
           ]}
         />
-        {!hasCamMotion && <p className="mb-1 text-[11px] text-fg-dim">Drop a camera VMD to enable motion camera playback.</p>}
-        <SliderRow label="Field of view" value={camera.fov} min={10} max={100} step={1} format={(v) => `${Math.round(v)}°`} onChange={setFov} disabled={camera.mode === 'vmd'} />
-        {camera.mode === 'vmd' && <p className="text-[11px] text-fg-dim">FOV is driven by the camera motion.</p>}
+        {!hasCamMotion && (
+          <p className="mb-1 text-[11px] text-fg-dim">Drop a camera VMD to enable motion camera playback.</p>
+        )}
+        <SliderRow
+          label="Field of view"
+          value={camera.fov}
+          min={10}
+          max={100}
+          step={1}
+          format={(v) => `${Math.round(v)}°`}
+          onChange={setFov}
+          disabled={camera.mode === 'vmd'}
+        />
+        {camera.mode === 'vmd' && (
+          <p className="text-[11px] text-fg-dim">FOV is driven by the camera motion.</p>
+        )}
       </Section>
       <Section title="Presets">
         <div className="grid grid-cols-2 gap-1.5">
@@ -58,17 +73,23 @@ export function CameraPanel() {
                 aria-label="Bone to follow"
                 className="input h-6 max-w-[150px]"
                 value={camera.follow?.modelId === model.id ? camera.follow.bone : ''}
-                onChange={(e) => setFollow(e.target.value ? { modelId: model.id, bone: e.target.value } : null)}
+                onChange={(e) =>
+                  setFollow(e.target.value ? { modelId: model.id, bone: e.target.value } : null)
+                }
               >
                 <option value="">Off</option>
-                {(followBones.length ? followBones : model.info.bones.slice(0, 50).map((b) => b.name)).map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
+                {(followBones.length ? followBones : model.info.bones.slice(0, 50).map((b) => b.name)).map(
+                  (n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ),
+                )}
               </select>
             </Row>
-            <p className="text-[11px] text-fg-dim">The orbit camera target smoothly tracks the bone while you orbit/zoom freely.</p>
+            <p className="text-[11px] text-fg-dim">
+              The orbit camera target smoothly tracks the bone while you orbit/zoom freely.
+            </p>
           </>
         )}
       </Section>

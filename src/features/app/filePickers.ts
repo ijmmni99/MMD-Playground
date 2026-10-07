@@ -2,7 +2,8 @@ import type { VFile } from '@/engine/types';
 import { importFileList, importFiles } from '@/store/actions';
 import { toast } from '@/store/studio';
 
-export const ACCEPT = '.pmx,.pmd,.bpmx,.vmd,.mp3,.wav,.ogg,.m4a,.flac,.zip,.hdr,.env,.json,.png,.jpg,.jpeg,.bmp,.tga,.dds,.sph,.spa';
+export const ACCEPT =
+  '.pmx,.pmd,.bpmx,.vmd,.mp3,.wav,.ogg,.m4a,.flac,.zip,.hdr,.env,.json,.png,.jpg,.jpeg,.bmp,.tga,.dds,.sph,.spa';
 
 function pick(configure: (input: HTMLInputElement) => void): Promise<FileList | null> {
   return new Promise((resolve) => {
@@ -40,7 +41,14 @@ export async function pickFiles(accept: string, multiple = false): Promise<VFile
   return files ? Array.from(files, (f) => ({ path: f.name, blob: f })) : [];
 }
 
-const SAMPLE_FILES = ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png', 'dance.vmd', 'camera.vmd', 'beat.wav'];
+const SAMPLE_FILES = [
+  'Blocky/blocky.pmx',
+  'Blocky/tex/skin.png',
+  'Blocky/tex/hair.png',
+  'dance.vmd',
+  'camera.vmd',
+  'beat.wav',
+];
 
 /** Load the procedurally generated sample shipped with the app. */
 export async function loadSample(): Promise<void> {

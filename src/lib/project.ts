@@ -65,7 +65,8 @@ export function createEmptyProject(name = 'Untitled project'): ProjectDoc {
   };
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Deep-merge `value` over `defaults`, keeping only keys known to the defaults and matching primitive types. */
 export function mergeDefaults<T>(defaults: T, value: unknown): T {
@@ -105,20 +106,23 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
               visible: state.visible !== false,
               physics: state.physics !== false,
               transform: mergeDefaults(DEFAULT_TRANSFORM, state.transform),
-              materials: Array.isArray(state.materials) ? (state.materials as ModelRuntimeState['materials']) : [],
+              materials: Array.isArray(state.materials)
+                ? (state.materials as ModelRuntimeState['materials'])
+                : [],
               morphs: isObj(state.morphs) ? (state.morphs as Record<string, number>) : {},
             },
           },
         ];
       })
     : [];
-  const audio = isObj(json.audio) && isFileRef(json.audio.file)
-    ? {
-        file: json.audio.file,
-        offsetMs: typeof json.audio.offsetMs === 'number' ? json.audio.offsetMs : 0,
-        volume: typeof json.audio.volume === 'number' ? json.audio.volume : 1,
-      }
-    : null;
+  const audio =
+    isObj(json.audio) && isFileRef(json.audio.file)
+      ? {
+          file: json.audio.file,
+          offsetMs: typeof json.audio.offsetMs === 'number' ? json.audio.offsetMs : 0,
+          volume: typeof json.audio.volume === 'number' ? json.audio.volume : 1,
+        }
+      : null;
   return {
     ...base,
     id: typeof json.id === 'string' ? json.id : base.id,
@@ -149,12 +153,23 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
 }
 
 export function summarize(doc: ProjectDoc): ProjectSummary {
-  return { id: doc.id, name: doc.name, updatedAt: doc.updatedAt, modelCount: doc.models.length, thumbnail: doc.thumbnail };
+  return {
+    id: doc.id,
+    name: doc.name,
+    updatedAt: doc.updatedAt,
+    modelCount: doc.models.length,
+    thumbnail: doc.thumbnail,
+  };
 }
 
 /** Pack a project and all its blobs into a single ZIP. */
-export async function exportProjectZip(doc: ProjectDoc, getBlob: (id: string) => Promise<Blob | undefined>): Promise<Blob> {
-  const files: { path: string; data: Blob | string }[] = [{ path: 'project.json', data: JSON.stringify(doc, null, 2) }];
+export async function exportProjectZip(
+  doc: ProjectDoc,
+  getBlob: (id: string) => Promise<Blob | undefined>,
+): Promise<Blob> {
+  const files: { path: string; data: Blob | string }[] = [
+    { path: 'project.json', data: JSON.stringify(doc, null, 2) },
+  ];
   for (const id of projectBlobIds(doc)) {
     const blob = await getBlob(id);
     if (!blob) throw new Error(`Missing asset ${id} — cannot export project`);

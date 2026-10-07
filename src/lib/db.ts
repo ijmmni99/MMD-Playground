@@ -33,7 +33,9 @@ export async function hashBlob(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
   if (globalThis.crypto?.subtle) {
     const digest = await crypto.subtle.digest('SHA-256', buf);
-    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 40);
   }
   // Fallback (non-secure contexts): FNV-1a over the bytes plus size.
   let h = 0x811c9dc5;

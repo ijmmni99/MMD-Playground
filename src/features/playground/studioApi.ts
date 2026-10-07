@@ -32,7 +32,14 @@ const DEG = Math.PI / 180;
 function quatFromEulerDeg(x: number, y: number, z: number): [number, number, number, number] {
   // YXZ order (Babylon / MMD convention)
   const [hx, hy, hz] = [(x * DEG) / 2, (y * DEG) / 2, (z * DEG) / 2];
-  const [cx, sx, cy, sy, cz, sz] = [Math.cos(hx), Math.sin(hx), Math.cos(hy), Math.sin(hy), Math.cos(hz), Math.sin(hz)];
+  const [cx, sx, cy, sy, cz, sz] = [
+    Math.cos(hx),
+    Math.sin(hx),
+    Math.cos(hy),
+    Math.sin(hy),
+    Math.cos(hz),
+    Math.sin(hz),
+  ];
   return [
     cy * sx * cz + sy * cx * sz,
     sy * cx * cz - cy * sx * sz,
@@ -80,13 +87,18 @@ export function createStudioApi(engine: StudioEngine, out: ScriptConsole) {
       rotateBone: (name, x, y, z) => {
         const i = boneIndex(name);
         const cur = engine.getBoneTransform(id, i);
-        if (cur) engine.setBoneTransform(id, i, { position: cur.position, rotation: quatFromEulerDeg(x, y, z) });
+        if (cur)
+          engine.setBoneTransform(id, i, { position: cur.position, rotation: quatFromEulerDeg(x, y, z) });
       },
       moveBone: (name, x, y, z) => {
         const i = boneIndex(name);
         const cur = engine.getBoneTransform(id, i);
         const r = rest(i);
-        if (cur) engine.setBoneTransform(id, i, { rotation: cur.rotation, position: [r[0] + x, r[1] + y, r[2] + z] });
+        if (cur)
+          engine.setBoneTransform(id, i, {
+            rotation: cur.rotation,
+            position: [r[0] + x, r[1] + y, r[2] + z],
+          });
       },
       resetPose: () => engine.resetPose(id),
     };
@@ -98,14 +110,18 @@ export function createStudioApi(engine: StudioEngine, out: ScriptConsole) {
       const id = store.get().selectedModelId ?? models[0]?.id;
       return id ? handle(id) : undefined;
     }
-    const m = typeof which === 'number' ? models[which] : models.find((x) => x.name === which || x.id === which);
+    const m =
+      typeof which === 'number' ? models[which] : models.find((x) => x.name === which || x.id === which);
     return m ? handle(m.id) : undefined;
   };
 
   const api = {
     /** All models in the scene. */
     get models(): ModelHandle[] {
-      return store.get().models.map((m) => handle(m.id)!).filter(Boolean);
+      return store
+        .get()
+        .models.map((m) => handle(m.id)!)
+        .filter(Boolean);
     },
     /** Get a model by name, id or index (default: selected model). */
     model: (which?: string | number) => pickModel(which),
@@ -139,7 +155,13 @@ export function createStudioApi(engine: StudioEngine, out: ScriptConsole) {
       /** Orbit camera: angles in degrees around the target. */
       orbit: (alphaDeg: number, betaDeg: number, radius?: number) => {
         const s = engine.getCameraState();
-        engine.setCameraState({ ...s, mode: 'orbit', alpha: alphaDeg * DEG, beta: betaDeg * DEG, radius: radius ?? s.radius });
+        engine.setCameraState({
+          ...s,
+          mode: 'orbit',
+          alpha: alphaDeg * DEG,
+          beta: betaDeg * DEG,
+          radius: radius ?? s.radius,
+        });
       },
       lookAt: (x: number, y: number, z: number) => {
         const s = engine.getCameraState();
@@ -153,7 +175,8 @@ export function createStudioApi(engine: StudioEngine, out: ScriptConsole) {
     /** Mutate any scene setting: studio.scene((s) => { s.postfx.bloom = true }) */
     scene: (fn: (draft: SceneSettings) => void) => updateSettings(fn),
     /** Run `cb(deltaSeconds, frame)` every rendered frame until the script is stopped. */
-    onFrame: (cb: (dt: number, frame: number) => void) => track(engine.onBeforeFrame((ms) => cb(ms / 1000, engine.getPlayback().frame))),
+    onFrame: (cb: (dt: number, frame: number) => void) =>
+      track(engine.onBeforeFrame((ms) => cb(ms / 1000, engine.getPlayback().frame))),
     every: (ms: number, cb: () => void) => {
       const t = setInterval(() => {
         try {

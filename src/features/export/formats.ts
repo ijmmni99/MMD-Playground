@@ -46,7 +46,8 @@ export function supportedFormats(): VideoFormat[] {
       mimeType: 'video/mp4',
       ext: 'mp4',
       deterministic: true,
-      description: 'Renders every frame offline with WebCodecs — perfectly smooth, physics-accurate, audio muxed.',
+      description:
+        'Renders every frame offline with WebCodecs — perfectly smooth, physics-accurate, audio muxed.',
     });
     out.push({
       id: 'webm-steps',

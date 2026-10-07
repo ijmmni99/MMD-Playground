@@ -10,6 +10,9 @@ self.onmessage = async (e: MessageEvent<{ id: number; buffer: ArrayBuffer }>) =>
       entries.map((x) => x.data),
     );
   } catch (err) {
-    (self as unknown as DedicatedWorkerGlobalScope).postMessage({ id, error: err instanceof Error ? err.message : String(err) });
+    (self as unknown as DedicatedWorkerGlobalScope).postMessage({
+      id,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 };
