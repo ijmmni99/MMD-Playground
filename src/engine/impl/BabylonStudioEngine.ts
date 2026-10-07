@@ -716,6 +716,9 @@ export class BabylonStudioEngine implements StudioEngine {
     if (enabled && this.settings.physics.enabled) {
       m.model.rigidBodyStates.fill(1);
       this.runtime.initializeMmdModelPhysics(m.model);
+    } else {
+      // 0 = rigid bodies follow their bones (kinematic) instead of being simulated.
+      m.model.rigidBodyStates.fill(0);
     }
   }
 
@@ -947,17 +950,27 @@ export class BabylonStudioEngine implements StudioEngine {
     this.scheduleCameraEmit();
   }
 
+  /** World-space bounds from bone positions (mesh bounds in babylon-mmd are padded for skinning). */
   private modelBounds(id?: string): { center: Vector3; size: Vector3 } {
     const entries = id ? [this.models.get(id)].filter((m): m is ModelEntry => !!m) : [...this.models.values()].filter((m) => m.visible);
     if (!entries.length) return { center: new Vector3(0, 10, 0), size: new Vector3(10, 20, 10) };
-    let min = new Vector3(Infinity, Infinity, Infinity);
-    let max = new Vector3(-Infinity, -Infinity, -Infinity);
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    const tmp = new Vector3();
     for (const e of entries) {
-      e.mesh.computeWorldMatrix(true);
-      const b = e.mesh.getHierarchyBoundingVectors(true);
-      min = Vector3.Minimize(min, b.min);
-      max = Vector3.Maximize(max, b.max);
+      const world = e.mesh.computeWorldMatrix(true);
+      for (const b of e.model.runtimeBones) {
+        b.getWorldTranslationToRef(tmp);
+        Vector3.TransformCoordinatesToRef(tmp, world, tmp);
+        min.minimizeInPlace(tmp);
+        max.maximizeInPlace(tmp);
+      }
     }
+    // Bones sit inside the mesh: pad a little so heads and feet are not cropped.
+    const size = max.subtract(min);
+    const pad = Math.max(size.y * 0.08, 0.5);
+    min.addInPlaceFromFloats(-pad, -pad, -pad);
+    max.addInPlaceFromFloats(pad, pad * 1.5, pad);
     return { center: min.add(max).scale(0.5), size: max.subtract(min) };
   }
 
@@ -965,14 +978,15 @@ export class BabylonStudioEngine implements StudioEngine {
     if (this.cameraMode !== 'orbit') this.setCameraMode('orbit');
     const id = modelId ?? this.selected?.modelId ?? [...this.models.keys()][0];
     const { center, size } = this.modelBounds(id);
-    const fit = (h: number): number => h / 2 / Math.tan(this.orbit.fov / 2) + size.z;
-    const radius = fit(Math.max(size.y, size.x) * 1.15);
+    const fit = (h: number): number => h / 2 / Math.tan(this.orbit.fov / 2) + size.z / 2;
+    const radius = fit(Math.max(size.y, size.x * 0.75) * 1.1);
     const o = this.orbit;
     const set = (alpha: number, beta: number, r: number, target: Vector3): void => {
+      // setTarget() recomputes angles from the current position, so it must come first.
+      o.setTarget(target);
       o.alpha = alpha;
       o.beta = beta;
       o.radius = r;
-      o.setTarget(target);
     };
     switch (preset) {
       case 'front':
@@ -992,8 +1006,9 @@ export class BabylonStudioEngine implements StudioEngine {
         break;
       case 'face': {
         const head = id ? this.findBoneWorld(id, HEAD_BONES) : null;
-        const target = head ?? center.add(new Vector3(0, size.y * 0.35, 0));
-        set(-Math.PI / 2, Math.PI / 2.05, Math.max(3, size.y * 0.35), target);
+        // The head bone sits at the neck joint; aim slightly above it at the face.
+        const target = head ? head.add(new Vector3(0, size.y * 0.06, 0)) : center.add(new Vector3(0, size.y * 0.35, 0));
+        set(-Math.PI / 2, Math.PI / 2.05, Math.max(2, fit(size.y * 0.3)), target);
         break;
       }
     }
@@ -1006,7 +1021,7 @@ export class BabylonStudioEngine implements StudioEngine {
   focusModel(id?: string): void {
     if (this.cameraMode === 'vmd') this.setCameraMode('orbit');
     const { center, size } = this.modelBounds(id);
-    const r = Math.max(size.y, size.x) / 2 / Math.tan(this.orbit.fov / 2) * 1.2 + size.z;
+    const r = (Math.max(size.y, size.x * 0.75) * 1.1) / 2 / Math.tan(this.orbit.fov / 2) + size.z / 2;
     if (this.cameraMode === 'fly') {
       this.fly.position = center.add(new Vector3(0, 0, -r));
       this.fly.setTarget(center);

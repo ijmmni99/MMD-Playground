@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '@/engine/defaults';
+import { createEmptyProject, exportProjectZip, importProjectZip, mergeDefaults, parseProjectDoc, projectBlobIds, type ProjectDoc } from './project';
+
+function sampleDoc(): ProjectDoc {
+  const doc = createEmptyProject('Dance night');
+  doc.models.push({
+    id: 'm1',
+    name: 'Blocky',
+    mainPath: 'Blocky/blocky.pmx',
+    files: [
+      { blobId: 'aaa', path: 'Blocky/blocky.pmx' },
+      { blobId: 'bbb', path: 'Blocky/tex/skin.png' },
+    ],
+    motion: { blobId: 'ccc', path: 'dance.vmd' },
+    state: { visible: true, physics: false, transform: { position: [1, 2, 3], rotation: [0, 90, 0], scale: 1.5 }, materials: [{ visible: false, outline: true, alpha: 0.5 }], morphs: { まばたき: 1 } },
+  });
+  doc.audio = { file: { blobId: 'ddd', path: 'song.mp3' }, offsetMs: 120, volume: 0.8 };
+  doc.cameraMotion = { blobId: 'eee', path: 'cam.vmd' };
+  doc.settings.lighting.dirIntensity = 1.7;
+  return doc;
+}
+
+describe('project serialization', () => {
+  it('round-trips through JSON', () => {
+    const doc = sampleDoc();
+    const parsed = parseProjectDoc(JSON.parse(JSON.stringify(doc)));
+    expect(parsed).toEqual(doc);
+  });
+
+  it('fills missing settings with defaults and drops unknown keys', () => {
+    const doc = sampleDoc() as unknown as Record<string, unknown>;
+    doc.settings = { lighting: { dirIntensity: 2, bogus: true }, postfx: { bloom: 'yes' } };
+    const parsed = parseProjectDoc(doc);
+    expect(parsed.settings.lighting.dirIntensity).toBe(2);
+    expect(parsed.settings.lighting).not.toHaveProperty('bogus');
+    expect(parsed.settings.postfx.bloom).toBe(DEFAULT_SETTINGS.postfx.bloom);
+    expect(parsed.settings.background).toEqual(DEFAULT_SETTINGS.background);
+  });
+
+  it('rejects invalid or future documents', () => {
+    expect(() => parseProjectDoc(null)).toThrow();
+    expect(() => parseProjectDoc({ version: 99 })).toThrow(/Unsupported/);
+  });
+
+  it('skips malformed models instead of failing', () => {
+    const parsed = parseProjectDoc({ version: 1, models: [{ name: 'broken' }, sampleDoc().models[0]] });
+    expect(parsed.models).toHaveLength(1);
+  });
+
+  it('collects referenced blobs', () => {
+    expect([...projectBlobIds(sampleDoc())].sort()).toEqual(['aaa', 'bbb', 'ccc', 'ddd', 'eee']);
+  });
+
+  it('mergeDefaults keeps types', () => {
+    expect(mergeDefaults({ a: 1, b: { c: 'x' } }, { a: '2', b: { c: 'y', d: 1 } })).toEqual({ a: 1, b: { c: 'y' } });
+  });
+
+  it('exports and imports a .mmdstudio.zip', async () => {
+    const doc = sampleDoc();
+    const blobs: Record<string, Blob> = {
+      aaa: new Blob(['pmx']),
+      bbb: new Blob(['png']),
+      ccc: new Blob(['vmd']),
+      ddd: new Blob(['mp3']),
+      eee: new Blob(['cam']),
+    };
+    const zip = await exportProjectZip(doc, async (id) => blobs[id]);
+    const { doc: imported, blobs: restored } = await importProjectZip(zip);
+    expect(imported.id).not.toBe(doc.id);
+    expect({ ...imported, id: doc.id, updatedAt: doc.updatedAt }).toEqual(doc);
+    expect(await restored.get('ddd')!.text()).toBe('mp3');
+    expect(restored.size).toBe(5);
+  });
+
+  it('refuses to export when an asset is missing', async () => {
+    await expect(exportProjectZip(sampleDoc(), async () => undefined)).rejects.toThrow(/Missing asset/);
+  });
+});

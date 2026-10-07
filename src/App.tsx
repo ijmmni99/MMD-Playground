@@ -1,5 +1,5 @@
 import * as RTooltip from '@radix-ui/react-tooltip';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels';
 import { Toolbar } from '@/features/app/Toolbar';
 import { Toasts } from '@/features/app/Toasts';
@@ -40,6 +40,21 @@ export default function App() {
     else panel.collapse();
   };
 
+  // The playground editor needs more room than the scene list.
+  const sceneWidth = useRef<number | null>(null);
+  useEffect(() => {
+    const panel = leftRef.current;
+    if (!panel) return;
+    if (mode === 'playground') {
+      sceneWidth.current = panel.getSize().asPercentage;
+      if (panel.isCollapsed()) panel.expand();
+      if (panel.getSize().asPercentage < 34) panel.resize('34%');
+    } else if (sceneWidth.current !== null) {
+      panel.resize(`${sceneWidth.current}%`);
+      sceneWidth.current = null;
+    }
+  }, [mode, leftRef]);
+
   useEffect(() => {
     // Tablets: start with the scene panel collapsed.
     if (window.innerWidth < 1100 && !localStorage.getItem('mmd-layout-h')) leftRef.current?.collapse();
@@ -59,7 +74,7 @@ export default function App() {
               panelRef={leftRef}
               defaultSize="18%"
               minSize="180px"
-              maxSize="35%"
+              maxSize="50%"
               collapsible
               collapsedSize={0}
               onResize={(size) => setCollapsed((c) => ({ ...c, left: size.inPixels < 2 }))}

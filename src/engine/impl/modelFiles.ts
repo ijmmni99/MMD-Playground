@@ -1,4 +1,5 @@
-import { PmdReader, PmxReader } from 'babylon-mmd';
+import { PmdReader } from 'babylon-mmd/esm/Loader/Parser/pmdReader';
+import { PmxReader } from 'babylon-mmd/esm/Loader/Parser/pmxReader';
 import { basename, dirname, extname, joinPath, normalizePath, PathResolver } from '@/lib/paths';
 import type { VFile } from '../types';
 
