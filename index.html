@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MMD Studio</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <aside id="panel">
+    <h1>MMD Studio</h1>
+    <label>Model (.pmx / .pmd)
+      <input id="model" type="file" accept=".pmx,.pmd" multiple />
+    </label>
+    <small>Select the model file together with its texture files.</small>
+    <label>Motion (.vmd)
+      <input id="motion" type="file" accept=".vmd" />
+    </label>
+    <div class="row">
+      <button id="play">Play</button>
+      <button id="pause">Pause</button>
+      <button id="stop">Stop</button>
+    </div>
+    <div id="status">Load a model to begin.</div>
+  </aside>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

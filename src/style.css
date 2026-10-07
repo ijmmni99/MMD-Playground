@@ -1,0 +1,8 @@
+html, body { margin: 0; height: 100%; background: #1b1d24; color: #e8e8ee; font-family: system-ui, sans-serif; }
+#app { position: fixed; inset: 0; }
+#panel { position: fixed; top: 12px; left: 12px; width: 260px; padding: 12px; background: rgba(20,22,30,.85); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+#panel h1 { margin: 0; font-size: 18px; }
+#panel label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+#panel small, #status { font-size: 12px; opacity: .7; }
+.row { display: flex; gap: 6px; }
+button { flex: 1; padding: 6px; border: 0; border-radius: 4px; background: #4a6cf7; color: #fff; cursor: pointer; }
