@@ -1,0 +1,1367 @@
+import {
+  AbstractEngine,
+  ArcRotateCamera,
+  AssetContainer,
+  AxesViewer,
+  Camera,
+  Color3,
+  Color4,
+  CreateGround,
+  CubeTexture,
+  DefaultRenderingPipeline,
+  DirectionalLight,
+  DynamicTexture,
+  Engine,
+  HDRCubeTexture,
+  HemisphericLight,
+  ImageProcessingConfiguration,
+  Layer,
+  LoadAssetContainerAsync,
+  Matrix,
+  Mesh,
+  PositionGizmo,
+  Quaternion,
+  RotationGizmo,
+  SSAO2RenderingPipeline,
+  Scene,
+  SceneInstrumentation,
+  ShadowGenerator,
+  TransformNode,
+  UniversalCamera,
+  UtilityLayerRenderer,
+  Vector3,
+  WebGPUEngine,
+  type AbstractMesh,
+  type BaseTexture,
+} from '@babylonjs/core';
+import { GridMaterial, ShadowOnlyMaterial } from '@babylonjs/materials';
+import {
+  GetMmdWasmInstance,
+  MmdBulletPhysics,
+  MmdCamera,
+  MmdRuntime,
+  MmdStandardMaterial,
+  MmdStandardMaterialProxy,
+  MmdWasmInstanceTypeSPR,
+  MultiPhysicsRuntime,
+  RegisterDxBmpTextureLoader,
+  SdefInjector,
+  VmdLoader,
+  type MmdAnimation,
+  type MmdMesh,
+  type MmdModel,
+  type MmdModelMetadata,
+  type MmdRuntimeAnimationHandle,
+} from 'babylon-mmd';
+import { Emitter } from '../emitter';
+import { DEFAULT_CAMERA, DEFAULT_SETTINGS } from '../defaults';
+import type {
+  BoneLocalTransform,
+  GizmoMode,
+  LoadModelOptions,
+  RecordProgress,
+  StudioEngine,
+  StudioEvents,
+} from '../StudioEngine';
+import type {
+  AudioInfo,
+  BoneInfo,
+  CameraMode,
+  CameraMotionInfo,
+  CameraPreset,
+  CameraState,
+  MaterialInfo,
+  ModelInfo,
+  ModelRuntimeState,
+  MorphCategory,
+  MorphInfo,
+  MotionInfo,
+  PlaybackState,
+  PoseData,
+  QualityPreset,
+  RecordOptions,
+  SceneSettings,
+  ScreenshotOptions,
+  TransformState,
+  VFile,
+} from '../types';
+import { AudioSync } from './AudioSync';
+import { prepareModelFiles } from './modelFiles';
+import { recordDeterministic, recordRealtime } from './recording';
+import { basename, stripExt } from '@/lib/paths';
+
+const CATEGORY: Record<number, MorphCategory> = { 0: 'system', 1: 'eyebrow', 2: 'eye', 3: 'mouth', 4: 'other' };
+const HEAD_BONES = ['頭', 'head', 'Head'];
+const DEG = Math.PI / 180;
+
+interface ModelEntry {
+  id: string;
+  name: string;
+  container: AssetContainer;
+  mesh: MmdMesh;
+  model: MmdModel;
+  info: ModelInfo;
+  physics: boolean;
+  visible: boolean;
+  motion: { animation: MmdAnimation; handle: MmdRuntimeAnimationHandle } | null;
+  baseOutline: number[];
+  materialState: { visible: boolean; outline: boolean; alpha: number }[];
+  transform: TransformState;
+  restPositions: Vector3[];
+}
+
+let idCounter = 0;
+const newId = (): string => `m${Date.now().toString(36)}${(idCounter++).toString(36)}`;
+
+function hexColor(hex: string): Color3 {
+  return Color3.FromHexString(hex.length === 7 ? hex : '#ffffff');
+}
+
+export class BabylonStudioEngine implements StudioEngine {
+  readonly events = new Emitter<StudioEvents>();
+  physicsAvailable = false;
+  webgpu = false;
+
+  private engine!: AbstractEngine;
+  private scene!: Scene;
+  private runtime!: MmdRuntime;
+  private physicsRuntime: MultiPhysicsRuntime | null = null;
+  private vmdLoader!: VmdLoader;
+  private orbit!: ArcRotateCamera;
+  private fly!: UniversalCamera;
+  private mmdCamera!: MmdCamera;
+  private cameraMode: CameraMode = 'orbit';
+  private cameraMotion: { animation: MmdAnimation; handle: MmdRuntimeAnimationHandle } | null = null;
+  private dirLight!: DirectionalLight;
+  private hemiLight!: HemisphericLight;
+  private shadowGen!: ShadowGenerator;
+  private shadowGround!: Mesh;
+  private grid!: Mesh;
+  private axes: AxesViewer | null = null;
+  private bgLayer: Layer | null = null;
+  private bgTexture: DynamicTexture | null = null;
+  private hdrTexture: BaseTexture | null = null;
+  private skybox: Mesh | null = null;
+  private pipeline!: DefaultRenderingPipeline;
+  private ssao: SSAO2RenderingPipeline | null = null;
+  private instrumentation!: SceneInstrumentation;
+  private readonly models = new Map<string, ModelEntry>();
+  private readonly audio = new AudioSync();
+  private settings: SceneSettings = structuredClone(DEFAULT_SETTINGS);
+  private appliedQuality: QualityPreset | null = null;
+  private loop = false;
+  private speed = 1;
+  private follow: { modelId: string; bone: string } | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private lastStats = 0;
+  private lastPlaybackEmit = 0;
+  private cameraEmitTimer: ReturnType<typeof setTimeout> | null = null;
+  private capturing = false;
+  private disposed = false;
+
+  // posing
+  private utilLayer!: UtilityLayerRenderer;
+  private gizmoProxy!: TransformNode;
+  private rotationGizmo!: RotationGizmo;
+  private positionGizmo!: PositionGizmo;
+  private gizmoMode: GizmoMode = 'rotate';
+  private selected: { modelId: string; bone: number } | null = null;
+  private dragging: {
+    startLocal: BoneLocalTransform;
+    proxyRot: Quaternion;
+    proxyPos: Vector3;
+    parentRot: Quaternion;
+    meshScale: number;
+  } | null = null;
+
+  private constructor(private readonly canvas: HTMLCanvasElement) {}
+
+  static async create(canvas: HTMLCanvasElement): Promise<BabylonStudioEngine> {
+    const e = new BabylonStudioEngine(canvas);
+    await e.init();
+    return e;
+  }
+
+  // ---------------------------------------------------------------- init
+  private async createEngine(): Promise<AbstractEngine> {
+    const wantGpu = new URLSearchParams(location.search).has('webgpu');
+    if (wantGpu && (await WebGPUEngine.IsSupportedAsync)) {
+      try {
+        const gpu = new WebGPUEngine(this.canvas, { antialias: true, stencil: true, premultipliedAlpha: false });
+        await gpu.initAsync();
+        this.webgpu = true;
+        return gpu;
+      } catch (err) {
+        this.events.emit('warning', `WebGPU unavailable, falling back to WebGL2 (${String(err)})`);
+      }
+    }
+    const gl = new Engine(
+      this.canvas,
+      true,
+      { preserveDrawingBuffer: false, stencil: true, alpha: true, premultipliedAlpha: false, powerPreference: 'high-performance' },
+      true,
+    );
+    if (gl.webGLVersion < 2) this.events.emit('warning', 'WebGL2 is not available; some features may not work.');
+    return gl;
+  }
+
+  private async init(): Promise<void> {
+    this.engine = await this.createEngine();
+    SdefInjector.OverrideEngineCreateEffect(this.engine);
+    RegisterDxBmpTextureLoader();
+
+    const scene = (this.scene = new Scene(this.engine));
+    scene.ambientColor = new Color3(0.5, 0.5, 0.5);
+    scene.clearColor = new Color4(0.1, 0.11, 0.14, 1);
+    this.instrumentation = new SceneInstrumentation(scene);
+    this.instrumentation.captureFrameTime = true;
+
+    // cameras
+    this.orbit = new ArcRotateCamera('orbit', DEFAULT_CAMERA.alpha, DEFAULT_CAMERA.beta, DEFAULT_CAMERA.radius, new Vector3(...DEFAULT_CAMERA.target), scene);
+    this.orbit.minZ = 0.5;
+    this.orbit.maxZ = 5000;
+    this.orbit.wheelDeltaPercentage = 0.02;
+    this.orbit.panningSensibility = 60;
+    this.orbit.lowerRadiusLimit = 1;
+    this.orbit.fov = DEFAULT_CAMERA.fov * DEG;
+    this.fly = new UniversalCamera('fly', new Vector3(0, 12, -40), scene);
+    this.fly.minZ = 0.5;
+    this.fly.maxZ = 5000;
+    this.fly.speed = 0.6;
+    this.fly.keysUp = [87];
+    this.fly.keysDown = [83];
+    this.fly.keysLeft = [65];
+    this.fly.keysRight = [68];
+    this.fly.keysUpward = [69];
+    this.fly.keysDownward = [81];
+    this.mmdCamera = new MmdCamera('mmdCamera', new Vector3(0, 10, 0), scene, false);
+    this.mmdCamera.maxZ = 5000;
+    scene.activeCamera = this.orbit;
+    this.orbit.attachControl(true);
+    this.orbit.onViewMatrixChangedObservable.add(() => this.scheduleCameraEmit());
+
+    // lights
+    this.hemiLight = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
+    this.dirLight = new DirectionalLight('sun', new Vector3(0.5, -1, 1), scene);
+    this.dirLight.autoUpdateExtends = true;
+    this.dirLight.autoCalcShadowZBounds = true;
+
+    // ground & helpers
+    this.shadowGround = CreateGround('shadowGround', { width: 200, height: 200 }, scene);
+    const som = new ShadowOnlyMaterial('shadowOnly', scene);
+    som.activeLight = this.dirLight;
+    som.alpha = 0.35;
+    this.shadowGround.material = som;
+    this.shadowGround.receiveShadows = true;
+    this.shadowGround.isPickable = false;
+    this.grid = CreateGround('grid', { width: 200, height: 200 }, scene);
+    this.grid.position.y = 0.01;
+    const gm = new GridMaterial('gridMat', scene);
+    gm.majorUnitFrequency = 10;
+    gm.gridRatio = 1;
+    gm.mainColor = new Color3(0.1, 0.11, 0.14);
+    gm.lineColor = new Color3(0.4, 0.45, 0.55);
+    gm.opacity = 0.55;
+    gm.backFaceCulling = false;
+    this.grid.material = gm;
+    this.grid.isPickable = false;
+
+    this.pipeline = new DefaultRenderingPipeline('post', true, scene, [this.orbit, this.fly, this.mmdCamera]);
+
+    // posing gizmos
+    this.utilLayer = new UtilityLayerRenderer(scene);
+    this.gizmoProxy = new TransformNode('gizmoProxy', scene);
+    this.gizmoProxy.rotationQuaternion = Quaternion.Identity();
+    this.rotationGizmo = new RotationGizmo(this.utilLayer);
+    this.rotationGizmo.updateGizmoRotationToMatchAttachedMesh = true;
+    this.rotationGizmo.scaleRatio = 0.9;
+    this.positionGizmo = new PositionGizmo(this.utilLayer);
+    this.positionGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+    for (const g of [this.rotationGizmo, this.positionGizmo]) {
+      g.onDragStartObservable.add(() => this.onGizmoDragStart());
+      g.onDragObservable.add(() => this.onGizmoDrag());
+      g.onDragEndObservable.add(() => this.onGizmoDragEnd());
+    }
+
+    // MMD runtime + physics
+    await this.initPhysics();
+    const runtime = (this.runtime = new MmdRuntime(scene, this.physicsRuntime ? new MmdBulletPhysics(this.physicsRuntime) : null));
+    runtime.loggingEnabled = false;
+    runtime.register(scene);
+    runtime.addAnimatable(this.mmdCamera);
+    runtime.onPauseAnimationObservable.add(() => this.onRuntimePaused());
+    runtime.onPlayAnimationObservable.add(() => this.emitPlayback(true));
+    runtime.onSeekAnimationObservable.add(() => this.emitPlayback(true));
+    runtime.onAnimationDurationChangedObservable.add(() => this.emitPlayback(true));
+    this.vmdLoader = new VmdLoader(scene);
+    this.vmdLoader.loggingEnabled = false;
+
+    scene.onBeforeRenderObservable.add(() => this.beforeRender());
+    this.applySettings(this.settings);
+
+    this.resizeObserver = new ResizeObserver(() => {
+      if (!this.capturing) this.engine.resize();
+    });
+    this.resizeObserver.observe(this.canvas);
+    this.engine.runRenderLoop(() => {
+      if (!this.capturing) scene.render();
+    });
+  }
+
+  private async initPhysics(): Promise<void> {
+    try {
+      const wasm = await GetMmdWasmInstance(new MmdWasmInstanceTypeSPR());
+      const pr = new MultiPhysicsRuntime(wasm);
+      pr.setGravity(new Vector3(0, -this.settings.physics.gravity, 0));
+      pr.register(this.scene);
+      this.physicsRuntime = pr;
+      this.physicsAvailable = true;
+      this.events.emit('physicsStatus', { available: true });
+    } catch (err) {
+      this.physicsRuntime = null;
+      this.physicsAvailable = false;
+      const message = `Physics engine failed to initialise (${err instanceof Error ? err.message : String(err)}). Models will load without physics.`;
+      this.events.emit('physicsStatus', { available: false, message });
+      this.events.emit('warning', message);
+    }
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.resizeObserver?.disconnect();
+    for (const id of [...this.models.keys()]) this.removeModel(id);
+    this.audio.dispose();
+    this.engine.stopRenderLoop();
+    this.runtime.dispose(this.scene);
+    this.physicsRuntime?.dispose();
+    this.utilLayer.dispose();
+    this.scene.dispose();
+    this.engine.dispose();
+    this.events.clear();
+  }
+
+  // ---------------------------------------------------------------- frame
+  private beforeRender(): void {
+    const now = performance.now();
+    const playing = this.runtime.isAnimationPlaying;
+    this.audio.sync(this.runtime.currentTime, playing, this.speed);
+
+    for (const m of this.models.values()) {
+      if (!m.physics || !this.settings.physics.enabled) m.model.rigidBodyStates.fill(0);
+    }
+
+    if (this.follow) {
+      const pos = this.boneWorldPosition(this.follow.modelId, this.follow.bone);
+      if (pos) Vector3.LerpToRef(this.orbit.target, pos, 0.2, this.orbit.target);
+    }
+    if (this.selected && !this.dragging) this.syncProxyToBone();
+
+    if (playing && now - this.lastPlaybackEmit > 66) this.emitPlayback();
+    if (this.settings.viewport.showStats && now - this.lastStats > 500) {
+      this.lastStats = now;
+      this.events.emit('stats', {
+        fps: Math.round(this.engine.getFps()),
+        drawCalls: this.instrumentation.drawCallsCounter.current,
+        activeMeshes: this.scene.getActiveMeshes().length,
+        frameTimeMs: Math.round(this.instrumentation.frameTimeCounter.lastSecAverage * 10) / 10,
+      });
+    }
+  }
+
+  private emitPlayback(force = false): void {
+    const now = performance.now();
+    if (!force && now - this.lastPlaybackEmit < 30) return;
+    this.lastPlaybackEmit = now;
+    this.events.emit('playback', this.getPlayback());
+  }
+
+  private onRuntimePaused(): void {
+    const dur = this.runtime.animationFrameTimeDuration;
+    if (this.loop && dur > 0 && this.runtime.currentFrameTime >= dur - 0.01 && !this.capturing) {
+      void this.runtime.seekAnimation(0, true).then(() => this.runtime.playAnimation());
+    }
+    this.emitPlayback(true);
+  }
+
+  getPlayback(): PlaybackState {
+    return {
+      playing: this.runtime.isAnimationPlaying,
+      frame: this.runtime.currentFrameTime,
+      duration: this.runtime.animationFrameTimeDuration,
+      speed: this.speed,
+      loop: this.loop,
+    };
+  }
+
+  // ---------------------------------------------------------------- settings
+  applySettings(s: SceneSettings): void {
+    const prev = this.settings;
+    this.settings = structuredClone(s);
+    const scene = this.scene;
+
+    // viewport
+    if (this.appliedQuality !== s.viewport.quality) this.applyQuality(s.viewport.quality);
+    this.grid.setEnabled(s.viewport.showGrid);
+    if (s.viewport.showAxes && !this.axes) this.axes = new AxesViewer(scene, 3);
+    if (!s.viewport.showAxes && this.axes) {
+      this.axes.dispose();
+      this.axes = null;
+    }
+
+    // lighting
+    const l = s.lighting;
+    const az = l.dirAzimuth * DEG;
+    const el = Math.max(5, l.dirElevation) * DEG;
+    const dir = new Vector3(-Math.sin(az) * Math.cos(el), -Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
+    this.dirLight.direction = dir;
+    this.dirLight.position = dir.scale(-80);
+    this.dirLight.intensity = l.dirIntensity;
+    this.dirLight.diffuse = hexColor(l.dirColor);
+    this.dirLight.specular = hexColor(l.dirColor).scale(0.3);
+    this.hemiLight.intensity = l.ambientIntensity;
+    this.hemiLight.diffuse = hexColor(l.ambientColor);
+    this.hemiLight.groundColor = hexColor(l.groundColor);
+    this.shadowGen.setDarkness(l.shadowDarkness);
+    this.shadowGen.usePercentageCloserFiltering = l.softShadows;
+    this.shadowGen.filteringQuality = l.softShadows ? ShadowGenerator.QUALITY_HIGH : ShadowGenerator.QUALITY_LOW;
+    this.dirLight.shadowEnabled = l.shadows;
+    (this.shadowGround.material as ShadowOnlyMaterial).alpha = 1 - l.shadowDarkness;
+    this.shadowGround.setEnabled(l.shadows && s.background.showGround);
+
+    // background
+    this.applyBackground(s, prev);
+
+    // post fx
+    const p = s.postfx;
+    const pl = this.pipeline;
+    pl.bloomEnabled = p.bloom;
+    pl.bloomWeight = p.bloomWeight;
+    pl.bloomThreshold = p.bloomThreshold;
+    pl.bloomKernel = 64;
+    pl.depthOfFieldEnabled = p.dof;
+    if (p.dof) {
+      pl.depthOfField.focusDistance = p.dofFocusDistance * 1000;
+      pl.depthOfField.fStop = p.dofFStop;
+      pl.depthOfField.focalLength = 50;
+      pl.depthOfField.lensSize = 50;
+    }
+    pl.fxaaEnabled = p.fxaa;
+    pl.imageProcessingEnabled = true;
+    const ip = pl.imageProcessing;
+    ip.toneMappingEnabled = p.toneMapping !== 'none';
+    ip.toneMappingType =
+      p.toneMapping === 'aces'
+        ? ImageProcessingConfiguration.TONEMAPPING_ACES
+        : p.toneMapping === 'khr'
+          ? ImageProcessingConfiguration.TONEMAPPING_KHR_PBR_NEUTRAL
+          : ImageProcessingConfiguration.TONEMAPPING_STANDARD;
+    ip.exposure = p.exposure;
+    ip.contrast = p.contrast;
+    ip.vignetteEnabled = p.vignette;
+    ip.vignetteWeight = p.vignetteWeight;
+    ip.vignetteBlendMode = ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
+    this.setSsao(p.ssao);
+    if (prev.postfx.outlineScale !== p.outlineScale) for (const m of this.models.values()) this.applyMaterials(m);
+
+    // physics
+    if (this.physicsRuntime) {
+      this.physicsRuntime.setGravity(new Vector3(0, -s.physics.gravity, 0));
+      this.physicsRuntime.maxSubSteps = Math.max(1, Math.round(s.physics.substeps));
+      this.physicsRuntime.fixedTimeStep = s.physics.fixedTimeStep;
+    }
+  }
+
+  private applyQuality(q: QualityPreset): void {
+    this.appliedQuality = q;
+    const dpr = window.devicePixelRatio || 1;
+    this.engine.setHardwareScalingLevel(q === 'low' ? 1.5 : q === 'medium' ? 1 / Math.min(dpr, 1.5) : 1 / dpr);
+    this.pipeline.samples = q === 'low' ? 1 : q === 'medium' ? 4 : 8;
+    const size = q === 'low' ? 1024 : q === 'medium' ? 2048 : 4096;
+    const casters = this.shadowGen?.getShadowMap()?.renderList?.slice() ?? [];
+    this.shadowGen?.dispose();
+    this.shadowGen = new ShadowGenerator(size, this.dirLight);
+    this.shadowGen.bias = 0.0005;
+    this.shadowGen.normalBias = 0.02;
+    this.shadowGen.forceBackFacesOnly = true;
+    this.shadowGen.transparencyShadow = true;
+    for (const c of casters) this.shadowGen.addShadowCaster(c, false);
+    if (this.settings) {
+      this.shadowGen.setDarkness(this.settings.lighting.shadowDarkness);
+      this.shadowGen.usePercentageCloserFiltering = this.settings.lighting.softShadows;
+    }
+  }
+
+  private setSsao(enabled: boolean): void {
+    if (enabled && !this.ssao) {
+      if (!SSAO2RenderingPipeline.IsSupported) {
+        this.events.emit('warning', 'SSAO is not supported on this device.');
+        return;
+      }
+      this.ssao = new SSAO2RenderingPipeline('ssao', this.scene, { ssaoRatio: 0.5, blurRatio: 1 }, [this.orbit, this.fly, this.mmdCamera]);
+      this.ssao.radius = 2;
+      this.ssao.totalStrength = 1.2;
+      this.ssao.samples = 16;
+      this.ssao.maxZ = 250;
+    } else if (!enabled && this.ssao) {
+      this.ssao.dispose();
+      this.ssao = null;
+    }
+  }
+
+  private applyBackground(s: SceneSettings, prev: SceneSettings): void {
+    const b = s.background;
+    const scene = this.scene;
+    const c = hexColor(b.color);
+    scene.clearColor = b.mode === 'transparent' ? new Color4(0, 0, 0, 0) : new Color4(c.r, c.g, c.b, 1);
+    if (b.mode === 'gradient') {
+      if (!this.bgLayer) {
+        this.bgTexture = new DynamicTexture('bgGradient', { width: 4, height: 256 }, scene, false);
+        this.bgLayer = new Layer('bg', null, scene, true);
+        this.bgLayer.texture = this.bgTexture;
+      }
+      if (!this.bgLayer.isEnabled || prev.background.gradientTop !== b.gradientTop || prev.background.gradientBottom !== b.gradientBottom || prev === this.settings) {
+        const ctx = this.bgTexture!.getContext();
+        const g = ctx.createLinearGradient(0, 0, 0, 256);
+        g.addColorStop(0, b.gradientTop);
+        g.addColorStop(1, b.gradientBottom);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 4, 256);
+        this.bgTexture!.update(false);
+      }
+      this.bgLayer.isEnabled = true;
+    } else if (this.bgLayer) {
+      this.bgLayer.isEnabled = false;
+    }
+    const showHdr = b.mode === 'hdr' && this.hdrTexture !== null;
+    if (this.skybox) this.skybox.setEnabled(showHdr);
+    if (this.hdrTexture) this.hdrTexture.level = b.hdrIntensity;
+    scene.environmentIntensity = b.hdrIntensity;
+  }
+
+  async setHdrEnvironment(file: VFile | null): Promise<void> {
+    this.skybox?.dispose(false, true);
+    this.skybox = null;
+    this.hdrTexture?.dispose();
+    this.hdrTexture = null;
+    this.scene.environmentTexture = null;
+    if (!file) return;
+    const url = URL.createObjectURL(file.blob);
+    const isEnv = file.path.toLowerCase().endsWith('.env');
+    const tex: BaseTexture = isEnv
+      ? new CubeTexture(url, this.scene, null, false, null, null, null, undefined, true, '.env')
+      : new HDRCubeTexture(url, this.scene, 512, false, true, false, true);
+    await new Promise<void>((resolve, reject) => {
+      const done = (): void => resolve();
+      if (tex.isReady()) done();
+      else {
+        const t = setInterval(() => {
+          if (tex.isReady()) {
+            clearInterval(t);
+            done();
+          }
+        }, 50);
+        setTimeout(() => {
+          clearInterval(t);
+          if (!tex.isReady()) reject(new Error('Environment texture failed to load'));
+        }, 30000);
+      }
+    }).finally(() => URL.revokeObjectURL(url));
+    this.hdrTexture = tex;
+    this.scene.environmentTexture = tex;
+    this.skybox = this.scene.createDefaultSkybox(tex, false, 1500, 0) ?? null;
+    this.applyBackground(this.settings, this.settings);
+  }
+
+  // ---------------------------------------------------------------- models
+  async loadModel(files: VFile[], mainPath: string, options: LoadModelOptions = {}): Promise<ModelInfo> {
+    const id = options.id ?? newId();
+    const fileName = basename(mainPath);
+    const progressId = `model-${id}`;
+    this.events.emit('progress', { id: progressId, label: `Loading ${fileName}`, progress: 0, done: false });
+    try {
+      const prepared = await prepareModelFiles(files, mainPath);
+      const container = await LoadAssetContainerAsync(prepared.main, this.scene, {
+        rootUrl: prepared.rootUrl,
+        pluginOptions: {
+          mmdmodel: { referenceFiles: prepared.referenceFiles, loggingEnabled: false },
+        },
+        onProgress: (ev) => {
+          if (ev.lengthComputable && ev.total > 0) {
+            this.events.emit('progress', { id: progressId, label: `Loading ${fileName}`, progress: ev.loaded / ev.total, done: false });
+          }
+        },
+      });
+      container.addAllToScene();
+      const mesh = container.meshes[0] as MmdMesh;
+      const metadata = mesh.metadata as MmdModelMetadata;
+      const model = this.runtime.createMmdModel(mesh, {
+        materialProxyConstructor: MmdStandardMaterialProxy,
+        buildPhysics: this.physicsRuntime ? { disableOffsetForConstraintFrame: true } : false,
+      });
+      for (const m of container.meshes) {
+        if (m.getTotalVertices() > 0) {
+          this.shadowGen.addShadowCaster(m, false);
+          m.receiveShadows = true;
+        }
+      }
+      const materials = metadata.materials;
+      const baseOutline = materials.map((mat) => (mat instanceof MmdStandardMaterial ? mat.outlineWidth : 0));
+      const name = options.name ?? (metadata.header.modelName || stripExt(fileName));
+      const boneIndex = new Map(model.runtimeBones.map((b, i) => [b, i]));
+      const bones: BoneInfo[] = model.runtimeBones.map((b, i) => ({
+        index: i,
+        name: b.name,
+        parent: b.parentBone ? (boneIndex.get(b.parentBone) ?? -1) : -1,
+        physics: b.rigidBodyIndices.length > 0 && metadata.rigidBodies.some((rb, ri) => b.rigidBodyIndices.includes(ri) && rb.physicsMode !== 0),
+      }));
+      const morphs: MorphInfo[] = metadata.morphs.map((m, i) => ({ index: i, name: m.name, category: CATEGORY[m.category] ?? 'other' }));
+      const matInfos: MaterialInfo[] = materials.map((mat, i) => ({
+        index: i,
+        name: mat.name,
+        visible: true,
+        outline: mat instanceof MmdStandardMaterial ? mat.renderOutline : false,
+        alpha: mat.alpha,
+      }));
+      const info: ModelInfo = {
+        id,
+        name,
+        fileName,
+        morphs,
+        bones,
+        materials: matInfos,
+        rigidBodyCount: metadata.rigidBodies.length,
+        missingTextures: prepared.missing,
+        vertexCount: container.meshes.reduce((a, m) => a + m.getTotalVertices(), 0),
+      };
+      const entry: ModelEntry = {
+        id,
+        name,
+        container,
+        mesh,
+        model,
+        info,
+        physics: true,
+        visible: true,
+        motion: null,
+        baseOutline,
+        materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
+        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
+        restPositions: model.runtimeBones.map((b) => b.linkedBone.position.clone()),
+      };
+      this.models.set(id, entry);
+      if (prepared.missing.length) {
+        this.events.emit('warning', `${name}: ${prepared.missing.length} texture(s) missing — ${prepared.missing.slice(0, 4).join(', ')}${prepared.missing.length > 4 ? '…' : ''}`);
+      }
+      if (prepared.remapped.length) {
+        this.events.emit('warning', `${name}: ${prepared.remapped.length} texture path(s) resolved by filename only.`);
+      }
+      if (options.state) this.applyModelState(entry, options.state);
+      this.applyMaterials(entry);
+      this.events.emit('modelAdded', info);
+      return info;
+    } finally {
+      this.events.emit('progress', { id: progressId, label: `Loaded ${fileName}`, progress: 1, done: true });
+    }
+  }
+
+  private applyModelState(entry: ModelEntry, state: Partial<ModelRuntimeState>): void {
+    if (state.transform) this.setModelTransform(entry.id, state.transform);
+    if (state.visible !== undefined) this.setModelVisible(entry.id, state.visible);
+    if (state.physics !== undefined) entry.physics = state.physics;
+    if (state.materials) {
+      state.materials.forEach((m, i) => {
+        if (entry.materialState[i]) entry.materialState[i] = { ...entry.materialState[i], ...m };
+      });
+    }
+    if (state.morphs) for (const [k, v] of Object.entries(state.morphs)) entry.model.morph.setMorphWeight(k, v);
+  }
+
+  removeModel(id: string): void {
+    const m = this.models.get(id);
+    if (!m) return;
+    if (this.selected?.modelId === id) this.selectBone(null, null);
+    if (this.follow?.modelId === id) this.follow = null;
+    if (m.motion) m.model.destroyRuntimeAnimation(m.motion.handle);
+    for (const mesh of m.container.meshes) this.shadowGen.removeShadowCaster(mesh, false);
+    this.runtime.destroyMmdModel(m.model);
+    m.container.removeAllFromScene();
+    m.container.dispose();
+    this.models.delete(id);
+    this.updateDuration();
+    this.events.emit('modelRemoved', id);
+  }
+
+  listModels(): string[] {
+    return [...this.models.keys()];
+  }
+
+  private need(id: string): ModelEntry {
+    const m = this.models.get(id);
+    if (!m) throw new Error(`Unknown model ${id}`);
+    return m;
+  }
+
+  setModelVisible(id: string, visible: boolean): void {
+    const m = this.models.get(id);
+    if (!m) return;
+    m.visible = visible;
+    m.mesh.setEnabled(visible);
+  }
+
+  setModelPhysics(id: string, enabled: boolean): void {
+    const m = this.models.get(id);
+    if (!m) return;
+    m.physics = enabled;
+    if (enabled && this.settings.physics.enabled) {
+      m.model.rigidBodyStates.fill(1);
+      this.runtime.initializeMmdModelPhysics(m.model);
+    }
+  }
+
+  setModelTransform(id: string, t: TransformState): void {
+    const m = this.models.get(id);
+    if (!m) return;
+    m.transform = structuredClone(t);
+    m.mesh.position.set(...t.position);
+    m.mesh.rotationQuaternion = Quaternion.FromEulerAngles(t.rotation[0] * DEG, t.rotation[1] * DEG, t.rotation[2] * DEG);
+    m.mesh.scaling.setAll(Math.max(0.01, t.scale));
+    if (m.physics && this.settings.physics.enabled) this.runtime.initializeMmdModelPhysics(m.model);
+  }
+
+  setMaterialState(id: string, index: number, state: { visible?: boolean; outline?: boolean; alpha?: number }): void {
+    const m = this.models.get(id);
+    if (!m || !m.materialState[index]) return;
+    m.materialState[index] = { ...m.materialState[index], ...state };
+    this.applyMaterials(m);
+  }
+
+  private applyMaterials(m: ModelEntry): void {
+    const metadata = m.mesh.metadata as MmdModelMetadata;
+    metadata.materials.forEach((mat, i) => {
+      const st = m.materialState[i];
+      if (!st) return;
+      const meshes = metadata.meshes.filter((mesh) => mesh.material === mat);
+      if (meshes.length) for (const mesh of meshes) mesh.isVisible = st.visible;
+      mat.alpha = st.visible || meshes.length ? st.alpha : 0;
+      if (mat instanceof MmdStandardMaterial) {
+        mat.renderOutline = st.outline && this.settings.postfx.outlineScale > 0;
+        mat.outlineWidth = m.baseOutline[i] * this.settings.postfx.outlineScale;
+      }
+    });
+  }
+
+  setMorph(id: string, name: string, weight: number): void {
+    this.models.get(id)?.model.morph.setMorphWeight(name, weight);
+  }
+
+  getMorphWeights(id: string): Record<string, number> {
+    const m = this.models.get(id);
+    if (!m) return {};
+    const out: Record<string, number> = {};
+    for (const morph of m.info.morphs) out[morph.name] = m.model.morph.getMorphWeight(morph.name);
+    return out;
+  }
+
+  resetMorphs(id: string): void {
+    this.models.get(id)?.model.morph.resetMorphWeights();
+  }
+
+  getModelState(id: string): ModelRuntimeState | null {
+    const m = this.models.get(id);
+    if (!m) return null;
+    return {
+      visible: m.visible,
+      physics: m.physics,
+      transform: structuredClone(m.transform),
+      materials: structuredClone(m.materialState),
+      morphs: Object.fromEntries(Object.entries(this.getMorphWeights(id)).filter(([, v]) => v !== 0)),
+    };
+  }
+
+  // ---------------------------------------------------------------- motion & media
+  private motionInfo(animation: MmdAnimation, name: string): MotionInfo {
+    const groups: MotionInfo['groups'] = [];
+    for (const t of [...animation.boneTracks, ...animation.movableBoneTracks]) {
+      if (t.frameNumbers.length > 1 || (t.frameNumbers.length === 1 && t.frameNumbers[0] > 0)) {
+        groups.push({ name: t.name, kind: 'bone', frames: Array.from(t.frameNumbers) });
+      }
+    }
+    for (const t of animation.morphTracks) {
+      if (t.frameNumbers.length > 0) groups.push({ name: t.name, kind: 'morph', frames: Array.from(t.frameNumbers) });
+    }
+    return { name, frameCount: animation.endFrame, groups };
+  }
+
+  async loadMotion(modelId: string, file: VFile | null): Promise<MotionInfo | null> {
+    const m = this.need(modelId);
+    if (m.motion) {
+      m.model.setRuntimeAnimation(null);
+      m.model.destroyRuntimeAnimation(m.motion.handle);
+      m.motion = null;
+    }
+    if (!file) {
+      this.updateDuration();
+      this.events.emit('motionChanged', { modelId, motion: null });
+      return null;
+    }
+    const buffer = await file.blob.arrayBuffer();
+    const animation = await this.vmdLoader.loadFromBufferAsync(basename(file.path), buffer);
+    const handle = m.model.createRuntimeAnimation(animation);
+    m.model.setRuntimeAnimation(handle);
+    m.motion = { animation, handle };
+    this.updateDuration();
+    await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    const info = this.motionInfo(animation, basename(file.path));
+    this.events.emit('motionChanged', { modelId, motion: info });
+    return info;
+  }
+
+  async loadCameraMotion(file: VFile | null): Promise<CameraMotionInfo | null> {
+    if (this.cameraMotion) {
+      this.mmdCamera.setRuntimeAnimation(null);
+      this.mmdCamera.destroyRuntimeAnimation(this.cameraMotion.handle);
+      this.cameraMotion = null;
+    }
+    if (!file) {
+      if (this.cameraMode === 'vmd') this.setCameraMode('orbit');
+      this.updateDuration();
+      this.events.emit('cameraMotionChanged', null);
+      return null;
+    }
+    const buffer = await file.blob.arrayBuffer();
+    const animation = await this.vmdLoader.loadFromBufferAsync(basename(file.path), buffer);
+    const handle = this.mmdCamera.createRuntimeAnimation(animation);
+    this.mmdCamera.setRuntimeAnimation(handle);
+    this.cameraMotion = { animation, handle };
+    this.updateDuration();
+    await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    const info: CameraMotionInfo = {
+      name: basename(file.path),
+      frameCount: animation.endFrame,
+      frames: Array.from(animation.cameraTrack.frameNumbers),
+    };
+    this.events.emit('cameraMotionChanged', info);
+    return info;
+  }
+
+  async loadAudio(file: VFile | null): Promise<AudioInfo | null> {
+    if (!file) {
+      this.audio.unload();
+      this.updateDuration();
+      this.events.emit('audioChanged', null);
+      return null;
+    }
+    const info = await this.audio.load(file.blob, basename(file.path));
+    this.updateDuration();
+    this.events.emit('audioChanged', info);
+    return info;
+  }
+
+  setAudioOffset(ms: number): void {
+    this.audio.offsetSeconds = ms / 1000;
+    this.updateDuration();
+  }
+
+  setVolume(volume: number): void {
+    this.audio.setVolume(volume);
+  }
+
+  private updateDuration(): void {
+    let frames = 0;
+    for (const m of this.models.values()) if (m.motion) frames = Math.max(frames, m.motion.animation.endFrame);
+    if (this.cameraMotion) frames = Math.max(frames, this.cameraMotion.animation.endFrame);
+    if (this.audio.loaded) frames = Math.max(frames, (this.audio.duration - this.audio.offsetSeconds) * 30);
+    this.runtime.setManualAnimationDuration(frames > 0 ? frames : null);
+    this.emitPlayback(true);
+  }
+
+  // ---------------------------------------------------------------- playback
+  async play(): Promise<void> {
+    const pb = this.getPlayback();
+    if (pb.duration > 0 && pb.frame >= pb.duration - 0.01) await this.runtime.seekAnimation(0, true);
+    await this.runtime.playAnimation();
+    this.emitPlayback(true);
+  }
+
+  pause(): void {
+    this.runtime.pauseAnimation();
+    this.emitPlayback(true);
+  }
+
+  stop(): void {
+    this.runtime.pauseAnimation();
+    void this.runtime.seekAnimation(0, true).then(() => this.emitPlayback(true));
+  }
+
+  seek(frame: number): void {
+    const dur = this.runtime.animationFrameTimeDuration;
+    const f = Math.max(0, Math.min(frame, dur));
+    void this.runtime.seekAnimation(f, true).then(() => this.emitPlayback(true));
+  }
+
+  stepFrames(delta: number): void {
+    if (this.runtime.isAnimationPlaying) this.runtime.pauseAnimation();
+    this.seek(Math.round(this.runtime.currentFrameTime) + delta);
+  }
+
+  setSpeed(speed: number): void {
+    this.speed = speed;
+    this.runtime.timeScale = speed;
+    this.emitPlayback(true);
+  }
+
+  setLoop(loop: boolean): void {
+    this.loop = loop;
+    this.emitPlayback(true);
+  }
+
+  // ---------------------------------------------------------------- camera
+  setCameraMode(mode: CameraMode): void {
+    if (mode === 'vmd' && !this.cameraMotion) {
+      this.events.emit('warning', 'Load a camera VMD first to use the motion camera.');
+      mode = 'orbit';
+    }
+    const prev = this.scene.activeCamera;
+    prev?.detachControl();
+    if (mode === 'fly' && this.cameraMode !== 'fly') {
+      const src = this.cameraMode === 'vmd' ? this.mmdCamera : this.orbit;
+      this.fly.position.copyFrom(src.globalPosition);
+      this.fly.setTarget(this.cameraMode === 'vmd' ? this.mmdCamera.target : this.orbit.target);
+      this.fly.fov = src.fov;
+    }
+    if (mode === 'orbit' && this.cameraMode === 'fly') {
+      this.orbit.setPosition(this.fly.position.clone());
+    }
+    this.cameraMode = mode;
+    const cam: Camera = mode === 'orbit' ? this.orbit : mode === 'fly' ? this.fly : this.mmdCamera;
+    this.scene.activeCamera = cam;
+    if (mode !== 'vmd') cam.attachControl(true);
+    this.scheduleCameraEmit();
+  }
+
+  setFov(fovDeg: number): void {
+    const f = Math.min(120, Math.max(5, fovDeg)) * DEG;
+    this.orbit.fov = f;
+    this.fly.fov = f;
+    this.scheduleCameraEmit();
+  }
+
+  private modelBounds(id?: string): { center: Vector3; size: Vector3 } {
+    const entries = id ? [this.models.get(id)].filter((m): m is ModelEntry => !!m) : [...this.models.values()].filter((m) => m.visible);
+    if (!entries.length) return { center: new Vector3(0, 10, 0), size: new Vector3(10, 20, 10) };
+    let min = new Vector3(Infinity, Infinity, Infinity);
+    let max = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const e of entries) {
+      e.mesh.computeWorldMatrix(true);
+      const b = e.mesh.getHierarchyBoundingVectors(true);
+      min = Vector3.Minimize(min, b.min);
+      max = Vector3.Maximize(max, b.max);
+    }
+    return { center: min.add(max).scale(0.5), size: max.subtract(min) };
+  }
+
+  applyCameraPreset(preset: CameraPreset, modelId?: string): void {
+    if (this.cameraMode !== 'orbit') this.setCameraMode('orbit');
+    const id = modelId ?? this.selected?.modelId ?? [...this.models.keys()][0];
+    const { center, size } = this.modelBounds(id);
+    const fit = (h: number): number => h / 2 / Math.tan(this.orbit.fov / 2) + size.z;
+    const radius = fit(Math.max(size.y, size.x) * 1.15);
+    const o = this.orbit;
+    const set = (alpha: number, beta: number, r: number, target: Vector3): void => {
+      o.alpha = alpha;
+      o.beta = beta;
+      o.radius = r;
+      o.setTarget(target);
+    };
+    switch (preset) {
+      case 'front':
+        set(-Math.PI / 2, Math.PI / 2.1, radius, center);
+        break;
+      case 'back':
+        set(Math.PI / 2, Math.PI / 2.1, radius, center);
+        break;
+      case 'left':
+        set(Math.PI, Math.PI / 2.1, radius, center);
+        break;
+      case 'right':
+        set(0, Math.PI / 2.1, radius, center);
+        break;
+      case 'full':
+        set(-Math.PI / 2 + 0.5, Math.PI / 2.4, radius * 1.1, center);
+        break;
+      case 'face': {
+        const head = id ? this.findBoneWorld(id, HEAD_BONES) : null;
+        const target = head ?? center.add(new Vector3(0, size.y * 0.35, 0));
+        set(-Math.PI / 2, Math.PI / 2.05, Math.max(3, size.y * 0.35), target);
+        break;
+      }
+    }
+  }
+
+  setFollow(follow: { modelId: string; bone: string } | null): void {
+    this.follow = follow;
+  }
+
+  focusModel(id?: string): void {
+    if (this.cameraMode === 'vmd') this.setCameraMode('orbit');
+    const { center, size } = this.modelBounds(id);
+    const r = Math.max(size.y, size.x) / 2 / Math.tan(this.orbit.fov / 2) * 1.2 + size.z;
+    if (this.cameraMode === 'fly') {
+      this.fly.position = center.add(new Vector3(0, 0, -r));
+      this.fly.setTarget(center);
+    } else {
+      this.orbit.setTarget(center);
+      this.orbit.radius = r;
+    }
+  }
+
+  getCameraState(): CameraState {
+    const o = this.orbit;
+    return {
+      mode: this.cameraMode,
+      fov: Math.round((o.fov / DEG) * 10) / 10,
+      target: [o.target.x, o.target.y, o.target.z],
+      alpha: o.alpha,
+      beta: o.beta,
+      radius: o.radius,
+      follow: this.follow,
+    };
+  }
+
+  setCameraState(s: CameraState): void {
+    const o = this.orbit;
+    o.setTarget(new Vector3(...s.target));
+    o.alpha = s.alpha;
+    o.beta = s.beta;
+    o.radius = s.radius;
+    this.setFov(s.fov);
+    this.follow = s.follow;
+    this.setCameraMode(s.mode === 'vmd' && !this.cameraMotion ? 'orbit' : s.mode);
+  }
+
+  private scheduleCameraEmit(): void {
+    if (this.cameraEmitTimer) clearTimeout(this.cameraEmitTimer);
+    this.cameraEmitTimer = setTimeout(() => this.events.emit('cameraChanged', this.getCameraState()), 400);
+  }
+
+  private boneWorldPosition(modelId: string, boneName: string): Vector3 | null {
+    return this.findBoneWorld(modelId, [boneName]);
+  }
+
+  private findBoneWorld(modelId: string, names: string[]): Vector3 | null {
+    const m = this.models.get(modelId);
+    if (!m) return null;
+    const bone = m.model.runtimeBones.find((b) => names.includes(b.name));
+    if (!bone) return null;
+    const local = bone.getWorldTranslationToRef(new Vector3());
+    return Vector3.TransformCoordinates(local, m.mesh.getWorldMatrix());
+  }
+
+  focusDofOnHead(modelId?: string): number | null {
+    const id = modelId ?? this.selected?.modelId ?? [...this.models.keys()][0];
+    if (!id) return null;
+    const head = this.findBoneWorld(id, HEAD_BONES) ?? this.modelBounds(id).center;
+    const cam = this.scene.activeCamera;
+    if (!cam) return null;
+    return Math.round(Vector3.Distance(cam.globalPosition, head) * 100) / 100;
+  }
+
+  // ---------------------------------------------------------------- posing
+  selectBone(modelId: string | null, bone: number | null): void {
+    if (modelId === null || bone === null || !this.models.has(modelId)) {
+      this.selected = null;
+      this.rotationGizmo.attachedNode = null;
+      this.positionGizmo.attachedNode = null;
+      this.events.emit('boneSelected', null);
+      return;
+    }
+    this.selected = { modelId, bone };
+    this.syncProxyToBone();
+    this.setGizmoMode(this.gizmoMode);
+    this.events.emit('boneSelected', { modelId, bone });
+  }
+
+  setGizmoMode(mode: GizmoMode): void {
+    this.gizmoMode = mode;
+    if (!this.selected) return;
+    this.rotationGizmo.attachedNode = mode === 'rotate' ? this.gizmoProxy : null;
+    this.positionGizmo.attachedNode = mode === 'translate' ? this.gizmoProxy : null;
+  }
+
+  private boneWorldMatrix(m: ModelEntry, index: number): Matrix {
+    const bone = m.model.runtimeBones[index];
+    const local = bone.getWorldMatrixToRef(new Matrix());
+    return local.multiply(m.mesh.getWorldMatrix());
+  }
+
+  private syncProxyToBone(): void {
+    if (!this.selected) return;
+    const m = this.models.get(this.selected.modelId);
+    if (!m) return;
+    const world = this.boneWorldMatrix(m, this.selected.bone);
+    const scale = new Vector3();
+    const rot = new Quaternion();
+    const pos = new Vector3();
+    world.decompose(scale, rot, pos);
+    this.gizmoProxy.position.copyFrom(pos);
+    this.gizmoProxy.rotationQuaternion = rot;
+  }
+
+  private onGizmoDragStart(): void {
+    if (!this.selected) return;
+    const m = this.models.get(this.selected.modelId);
+    if (!m) return;
+    if (this.runtime.isAnimationPlaying) this.pause();
+    const bone = m.model.runtimeBones[this.selected.bone];
+    const parentRot = new Quaternion();
+    if (bone.parentBone) {
+      const pIdx = m.model.runtimeBones.indexOf(bone.parentBone);
+      this.boneWorldMatrix(m, pIdx).decompose(undefined, parentRot, undefined);
+    } else {
+      m.mesh.getWorldMatrix().decompose(undefined, parentRot, undefined);
+    }
+    this.dragging = {
+      startLocal: this.getBoneTransform(m.id, this.selected.bone)!,
+      proxyRot: this.gizmoProxy.rotationQuaternion!.clone(),
+      proxyPos: this.gizmoProxy.position.clone(),
+      parentRot,
+      meshScale: m.mesh.scaling.x,
+    };
+  }
+
+  private onGizmoDrag(): void {
+    if (!this.selected || !this.dragging) return;
+    const m = this.models.get(this.selected.modelId);
+    if (!m) return;
+    const d = this.dragging;
+    const linked = m.model.runtimeBones[this.selected.bone].linkedBone;
+    if (this.gizmoMode === 'rotate') {
+      // Row-vector convention: W = L * P and W' = W * D  =>  L' = L * P * D * P^-1
+      const D = Quaternion.Inverse(d.proxyRot).multiply(this.gizmoProxy.rotationQuaternion!);
+      const L = new Quaternion(...d.startLocal.rotation);
+      const mL = Matrix.FromQuaternionToRef(L, new Matrix());
+      const mP = Matrix.FromQuaternionToRef(d.parentRot, new Matrix());
+      const mD = Matrix.FromQuaternionToRef(D, new Matrix());
+      const result = mL.multiply(mP).multiply(mD).multiply(Matrix.Invert(mP));
+      const q = Quaternion.FromRotationMatrix(result).normalize();
+      linked.rotationQuaternion = q;
+    } else {
+      const deltaWorld = this.gizmoProxy.position.subtract(d.proxyPos);
+      const inv = Matrix.FromQuaternionToRef(Quaternion.Inverse(d.parentRot), new Matrix());
+      const local = Vector3.TransformNormal(deltaWorld, inv).scale(1 / Math.max(0.01, d.meshScale));
+      linked.position = new Vector3(...d.startLocal.position).add(local);
+    }
+  }
+
+  private onGizmoDragEnd(): void {
+    if (!this.selected || !this.dragging) return;
+    const before = this.dragging.startLocal;
+    this.dragging = null;
+    const after = this.getBoneTransform(this.selected.modelId, this.selected.bone);
+    if (after) this.events.emit('boneEdited', { modelId: this.selected.modelId, bone: this.selected.bone, before, after });
+  }
+
+  getBoneTransform(modelId: string, bone: number): BoneLocalTransform | null {
+    const b = this.models.get(modelId)?.model.runtimeBones[bone];
+    if (!b) return null;
+    const q = b.linkedBone.rotationQuaternion;
+    const p = b.linkedBone.position;
+    return { rotation: [q.x, q.y, q.z, q.w], position: [p.x, p.y, p.z] };
+  }
+
+  setBoneTransform(modelId: string, bone: number, t: BoneLocalTransform): void {
+    const b = this.models.get(modelId)?.model.runtimeBones[bone];
+    if (!b) return;
+    b.linkedBone.rotationQuaternion = new Quaternion(...t.rotation);
+    b.linkedBone.position = new Vector3(...t.position);
+  }
+
+  getPose(modelId: string): PoseData | null {
+    const m = this.models.get(modelId);
+    if (!m) return null;
+    const bones: PoseData['bones'] = [];
+    m.model.runtimeBones.forEach((b, i) => {
+      const q = b.linkedBone.rotationQuaternion;
+      const p = b.linkedBone.position.subtract(m.restPositions[i]);
+      const rotated = Math.abs(q.w) < 0.99999;
+      const moved = p.lengthSquared() > 1e-8;
+      if (rotated || moved) bones.push({ name: b.name, rotation: [q.x, q.y, q.z, q.w], position: [p.x, p.y, p.z] });
+    });
+    const morphs = Object.fromEntries(Object.entries(this.getMorphWeights(modelId)).filter(([, v]) => v !== 0));
+    return { version: 1, model: m.name, bones, morphs };
+  }
+
+  applyPose(modelId: string, pose: PoseData): void {
+    const m = this.models.get(modelId);
+    if (!m) return;
+    this.resetPose(modelId);
+    const byName = new Map(m.model.runtimeBones.map((b, i) => [b.name, i]));
+    for (const pb of pose.bones) {
+      const i = byName.get(pb.name);
+      if (i === undefined) continue;
+      const lb = m.model.runtimeBones[i].linkedBone;
+      lb.rotationQuaternion = new Quaternion(...pb.rotation);
+      lb.position = m.restPositions[i].add(new Vector3(...pb.position));
+    }
+    for (const [k, v] of Object.entries(pose.morphs)) m.model.morph.setMorphWeight(k, v);
+    this.events.emit('morphsChanged', { modelId });
+  }
+
+  resetPose(modelId: string): void {
+    const m = this.models.get(modelId);
+    if (!m) return;
+    if (this.runtime.isAnimationPlaying) this.pause();
+    m.model.runtimeBones.forEach((b, i) => {
+      b.linkedBone.rotationQuaternion = Quaternion.Identity();
+      b.linkedBone.position = m.restPositions[i].clone();
+    });
+    m.model.morph.resetMorphWeights();
+    this.runtime.initializeMmdModelPhysics(m.model);
+    this.events.emit('morphsChanged', { modelId });
+  }
+
+  resetPhysics(): void {
+    this.runtime.initializeAllMmdModelsPhysics(false);
+  }
+
+  onBeforeFrame(cb: (deltaMs: number) => void): () => void {
+    const obs = this.scene.onBeforeRenderObservable.add(() => {
+      try {
+        cb(this.engine.getDeltaTime());
+      } catch (err) {
+        this.events.emit('error', `Script error: ${err instanceof Error ? err.message : String(err)}`);
+        obs.remove();
+      }
+    });
+    return () => obs.remove();
+  }
+
+  // ---------------------------------------------------------------- capture
+  /** Hides helpers (grid, gizmos) and optionally the background for a capture. Returns a restore fn. */
+  private prepareCapture(transparent: boolean): () => void {
+    const gridOn = this.grid.isEnabled();
+    const axesOn = this.axes !== null;
+    const layerOn = this.bgLayer?.isEnabled ?? false;
+    const skyOn = this.skybox?.isEnabled() ?? false;
+    const clear = this.scene.clearColor.clone();
+    const groundOn = this.shadowGround.isEnabled();
+    const rot = this.rotationGizmo.attachedNode;
+    const pos = this.positionGizmo.attachedNode;
+    this.grid.setEnabled(false);
+    this.axes?.dispose();
+    this.axes = null;
+    this.rotationGizmo.attachedNode = null;
+    this.positionGizmo.attachedNode = null;
+    if (transparent) {
+      if (this.bgLayer) this.bgLayer.isEnabled = false;
+      this.skybox?.setEnabled(false);
+      this.scene.clearColor = new Color4(0, 0, 0, 0);
+    }
+    return () => {
+      this.grid.setEnabled(gridOn);
+      if (axesOn) this.axes = new AxesViewer(this.scene, 3);
+      if (this.bgLayer) this.bgLayer.isEnabled = layerOn;
+      this.skybox?.setEnabled(skyOn);
+      this.scene.clearColor = clear;
+      this.shadowGround.setEnabled(groundOn);
+      this.rotationGizmo.attachedNode = rot;
+      this.positionGizmo.attachedNode = pos;
+    };
+  }
+
+  /** Temporarily render at an exact pixel size. Returns a restore fn. */
+  private setRenderSize(width: number, height: number): () => void {
+    const scaling = this.engine.getHardwareScalingLevel();
+    this.capturing = true;
+    this.engine.setHardwareScalingLevel(1);
+    this.engine.setSize(width, height);
+    return () => {
+      this.engine.setHardwareScalingLevel(scaling);
+      this.capturing = false;
+      this.engine.resize();
+    };
+  }
+
+  async screenshot(o: ScreenshotOptions): Promise<Blob> {
+    const restoreCapture = this.prepareCapture(o.transparent);
+    const restoreSize = this.setRenderSize(o.width, o.height);
+    try {
+      // Render twice so post-processes and shadow maps settle at the new resolution.
+      this.scene.render();
+      this.scene.render();
+      return await new Promise<Blob>((resolve, reject) => {
+        this.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Screenshot failed'))), 'image/png');
+      });
+    } finally {
+      restoreSize();
+      restoreCapture();
+    }
+  }
+
+  async record(o: RecordOptions, onProgress: (p: RecordProgress) => void, signal: AbortSignal): Promise<Blob> {
+    const restoreCapture = this.prepareCapture(false);
+    const restoreSize = this.setRenderSize(o.width, o.height);
+    const wasLoop = this.loop;
+    this.loop = false;
+    this.pause();
+    try {
+      await this.runtime.seekAnimation(o.startFrame, true);
+      if (o.deterministic) {
+        const engine = this.engine;
+        const originalDelta = engine.getDeltaTime.bind(engine);
+        engine.getDeltaTime = () => 1000 / o.fps;
+        this.audio.suspended = true;
+        try {
+          return await recordDeterministic({
+            canvas: this.canvas,
+            options: o,
+            audioBuffer: o.includeAudio ? this.audio.buffer : null,
+            audioOffset: this.audio.offsetSeconds,
+            signal,
+            onProgress,
+            renderFrame: () => this.scene.render(),
+            begin: () => this.runtime.playAnimation(),
+          });
+        } finally {
+          engine.getDeltaTime = originalDelta;
+          this.audio.suspended = false;
+        }
+      }
+      // realtime: the normal render loop is paused while capturing; drive it ourselves.
+      let raf = 0;
+      const tick = (): void => {
+        this.scene.render();
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      try {
+        return await recordRealtime({
+          canvas: this.canvas,
+          options: o,
+          audioStream: o.includeAudio ? this.audio.mediaStream : null,
+          signal,
+          onProgress,
+          currentFrame: () => this.runtime.currentFrameTime,
+          isPlaying: () => this.runtime.isAnimationPlaying,
+          begin: () => this.runtime.playAnimation(),
+        });
+      } finally {
+        cancelAnimationFrame(raf);
+      }
+    } finally {
+      this.pause();
+      this.loop = wasLoop;
+      restoreSize();
+      restoreCapture();
+    }
+  }
+
+  // exposed for tests / debugging
+  get _scene(): Scene {
+    return this.scene;
+  }
+  get _meshes(): AbstractMesh[] {
+    return this.scene.meshes;
+  }
+}

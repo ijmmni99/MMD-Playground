@@ -1,0 +1,177 @@
+import { DEFAULT_CAMERA, DEFAULT_SETTINGS, DEFAULT_TRANSFORM } from '@/engine/defaults';
+import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/types';
+import { unzipBuffer, zipFiles } from './zip';
+
+export const PROJECT_VERSION = 1;
+export const PROJECT_EXT = '.mmdstudio.zip';
+
+/** Reference to a file blob stored in the asset store (content-addressed by SHA-256). */
+export interface FileRef {
+  blobId: string;
+  path: string;
+}
+
+export interface ProjectModel {
+  id: string;
+  name: string;
+  mainPath: string;
+  files: FileRef[];
+  motion: FileRef | null;
+  state: ModelRuntimeState;
+}
+
+export interface ProjectDoc {
+  version: number;
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  settings: SceneSettings;
+  camera: CameraState;
+  playback: { frame: number; speed: number; loop: boolean };
+  audio: { file: FileRef; offsetMs: number; volume: number } | null;
+  cameraMotion: FileRef | null;
+  hdr: FileRef | null;
+  models: ProjectModel[];
+  thumbnail?: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  updatedAt: number;
+  modelCount: number;
+  thumbnail?: string;
+}
+
+export function newProjectId(): string {
+  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function createEmptyProject(name = 'Untitled project'): ProjectDoc {
+  const now = Date.now();
+  return {
+    version: PROJECT_VERSION,
+    id: newProjectId(),
+    name,
+    createdAt: now,
+    updatedAt: now,
+    settings: structuredClone(DEFAULT_SETTINGS),
+    camera: structuredClone(DEFAULT_CAMERA),
+    playback: { frame: 0, speed: 1, loop: false },
+    audio: null,
+    cameraMotion: null,
+    hdr: null,
+    models: [],
+  };
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Deep-merge `value` over `defaults`, keeping only keys known to the defaults and matching primitive types. */
+export function mergeDefaults<T>(defaults: T, value: unknown): T {
+  if (!isObj(defaults) || !isObj(value)) {
+    if (value === undefined || value === null) return defaults;
+    if (typeof defaults === typeof value || defaults === null) return value as T;
+    return defaults;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, d] of Object.entries(defaults)) out[k] = mergeDefaults(d, value[k]);
+  return out as T;
+}
+
+function isFileRef(v: unknown): v is FileRef {
+  return isObj(v) && typeof v.blobId === 'string' && typeof v.path === 'string';
+}
+
+/** Validate and upgrade an unknown JSON value into a ProjectDoc. Throws on unrecoverable input. */
+export function parseProjectDoc(json: unknown): ProjectDoc {
+  if (!isObj(json)) throw new Error('Invalid project file');
+  if (typeof json.version !== 'number' || json.version > PROJECT_VERSION) {
+    throw new Error(`Unsupported project version: ${String(json.version)}`);
+  }
+  const base = createEmptyProject(typeof json.name === 'string' ? json.name : 'Imported project');
+  const models: ProjectModel[] = Array.isArray(json.models)
+    ? json.models.filter(isObj).flatMap((m) => {
+        if (typeof m.mainPath !== 'string' || !Array.isArray(m.files)) return [];
+        const state = isObj(m.state) ? m.state : {};
+        return [
+          {
+            id: typeof m.id === 'string' ? m.id : newProjectId(),
+            name: typeof m.name === 'string' ? m.name : m.mainPath,
+            mainPath: m.mainPath,
+            files: m.files.filter(isFileRef),
+            motion: isFileRef(m.motion) ? m.motion : null,
+            state: {
+              visible: state.visible !== false,
+              physics: state.physics !== false,
+              transform: mergeDefaults(DEFAULT_TRANSFORM, state.transform),
+              materials: Array.isArray(state.materials) ? (state.materials as ModelRuntimeState['materials']) : [],
+              morphs: isObj(state.morphs) ? (state.morphs as Record<string, number>) : {},
+            },
+          },
+        ];
+      })
+    : [];
+  const audio = isObj(json.audio) && isFileRef(json.audio.file)
+    ? {
+        file: json.audio.file,
+        offsetMs: typeof json.audio.offsetMs === 'number' ? json.audio.offsetMs : 0,
+        volume: typeof json.audio.volume === 'number' ? json.audio.volume : 1,
+      }
+    : null;
+  return {
+    ...base,
+    id: typeof json.id === 'string' ? json.id : base.id,
+    createdAt: typeof json.createdAt === 'number' ? json.createdAt : base.createdAt,
+    updatedAt: typeof json.updatedAt === 'number' ? json.updatedAt : base.updatedAt,
+    settings: mergeDefaults(DEFAULT_SETTINGS, json.settings),
+    camera: { ...mergeDefaults({ ...DEFAULT_CAMERA, follow: null }, json.camera), follow: null },
+    playback: mergeDefaults(base.playback, json.playback),
+    audio,
+    cameraMotion: isFileRef(json.cameraMotion) ? json.cameraMotion : null,
+    hdr: isFileRef(json.hdr) ? json.hdr : null,
+    models,
+    thumbnail: typeof json.thumbnail === 'string' ? json.thumbnail : undefined,
+  };
+}
+
+/** All blob ids referenced by a project. */
+export function projectBlobIds(doc: ProjectDoc): Set<string> {
+  const ids = new Set<string>();
+  for (const m of doc.models) {
+    for (const f of m.files) ids.add(f.blobId);
+    if (m.motion) ids.add(m.motion.blobId);
+  }
+  if (doc.audio) ids.add(doc.audio.file.blobId);
+  if (doc.cameraMotion) ids.add(doc.cameraMotion.blobId);
+  if (doc.hdr) ids.add(doc.hdr.blobId);
+  return ids;
+}
+
+export function summarize(doc: ProjectDoc): ProjectSummary {
+  return { id: doc.id, name: doc.name, updatedAt: doc.updatedAt, modelCount: doc.models.length, thumbnail: doc.thumbnail };
+}
+
+/** Pack a project and all its blobs into a single ZIP. */
+export async function exportProjectZip(doc: ProjectDoc, getBlob: (id: string) => Promise<Blob | undefined>): Promise<Blob> {
+  const files: { path: string; data: Blob | string }[] = [{ path: 'project.json', data: JSON.stringify(doc, null, 2) }];
+  for (const id of projectBlobIds(doc)) {
+    const blob = await getBlob(id);
+    if (!blob) throw new Error(`Missing asset ${id} — cannot export project`);
+    files.push({ path: `blobs/${id}`, data: blob });
+  }
+  return zipFiles(files);
+}
+
+/** Read a project ZIP. The returned doc gets a fresh id so it never overwrites an existing project. */
+export async function importProjectZip(blob: Blob): Promise<{ doc: ProjectDoc; blobs: Map<string, Blob> }> {
+  const entries = await unzipBuffer(await blob.arrayBuffer());
+  const json = entries.find((e) => e.path === 'project.json');
+  if (!json) throw new Error('project.json not found in archive');
+  const doc = parseProjectDoc(JSON.parse(new TextDecoder().decode(json.data)));
+  const blobs = new Map<string, Blob>();
+  for (const e of entries) if (e.path.startsWith('blobs/')) blobs.set(e.path.slice(6), new Blob([e.data]));
+  for (const id of projectBlobIds(doc)) if (!blobs.has(id)) throw new Error(`Archive is missing asset ${id}`);
+  return { doc: { ...doc, id: newProjectId(), updatedAt: Date.now() }, blobs };
+}

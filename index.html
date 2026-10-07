@@ -1,29 +1,14 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MMD Studio</title>
-  <link rel="stylesheet" href="./src/style.css" />
-</head>
-<body>
-  <div id="app"></div>
-  <aside id="panel">
-    <h1>MMD Studio</h1>
-    <label>Model (.pmx / .pmd)
-      <input id="model" type="file" accept=".pmx,.pmd" multiple />
-    </label>
-    <small>Select the model file together with its texture files.</small>
-    <label>Motion (.vmd)
-      <input id="motion" type="file" accept=".vmd" />
-    </label>
-    <div class="row">
-      <button id="play">Play</button>
-      <button id="pause">Pause</button>
-      <button id="stop">Stop</button>
-    </div>
-    <div id="status">Load a model to begin.</div>
-  </aside>
-  <script type="module" src="./src/main.js"></script>
-</body>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="MMD Studio – a browser-based MikuMikuDance playground" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236d8bff'/><path d='M8 23V9l8 8 8-8v14' stroke='white' stroke-width='3' fill='none' stroke-linejoin='round'/></svg>" />
+    <title>MMD Studio</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

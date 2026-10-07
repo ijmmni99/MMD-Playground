@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-bg text-fg antialiased;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+}
+
+*:focus-visible {
+  outline: 2px solid theme('colors.accent.DEFAULT');
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2f3542;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3b4252;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type='color'] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+  border: 1px solid #3a4150;
+  border-radius: 4px;
+}
+
+.resize-handle {
+  @apply bg-line transition-colors;
+}
+.resize-handle[data-separator='hover'],
+.resize-handle[data-separator='active'],
+.resize-handle[data-separator='focus'],
+.resize-handle:focus-visible {
+  @apply bg-accent;
+}
+
+@layer components {
+  .panel-title {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-fg-muted;
+  }
+  .input {
+    @apply h-7 rounded border border-line bg-bg px-2 text-[12px] text-fg outline-none transition-colors placeholder:text-fg-dim hover:border-[#3a4150] focus:border-accent;
+  }
+}
