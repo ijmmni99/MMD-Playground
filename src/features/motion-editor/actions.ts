@@ -15,7 +15,14 @@ import {
 } from '@/lib/motion/edit';
 import { clipEndFrame } from '@/lib/motion/evaluate';
 import { applyPins } from '@/lib/motion/ik';
-import { emptyClip, keyId, parseKeyId, type KeyRef, type MotionClip, type PinRange } from '@/lib/motion/types';
+import {
+  emptyClip,
+  keyId,
+  parseKeyId,
+  type KeyRef,
+  type MotionClip,
+  type PinRange,
+} from '@/lib/motion/types';
 import { readVmd, writeVmd, type WriteOptions } from '@/lib/motion/vmd';
 import { engineOrNull } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
@@ -114,7 +121,9 @@ function flushApply(): void {
     if (target === '__camera__') {
       const cam = s.compareOriginal ? s.cameraOriginal : s.camera;
       const info = engine.setCameraClip(cam, s.cameraName);
-      studio.set((st) => ({ cameraMotion: st.cameraMotion && info ? { ...st.cameraMotion, info } : st.cameraMotion }));
+      studio.set((st) => ({
+        cameraMotion: st.cameraMotion && info ? { ...st.cameraMotion, info } : st.cameraMotion,
+      }));
       continue;
     }
     const clip = effectiveClip(target);
@@ -208,7 +217,12 @@ export function commitRefs(
 
 // ---------------------------------------------------------------- drag sessions (one undo step)
 
-let drag: { refs: KeyRef[]; model: MotionClip | null; camera: MotionClip | null; selection: string[] } | null = null;
+let drag: {
+  refs: KeyRef[];
+  model: MotionClip | null;
+  camera: MotionClip | null;
+  selection: string[];
+} | null = null;
 
 export function beginKeyDrag(): void {
   const s = me.get();
@@ -227,13 +241,23 @@ export function updateKeyDrag(delta: number, copy: boolean): void {
   const s = me.get();
   const sel: string[] = [];
   if (s.modelId && drag.model) {
-    const r = moveKeys(drag.model, drag.refs.filter((x) => x.kind !== 'camera'), delta, { copy });
+    const r = moveKeys(
+      drag.model,
+      drag.refs.filter((x) => x.kind !== 'camera'),
+      delta,
+      { copy },
+    );
     sel.push(...r.refs.map(keyId));
     me.set((st) => ({ clips: { ...st.clips, [s.modelId!]: r.clip } }));
     scheduleApply(s.modelId);
   }
   if (drag.camera) {
-    const r = moveKeys(drag.camera, drag.refs.filter((x) => x.kind === 'camera'), delta, { copy });
+    const r = moveKeys(
+      drag.camera,
+      drag.refs.filter((x) => x.kind === 'camera'),
+      delta,
+      { copy },
+    );
     sel.push(...r.refs.map(keyId));
     me.set({ camera: r.clip });
     scheduleApply(CAMERA);
@@ -286,7 +310,8 @@ export function selectGroup(group: BoneGroup | 'morph' | 'camera'): void {
   if (group === 'camera') refs.push(...allKeyRefs({ ...emptyClip(), camera: s.camera?.camera ?? [] }));
   else if (clip) {
     for (const r of allKeyRefs(clip)) {
-      if (group === 'morph' ? r.kind === 'morph' : r.kind === 'bone' && boneGroup(r.track) === group) refs.push(r);
+      if (group === 'morph' ? r.kind === 'morph' : r.kind === 'bone' && boneGroup(r.track) === group)
+        refs.push(r);
     }
   }
   setSelection(refs.map(keyId));
@@ -345,9 +370,12 @@ export function keyMorphs(names?: string[]): void {
   if (!s.modelId || !engine) return;
   const weights = engine.getMorphWeights(s.modelId);
   const clip = s.clips[s.modelId];
-  const list =
-    names ??
-    [...new Set([...Object.keys(weights).filter((k) => weights[k] !== 0), ...(clip?.morphs.map((m) => m.name) ?? [])])];
+  const list = names ?? [
+    ...new Set([
+      ...Object.keys(weights).filter((k) => weights[k] !== 0),
+      ...(clip?.morphs.map((m) => m.name) ?? []),
+    ]),
+  ];
   const f = playheadFrame();
   commit(s.modelId, names?.length === 1 ? `Key ${names[0]}` : 'Key morphs', (c) => {
     let out = c;
@@ -369,7 +397,9 @@ export function clearChannel(kind: KeyRef['kind'], track: string): void {
 }
 
 export function nudge(delta: number): void {
-  commitRefs(delta > 0 ? 'Nudge right' : 'Nudge left', selectedRefs(), (clip, refs) => moveKeys(clip, refs, delta));
+  commitRefs(delta > 0 ? 'Nudge right' : 'Nudge left', selectedRefs(), (clip, refs) =>
+    moveKeys(clip, refs, delta),
+  );
 }
 
 export function copySelection(): void {
@@ -415,7 +445,12 @@ export function duplicateSelection(): void {
 }
 
 /** Capture a camera key at the playhead from explicit values. */
-export function keyCamera(values: { t: [number, number, number]; r: [number, number, number]; d: number; fov: number }): void {
+export function keyCamera(values: {
+  t: [number, number, number];
+  r: [number, number, number];
+  d: number;
+  fov: number;
+}): void {
   const f = playheadFrame();
   commit(CAMERA, 'Key camera', (c) => ({
     clip: setCameraKey(c, { f, ...values, persp: true }),
@@ -427,7 +462,8 @@ export function keyCamera(values: { t: [number, number, number]; r: [number, num
 
 export function revertToOriginal(): void {
   const s = me.get();
-  if (s.modelId && s.originals[s.modelId]) commit(s.modelId, 'Revert to original', () => s.originals[s.modelId!]);
+  if (s.modelId && s.originals[s.modelId])
+    commit(s.modelId, 'Revert to original', () => s.originals[s.modelId!]);
   if (s.cameraOriginal) commit(CAMERA, 'Revert camera', () => s.cameraOriginal!);
 }
 
@@ -466,7 +502,12 @@ export function exportCamera(): void {
     toast('info', 'There is no camera motion to export yet.');
     return;
   }
-  const clip: MotionClip = { ...emptyClip('カメラ・照明'), camera: s.camera.camera, lights: s.camera.lights, shadows: s.camera.shadows };
+  const clip: MotionClip = {
+    ...emptyClip('カメラ・照明'),
+    camera: s.camera.camera,
+    lights: s.camera.lights,
+    shadows: s.camera.shadows,
+  };
   downloadBlob(new Blob([writeVmd(clip)]), s.cameraName.replace(/\.vmd$/i, '') + '_edited.vmd');
 }
 
@@ -474,7 +515,14 @@ export function exportCamera(): void {
 export function exportSidecar(): void {
   const s = me.get();
   const json = JSON.stringify(
-    { format: 'mmd-studio-motion-sidecar', version: 1, markers: s.markers, grid: s.grid, shots: s.shots, pins: s.pins },
+    {
+      format: 'mmd-studio-motion-sidecar',
+      version: 1,
+      markers: s.markers,
+      grid: s.grid,
+      shots: s.shots,
+      pins: s.pins,
+    },
     null,
     2,
   );
@@ -500,7 +548,7 @@ export async function saveClips(): Promise<void> {
   const s = me.get();
   const saved: typeof s.saved = { models: { ...s.saved.models }, camera: s.saved.camera };
   for (const [modelId, clip] of Object.entries(s.clips)) {
-    if (clip === s.originals[modelId] && !(s.pins[modelId]?.length) && !saved.models[modelId]) continue;
+    if (clip === s.originals[modelId] && !s.pins[modelId]?.length && !saved.models[modelId]) continue;
     if (!studio.get().models.some((m) => m.id === modelId)) continue;
     const name = s.names[modelId] ?? 'motion.vmd';
     const base = await vmdRef(clip, name);
@@ -514,7 +562,9 @@ export async function saveClips(): Promise<void> {
     const base = await vmdRef(s.camera, s.cameraName);
     const original = saved.camera?.original ?? (await vmdRef(s.cameraOriginal ?? s.camera, s.cameraName));
     saved.camera = { base, original };
-    studio.set((st) => ({ cameraMotion: st.cameraMotion ? { ...st.cameraMotion, ref: base } : st.cameraMotion }));
+    studio.set((st) => ({
+      cameraMotion: st.cameraMotion ? { ...st.cameraMotion, ref: base } : st.cameraMotion,
+    }));
     if (!studio.get().cameraMotion && s.camera.camera.length) {
       const info = engineOrNull()?.setCameraClip(s.camera, s.cameraName);
       if (info) studio.set({ cameraMotion: { info, ref: base } });

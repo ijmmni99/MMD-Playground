@@ -55,12 +55,14 @@ export function DesktopShell() {
 
   // The motion editor needs more height than the playback timeline.
   const editorOpen = useMotionEditor((s) => s.open);
+  const graphOpen = useMotionEditor((s) => s.open && s.graphOpen);
   useEffect(() => {
     const panel = bottomRef.current;
     if (!editorOpen || !panel) return;
     if (panel.isCollapsed()) panel.expand();
-    if (panel.getSize().asPercentage < 45) panel.resize('45%');
-  }, [editorOpen, bottomRef]);
+    const min = graphOpen ? 58 : 45;
+    if (panel.getSize().asPercentage < min) panel.resize(`${min}%`);
+  }, [editorOpen, graphOpen, bottomRef]);
 
   useEffect(() => {
     // Tablets: start with the scene panel collapsed.

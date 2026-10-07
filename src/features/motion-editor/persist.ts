@@ -9,7 +9,8 @@ export function buildMotionEditorDoc(): MotionEditorDoc | undefined {
     if (!studio.get().models.some((m) => m.id === id)) continue;
     models[id] = { ...refs, pins: s.pins[id] ?? [], name: s.names[id] ?? 'motion.vmd' };
   }
-  const empty = !Object.keys(models).length && !s.saved.camera && !s.markers.length && !s.shots.length && !s.grid.bpm;
+  const empty =
+    !Object.keys(models).length && !s.saved.camera && !s.markers.length && !s.shots.length && !s.grid.bpm;
   if (empty) return undefined;
   return {
     models,

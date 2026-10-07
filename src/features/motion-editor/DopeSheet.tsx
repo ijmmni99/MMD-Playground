@@ -51,7 +51,15 @@ export function DopeSheet() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
-  const geo = useRef<Geometry>({ width: 600, height: 200, labelW: 172, rowH: 20, start: 0, ppf: 2, scrollY: 0 });
+  const geo = useRef<Geometry>({
+    width: 600,
+    height: 200,
+    labelW: 172,
+    rowH: 20,
+    start: 0,
+    ppf: 2,
+    scrollY: 0,
+  });
   const rowsRef = useRef<Row[]>([]);
   const box = useRef<{ x0: number; y0: number; x1: number; y1: number; add: boolean } | null>(null);
   const drawQueued = useRef(false);
@@ -74,6 +82,7 @@ export function DopeSheet() {
     g.rowH = rowHeight(coarse);
     g.start = s.view.start;
     g.ppf = Math.max(0.05, (g.width - g.labelW) / Math.max(1, s.view.span));
+    dopeProbe.ppf = g.ppf;
     const rows = (rowsRef.current = computeRows());
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (canvas.width !== Math.round(g.width * dpr) || canvas.height !== Math.round(g.height * dpr)) {
@@ -140,8 +149,7 @@ export function DopeSheet() {
         const f = frames[k];
         const x = frameToX(g, f);
         if (x < g.labelW - size) continue;
-        const selected =
-          r.type === 'track' && s.selection.has(keyId({ kind: r.kind, track: r.track, f }));
+        const selected = r.type === 'track' && s.selection.has(keyId({ kind: r.kind, track: r.track, f }));
         ctx.fillStyle = selected ? '#ffffff' : color;
         ctx.beginPath();
         ctx.moveTo(x, y + g.rowH / 2 - size);
@@ -345,7 +353,13 @@ export function DopeSheet() {
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       const s = me.get();
-      gesture.current = { type: 'pinch', dist: Math.abs(a.x - b.x) || 1, mid: (a.x + b.x) / 2, start: s.view.start, span: s.view.span };
+      gesture.current = {
+        type: 'pinch',
+        dist: Math.abs(a.x - b.x) || 1,
+        mid: (a.x + b.x) / 2,
+        start: s.view.start,
+        span: s.view.span,
+      };
       box.current = null;
       if (longPress.current) clearTimeout(longPress.current);
       return;
@@ -463,7 +477,8 @@ export function DopeSheet() {
         for (let i = Math.max(0, r0); i <= Math.min(rowsRef.current.length - 1, r1); i++) {
           const r = rowsRef.current[i];
           if (r.type !== 'track') continue;
-          for (const f of r.frames) if (f >= f0 && f <= f1) ids.push(keyId({ kind: r.kind, track: r.track, f }));
+          for (const f of r.frames)
+            if (f >= f0 && f <= f1) ids.push(keyId({ kind: r.kind, track: r.track, f }));
         }
       } else if (!b.add) {
         // A click on empty space: deselect and move the playhead.

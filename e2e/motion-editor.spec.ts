@@ -18,7 +18,10 @@ type W = Window & { __studio?: Studio };
 
 async function boot(page: Page): Promise<void> {
   await page.goto('/?engine=1');
-  await page.waitForFunction(() => (window as W).__studio !== undefined, null, { timeout: 90_000, polling: 500 });
+  await page.waitForFunction(() => (window as W).__studio !== undefined, null, {
+    timeout: 90_000,
+    polling: 500,
+  });
   await page.getByLabel('Render quality').selectOption('low');
 }
 
@@ -33,7 +36,12 @@ interface Clip {
   camera: { f: number }[];
 }
 interface MotionEditorProbe {
-  state(): { modelId: string | null; clips: Record<string, Clip>; camera: Clip | null; selection: Set<string> };
+  state(): {
+    modelId: string | null;
+    clips: Record<string, Clip>;
+    camera: Clip | null;
+    selection: Set<string>;
+  };
   keyPoint(track: string, f: number): { x: number; y: number } | null;
   history(): { past: number; future: number };
 }
@@ -47,7 +55,10 @@ const boneFrames = (page: Page, bone: string): Promise<number[]> =>
 
 async function keyPoint(page: Page, track: string, f: number): Promise<{ x: number; y: number }> {
   const get = () =>
-    page.evaluate(([t, fr]) => (window as ME).__motionEditor!.keyPoint(t as string, fr as number), [track, f]);
+    page.evaluate(
+      ([t, fr]) => (window as ME).__motionEditor!.keyPoint(t as string, fr as number),
+      [track, f],
+    );
   await expect.poll(get).not.toBeNull();
   return (await get())!;
 }
@@ -91,6 +102,36 @@ test('motion editor: dope sheet, key edits, undo/redo, camera, export, persist',
   await page.getByTestId('dope-sheet').hover();
   await page.keyboard.press('k');
   await expect.poll(() => boneFrames(page, '上半身')).toContain(7);
+
+  // Graph editor: preset, bezier handle drag, numeric value edit on the selected key.
+  const k = await keyPoint(page, '頭', f0 + 4);
+  await page.mouse.click(k.x, k.y);
+  await page.getByTestId('me-graph').click();
+  await expect(page.getByTestId('graph-editor')).toBeVisible();
+  const curve = () =>
+    page.evaluate((f) => {
+      const s = (window as ME).__motionEditor!.state();
+      const key = (
+        s.clips[s.modelId!] as unknown as {
+          bones: { name: string; keys: { f: number; ip: number[]; r: number[] }[] }[];
+        }
+      ).bones
+        .find((t) => t.name === '頭')!
+        .keys.find((x) => x.f === f)!;
+      return { ip: key.ip.slice(12, 16), r: key.r };
+    }, f0 + 4);
+  await page.getByTestId('preset-ease-in').click();
+  await expect.poll(async () => (await curve()).ip).toEqual([64, 0, 107, 107]);
+  const h = await page.getByTestId('curve-handle-2').boundingBox();
+  await page.mouse.move(h!.x + h!.width / 2, h!.y + h!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h!.x - 20, h!.y + 25, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => (await curve()).ip[2]).toBeLessThan(107);
+  const before = (await curve()).r;
+  await page.getByLabel('Rot Y°').fill('25');
+  await page.getByLabel('Rot Y°').press('Enter');
+  await expect.poll(async () => (await curve()).r).not.toEqual(before);
   await page.screenshot({ path: 'e2e/__shots/me-desktop.png' });
 
   // Camera motion appears as its own track.

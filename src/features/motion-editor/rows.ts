@@ -55,21 +55,51 @@ export function buildRows(
       if (!t.keys.length) continue;
       const g = boneGroup(t.name);
       const p = pins.filter((x) => x.bone === t.name);
-      push(g, { type: 'track', kind: 'bone', track: t.name, label: t.name, group: g, frames: framesOf(t.keys), pins: p.length ? p : undefined });
+      push(g, {
+        type: 'track',
+        kind: 'bone',
+        track: t.name,
+        label: t.name,
+        group: g,
+        frames: framesOf(t.keys),
+        pins: p.length ? p : undefined,
+      });
     }
     // Pinned IK bones without keys still show their row.
     for (const p of pins) {
       if (!clip.bones.some((t) => t.name === p.bone && t.keys.length)) {
-        push('ik', { type: 'track', kind: 'bone', track: p.bone, label: p.bone, group: 'ik', frames: [], pins: pins.filter((x) => x.bone === p.bone) });
+        push('ik', {
+          type: 'track',
+          kind: 'bone',
+          track: p.bone,
+          label: p.bone,
+          group: 'ik',
+          frames: [],
+          pins: pins.filter((x) => x.bone === p.bone),
+        });
       }
     }
     for (const t of clip.morphs) {
       if (!t.keys.length) continue;
-      push('morph', { type: 'track', kind: 'morph', track: t.name, label: t.name, group: 'morph', frames: framesOf(t.keys) });
+      push('morph', {
+        type: 'track',
+        kind: 'morph',
+        track: t.name,
+        label: t.name,
+        group: 'morph',
+        frames: framesOf(t.keys),
+      });
     }
   }
   if (showCamera && camera) {
-    push('camera', { type: 'track', kind: 'camera', track: CAMERA_TRACK, label: 'Camera', group: 'camera', frames: framesOf(camera.camera) });
+    push('camera', {
+      type: 'track',
+      kind: 'camera',
+      track: CAMERA_TRACK,
+      label: 'Camera',
+      group: 'camera',
+      frames: framesOf(camera.camera),
+    });
   }
   const out: Row[] = [];
   for (const g of GROUP_ORDER) {

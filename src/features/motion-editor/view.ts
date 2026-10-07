@@ -6,4 +6,8 @@ export function frameAll(end: number): void {
 }
 
 /** Test/automation probe: client coordinates of a key in the dope sheet (set while it is mounted). */
-export const dopeProbe: { keyPoint?: (track: string, f: number) => { x: number; y: number } | null } = {};
+export const dopeProbe: {
+  /** Pixels per frame of the dope sheet (the graph editor matches it so frames line up). */
+  ppf?: number;
+  keyPoint?: (track: string, f: number) => { x: number; y: number } | null;
+} = {};

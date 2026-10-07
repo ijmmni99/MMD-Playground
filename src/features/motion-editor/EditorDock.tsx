@@ -72,11 +72,24 @@ function ExportPanel() {
       <div className="font-semibold">Export</div>
       {(['bones', 'morphs', 'props'] as const).map((k) => (
         <label key={k} className="flex items-center gap-2">
-          <input type="checkbox" checked={tracks[k]} onChange={(e) => setTracks({ ...tracks, [k]: e.target.checked })} />
-          {k === 'bones' ? 'Bone tracks (FK + IK)' : k === 'morphs' ? 'Morph tracks' : 'IK on/off (display) keys'}
+          <input
+            type="checkbox"
+            checked={tracks[k]}
+            onChange={(e) => setTracks({ ...tracks, [k]: e.target.checked })}
+          />
+          {k === 'bones'
+            ? 'Bone tracks (FK + IK)'
+            : k === 'morphs'
+              ? 'Morph tracks'
+              : 'IK on/off (display) keys'}
         </label>
       ))}
-      <button type="button" className="btn-primary" onClick={() => exportMotion(tracks)} data-testid="me-export-motion">
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => exportMotion(tracks)}
+        data-testid="me-export-motion"
+      >
         Download motion .vmd
       </button>
       <button type="button" className="btn" onClick={exportCamera} data-testid="me-export-camera">
@@ -85,7 +98,9 @@ function ExportPanel() {
       <button type="button" className="btn" onClick={exportSidecar}>
         Download markers / shots / pins (.json)
       </button>
-      <p className="text-fg-dim">Pins are baked into the exported motion. Light and shadow tracks are kept.</p>
+      <p className="text-fg-dim">
+        Pins are baked into the exported motion. Light and shadow tracks are kept.
+      </p>
     </div>
   );
 }
@@ -118,7 +133,11 @@ export default function EditorDock() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (
+        t &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+      )
+        return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       const handled = (fn: () => void): void => {
@@ -143,7 +162,12 @@ export default function EditorDock() {
   }, []);
 
   const toggle = (p: SidePanel): void => setPanel((cur) => (cur === p ? null : p));
-  const btn = (label: string, icon: ReactNode, onClick: () => void, opts: { active?: boolean; testid?: string; disabled?: boolean } = {}) => (
+  const btn = (
+    label: string,
+    icon: ReactNode,
+    onClick: () => void,
+    opts: { active?: boolean; testid?: string; disabled?: boolean } = {},
+  ) => (
     <IconButton
       label={label}
       onClick={onClick}
@@ -190,7 +214,9 @@ export default function EditorDock() {
           <option value="">Camera only</option>
         </select>
         <Sep />
-        {btn('Key selected bone / animated bones (K)', <KeyRound size={15} />, keySelected, { testid: 'me-key' })}
+        {btn('Key selected bone / animated bones (K)', <KeyRound size={15} />, keySelected, {
+          testid: 'me-key',
+        })}
         {btn('Key morph sliders', <Smile size={15} />, () => keyMorphs(), { testid: 'me-key-morphs' })}
         <button
           type="button"
@@ -207,29 +233,60 @@ export default function EditorDock() {
           Auto
         </button>
         <Sep />
-        {btn('Delete keys (Del)', <Trash2 size={15} />, deleteSelected, { disabled: !sel, testid: 'me-delete' })}
+        {btn('Delete keys (Del)', <Trash2 size={15} />, deleteSelected, {
+          disabled: !sel,
+          testid: 'me-delete',
+        })}
         {btn('Copy keys (Ctrl+C)', <Copy size={15} />, copySelection, { disabled: !sel })}
-        {btn('Paste at playhead (Ctrl+V)', <ClipboardPaste size={15} />, () => pasteClipboard(), { disabled: !s.clipboard })}
+        {btn('Paste at playhead (Ctrl+V)', <ClipboardPaste size={15} />, () => pasteClipboard(), {
+          disabled: !s.clipboard,
+        })}
         {btn('Duplicate (Ctrl+D)', <CopyPlus size={15} />, duplicateSelection, { disabled: !sel })}
         {btn('Nudge left ([)', <ChevronsLeft size={15} />, () => nudge(-1), { disabled: !sel })}
         {btn('Nudge right (])', <ChevronsRight size={15} />, () => nudge(1), { disabled: !sel })}
         {btn('Frame all (A)', <Maximize2 size={14} />, () => frameAll(editedEndFrame()))}
-        {btn('Snap to beats & markers', <Magnet size={15} />, () => me.set({ snapToBeats: !s.snapToBeats }), { active: s.snapToBeats, testid: 'me-snap' })}
-        <Sep />
-        {btn('Graph editor', <Spline size={15} />, () => me.set({ graphOpen: !s.graphOpen }), { active: s.graphOpen, testid: 'me-graph' })}
-        {btn('Motion tools', <Wand2 size={15} />, () => toggle('tools'), { active: panel === 'tools', testid: 'me-tools' })}
-        {btn('IK & foot pinning', <Footprints size={15} />, () => toggle('ik'), { active: panel === 'ik', testid: 'me-ik' })}
-        {btn('Camera Director', <Video size={15} />, () => toggle('director'), { active: panel === 'director', testid: 'me-director' })}
-        {btn('Markers & BPM', <Flag size={15} />, () => toggle('markers'), { active: panel === 'markers', testid: 'me-markers' })}
-        <Sep />
-        {btn('Compare with original (A/B)', <ArrowLeftRight size={15} />, () => setCompareOriginal(!s.compareOriginal), {
-          active: s.compareOriginal,
-          testid: 'me-compare',
+        {btn('Snap to beats & markers', <Magnet size={15} />, () => me.set({ snapToBeats: !s.snapToBeats }), {
+          active: s.snapToBeats,
+          testid: 'me-snap',
         })}
+        <Sep />
+        {btn('Graph editor', <Spline size={15} />, () => me.set({ graphOpen: !s.graphOpen }), {
+          active: s.graphOpen,
+          testid: 'me-graph',
+        })}
+        {btn('Motion tools', <Wand2 size={15} />, () => toggle('tools'), {
+          active: panel === 'tools',
+          testid: 'me-tools',
+        })}
+        {btn('IK & foot pinning', <Footprints size={15} />, () => toggle('ik'), {
+          active: panel === 'ik',
+          testid: 'me-ik',
+        })}
+        {btn('Camera Director', <Video size={15} />, () => toggle('director'), {
+          active: panel === 'director',
+          testid: 'me-director',
+        })}
+        {btn('Markers & BPM', <Flag size={15} />, () => toggle('markers'), {
+          active: panel === 'markers',
+          testid: 'me-markers',
+        })}
+        <Sep />
+        {btn(
+          'Compare with original (A/B)',
+          <ArrowLeftRight size={15} />,
+          () => setCompareOriginal(!s.compareOriginal),
+          {
+            active: s.compareOriginal,
+            testid: 'me-compare',
+          },
+        )}
         {btn('Revert to original', <RotateCcw size={15} />, revertToOriginal)}
         {btn('Undo (Ctrl+Z)', <Undo2 size={15} />, undo, { disabled: !undoDepth, testid: 'me-undo' })}
         {btn('Redo (Ctrl+Shift+Z)', <Redo2 size={15} />, redo, { disabled: !redoDepth, testid: 'me-redo' })}
-        {btn('Export', <Download size={15} />, () => toggle('export'), { active: panel === 'export', testid: 'me-export-open' })}
+        {btn('Export', <Download size={15} />, () => toggle('export'), {
+          active: panel === 'export',
+          testid: 'me-export-open',
+        })}
         <div className="flex-1" />
         {btn('Back to playback timeline', <X size={15} />, closeEditor, { testid: 'me-close' })}
       </div>
@@ -237,7 +294,7 @@ export default function EditorDock() {
         <div className="flex min-w-0 flex-1 flex-col">
           <DopeSheet />
           {s.graphOpen && !narrow && (
-            <div className="h-[45%] min-h-[120px] border-t border-line">
+            <div className="h-[55%] min-h-[150px] border-t border-line">
               <Suspense fallback={null}>
                 <GraphEditor />
               </Suspense>
@@ -277,7 +334,11 @@ export default function EditorDock() {
         <span>
           frame <span ref={frameRef}>0</span>
         </span>
-        <span className="truncate">{s.channel ? `${s.channel.track}${s.channel.kind === 'bone' ? ` · ch ${s.channel.channel}` : ''}` : '—'}</span>
+        <span className="truncate">
+          {s.channel
+            ? `${s.channel.track}${s.channel.kind === 'bone' ? ` · ch ${s.channel.channel}` : ''}`
+            : '—'}
+        </span>
         <span>undo {undoDepth}</span>
         {s.compareOriginal && <span className="text-warn">showing original</span>}
         <span className={dirty ? 'text-warn' : 'text-fg-dim'}>{dirty ? '● unsaved' : 'saved'}</span>
