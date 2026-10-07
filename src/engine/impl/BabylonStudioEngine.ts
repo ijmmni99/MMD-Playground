@@ -91,6 +91,8 @@ import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
 import { PNG_SEQUENCE_MIME, recordDeterministic, recordPngSequence, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
+import { buildMmdAnimation } from '../motion/buildAnimation';
+import type { MotionClip } from '@/lib/motion/types';
 import { isCoarsePointer, textureCap } from '@/lib/device';
 import { nearestWithin } from '@/lib/gestures';
 
@@ -119,6 +121,9 @@ interface ModelEntry {
   materialState: { visible: boolean; outline: boolean; alpha: number }[];
   transform: TransformState;
   restPositions: Vector3[];
+  /** IK chains from the PMX (bone indices). */
+  ikChains: { bone: number; target: number; links: number[] }[];
+  ikEnabled: boolean;
 }
 
 let idCounter = 0;
@@ -780,6 +785,10 @@ export class BabylonStudioEngine implements StudioEngine {
         materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
         transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
         restPositions: model.runtimeBones.map((b) => b.linkedBone.position.clone()),
+        ikEnabled: true,
+        ikChains: metadata.bones.flatMap((b, i) =>
+          b.ik ? [{ bone: i, target: b.ik.target, links: b.ik.links.map((l) => l.target) }] : [],
+        ),
       };
       this.models.set(id, entry);
       if (prepared.missing.length) {
@@ -1037,6 +1046,182 @@ export class BabylonStudioEngine implements StudioEngine {
     const info = this.motionInfo(animation, basename(file.path));
     this.events.emit('motionChanged', { modelId, motion: info });
     return info;
+  }
+
+  // ---------------------------------------------------------------- motion editing
+  /** Replace a model's runtime animation with an edited clip (no reload; unchanged tracks reused). */
+  setMotionClip(modelId: string, clip: MotionClip | null, name = 'edited.vmd'): MotionInfo | null {
+    const m = this.need(modelId);
+    const old = m.motion;
+    if (!clip) {
+      if (old) {
+        m.model.setRuntimeAnimation(null);
+        m.model.destroyRuntimeAnimation(old.handle);
+        m.motion = null;
+      }
+      this.updateDuration();
+      this.events.emit('motionChanged', { modelId, motion: null });
+      return null;
+    }
+    const animation = buildMmdAnimation(name, clip, 'model');
+    const handle = m.model.createRuntimeAnimation(animation);
+    m.model.setRuntimeAnimation(handle);
+    if (old) m.model.destroyRuntimeAnimation(old.handle);
+    m.motion = { animation, handle };
+    if (!m.ikEnabled) m.model.ikSolverStates.fill(0);
+    this.updateDuration();
+    this.refreshPose();
+    const info = this.motionInfo(animation, name);
+    this.events.emit('motionChanged', { modelId, motion: info });
+    return info;
+  }
+
+  /** Replace the camera's runtime animation with an edited clip. */
+  setCameraClip(clip: MotionClip | null, name = 'camera.vmd'): CameraMotionInfo | null {
+    const old = this.cameraMotion;
+    if (!clip || !clip.camera.length) {
+      void this.loadCameraMotion(null);
+      return null;
+    }
+    const animation = buildMmdAnimation(name, clip, 'camera');
+    const handle = this.mmdCamera.createRuntimeAnimation(animation);
+    this.mmdCamera.setRuntimeAnimation(handle);
+    if (old) this.mmdCamera.destroyRuntimeAnimation(old.handle);
+    this.cameraMotion = { animation, handle };
+    this.updateDuration();
+    this.refreshPose();
+    const info: CameraMotionInfo = {
+      name,
+      frameCount: animation.endFrame,
+      frames: Array.from(animation.cameraTrack.frameNumbers),
+    };
+    this.events.emit('cameraMotionChanged', info);
+    return info;
+  }
+
+  private refreshQueued = false;
+  /** Re-evaluate the current frame (paused only; playback picks edits up on its own). */
+  private refreshPose(): void {
+    if (this.runtime.isAnimationPlaying || this.refreshQueued) return;
+    this.refreshQueued = true;
+    queueMicrotask(() => {
+      this.refreshQueued = false;
+      void this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    });
+  }
+
+  /** Current local key values (VMD position offset + rotation) of bones, including unkeyed manual edits. */
+  getBoneKeyValues(
+    modelId: string,
+    names?: string[],
+  ): Record<string, { p: [number, number, number]; r: [number, number, number, number] }> {
+    const m = this.models.get(modelId);
+    const out: Record<string, { p: [number, number, number]; r: [number, number, number, number] }> = {};
+    if (!m) return out;
+    const want = names ? new Set(names) : null;
+    m.model.runtimeBones.forEach((b, i) => {
+      if (want && !want.has(b.name)) return;
+      const q = b.linkedBone.rotationQuaternion;
+      const p = b.linkedBone.position.subtract(m.restPositions[i]);
+      out[b.name] = { p: [p.x, p.y, p.z], r: [q.x, q.y, q.z, q.w] };
+    });
+    return out;
+  }
+
+  /**
+   * Local rotations as actually rendered (after IK and append transforms), derived from world matrices:
+   * MMD bones have no rest rotation, so local = parentWorld⁻¹ · world.
+   */
+  getSolvedLocalRotations(
+    modelId: string,
+    names: string[],
+  ): Record<string, [number, number, number, number]> {
+    const m = this.models.get(modelId);
+    const out: Record<string, [number, number, number, number]> = {};
+    if (!m) return out;
+    const index = new Map(m.model.runtimeBones.map((b, i) => [b.name, i]));
+    const worldRot = (i: number): Matrix => {
+      const q = new Quaternion();
+      m.model.runtimeBones[i].getWorldMatrixToRef(new Matrix()).decompose(undefined, q, undefined);
+      return Matrix.FromQuaternionToRef(q, new Matrix());
+    };
+    for (const name of names) {
+      const i = index.get(name);
+      if (i === undefined) continue;
+      const parent = m.model.runtimeBones[i].parentBone;
+      const w = worldRot(i);
+      // Row-vector convention: W = L · P  ⇒  L = W · P⁻¹.
+      const lm = parent ? w.multiply(Matrix.Invert(worldRot(m.model.runtimeBones.indexOf(parent)))) : w;
+      const l = Quaternion.FromRotationMatrix(lm).normalize();
+      out[name] = [l.x, l.y, l.z, l.w];
+    }
+    return out;
+  }
+
+  /** Model-space positions of bones as rendered (for IK fitting, pins and overlays). */
+  getBoneModelPositions(modelId: string, names: string[]): Record<string, [number, number, number]> {
+    const m = this.models.get(modelId);
+    const out: Record<string, [number, number, number]> = {};
+    if (!m) return out;
+    const tmp = new Vector3();
+    for (const b of m.model.runtimeBones) {
+      if (!names.includes(b.name)) continue;
+      b.getWorldTranslationToRef(tmp);
+      out[b.name] = [tmp.x, tmp.y, tmp.z];
+    }
+    return out;
+  }
+
+  /**
+   * Evaluate the model at given frames (animation + IK + append transforms, no physics) and read
+   * solved local rotations and model-space positions. Restores the current frame afterwards.
+   */
+  sampleModel(
+    modelId: string,
+    frames: number[],
+    names: string[],
+    opts: { ik?: boolean } = {},
+  ): {
+    r: Record<string, [number, number, number, number]>;
+    pos: Record<string, [number, number, number]>;
+  }[] {
+    const m = this.models.get(modelId);
+    if (!m) return [];
+    const states = m.model.ikSolverStates.slice();
+    const out: ReturnType<StudioEngine['sampleModel']> = [];
+    const model = m.model as MmdModel & { beforePhysics(frame: number | null): void; afterPhysics(): void };
+    for (const f of frames) {
+      model.beforePhysics(f);
+      if (opts.ik === false) {
+        m.model.ikSolverStates.fill(0);
+        model.beforePhysics(f);
+      }
+      model.afterPhysics();
+      out.push({
+        r: this.getSolvedLocalRotations(modelId, names),
+        pos: this.getBoneModelPositions(modelId, names),
+      });
+    }
+    m.model.ikSolverStates.set(states);
+    void this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    return out;
+  }
+
+  /** IK chains (bone names) of a model. */
+  getIkChains(modelId: string): { bone: string; target: string; links: string[] }[] {
+    const m = this.models.get(modelId);
+    if (!m) return [];
+    const name = (i: number): string => m.model.runtimeBones[i]?.name ?? '';
+    return m.ikChains.map((c) => ({ bone: name(c.bone), target: name(c.target), links: c.links.map(name) }));
+  }
+
+  /** Debug: turn all IK solvers of a model on or off. */
+  setIkEnabled(modelId: string, enabled: boolean): void {
+    const m = this.models.get(modelId);
+    if (!m) return;
+    m.ikEnabled = enabled;
+    m.model.ikSolverStates.fill(enabled ? 1 : 0);
+    this.refreshPose();
   }
 
   async loadCameraMotion(file: VFile | null): Promise<CameraMotionInfo | null> {

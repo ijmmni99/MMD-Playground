@@ -1,5 +1,6 @@
 // Public, framework-agnostic engine contract. This module is tiny and does not import Babylon:
 // the implementation is code-split and loaded on demand via `createStudioEngine`.
+import type { MotionClip } from '@/lib/motion/types';
 import type { Emitter } from './emitter';
 import type {
   AudioInfo,
@@ -105,6 +106,28 @@ export interface StudioEngine {
   // motion / media
   loadMotion(modelId: string, file: VFile | null): Promise<MotionInfo | null>;
   loadCameraMotion(file: VFile | null): Promise<CameraMotionInfo | null>;
+  /** Replace a model's animation with an edited clip (live, no reload). */
+  setMotionClip(modelId: string, clip: MotionClip | null, name?: string): MotionInfo | null;
+  /** Replace the camera animation with an edited clip's camera track. */
+  setCameraClip(clip: MotionClip | null, name?: string): CameraMotionInfo | null;
+  /** Current local key values (VMD position offset + rotation), including unkeyed manual edits. */
+  getBoneKeyValues(
+    modelId: string,
+    names?: string[],
+  ): Record<string, { p: [number, number, number]; r: [number, number, number, number] }>;
+  /** Rendered local rotations (after IK / append transforms). */
+  getSolvedLocalRotations(modelId: string, names: string[]): Record<string, [number, number, number, number]>;
+  /** Rendered model-space bone positions. */
+  getBoneModelPositions(modelId: string, names: string[]): Record<string, [number, number, number]>;
+  /** Evaluate frames (animation + IK, no physics) and read solved rotations / positions. */
+  sampleModel(
+    modelId: string,
+    frames: number[],
+    names: string[],
+    opts?: { ik?: boolean },
+  ): { r: Record<string, [number, number, number, number]>; pos: Record<string, [number, number, number]> }[];
+  getIkChains(modelId: string): { bone: string; target: string; links: string[] }[];
+  setIkEnabled(modelId: string, enabled: boolean): void;
   loadAudio(file: VFile | null): Promise<AudioInfo | null>;
   setAudioOffset(ms: number): void;
   setVolume(volume: number): void;
