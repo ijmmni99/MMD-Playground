@@ -1,5 +1,6 @@
 import type { StudioEngine } from '@/engine/StudioEngine';
 import { recordBoneEdit, recordTransformEdit, syncMorphsFromEngine } from '@/store/actions';
+import { motionHooks } from '@/store/motionEditor';
 import { setTask, studio, toast } from '@/store/studio';
 
 /** Forward engine events into the store. Returns an unsubscribe function. */
@@ -25,7 +26,10 @@ export function connectEngine(engine: StudioEngine): () => void {
           set((s) => ({ project: { ...s.project, dirty: true } }));
       }
     }),
-    engine.events.on('boneEdited', (e) => recordBoneEdit(e.modelId, e.bone, e.before, e.after)),
+    engine.events.on('boneEdited', (e) => {
+      recordBoneEdit(e.modelId, e.bone, e.before, e.after);
+      motionHooks.boneEdited?.(e.modelId, e.bone);
+    }),
     engine.events.on('modelTransformEdited', (e) => recordTransformEdit(e.modelId, e.before, e.after)),
     engine.events.on('morphsChanged', (e) => syncMorphsFromEngine(e.modelId)),
     engine.events.on('boneSelected', (b) => {

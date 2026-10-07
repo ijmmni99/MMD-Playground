@@ -1,5 +1,6 @@
 import { DEFAULT_CAMERA, DEFAULT_SETTINGS, DEFAULT_TRANSFORM } from '@/engine/defaults';
 import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/types';
+import type { MotionEditorDoc } from '@/store/motionEditor';
 import type { Video2VmdDoc } from '@/store/video2vmd';
 
 export const PROJECT_VERSION = 1;
@@ -36,6 +37,8 @@ export interface ProjectDoc {
   thumbnail?: string;
   /** Video to VMD session (source video, pose data, settings). */
   video2vmd?: Video2VmdDoc;
+  /** Motion editor: edited clips (base + original), pins, markers, BPM, shots. */
+  motionEditor?: MotionEditorDoc;
 }
 
 export interface ProjectSummary {
@@ -140,6 +143,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     models,
     thumbnail: typeof json.thumbnail === 'string' ? json.thumbnail : undefined,
     video2vmd: parseVideo2Vmd(json.video2vmd),
+    motionEditor: parseMotionEditor(json.motionEditor),
   };
 }
 
@@ -155,6 +159,14 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
   if (doc.hdr) ids.add(doc.hdr.blobId);
   if (doc.video2vmd?.video) ids.add(doc.video2vmd.video.blobId);
   if (doc.video2vmd?.pose) ids.add(doc.video2vmd.pose.blobId);
+  for (const m of Object.values(doc.motionEditor?.models ?? {})) {
+    ids.add(m.base.blobId);
+    ids.add(m.original.blobId);
+  }
+  if (doc.motionEditor?.camera) {
+    ids.add(doc.motionEditor.camera.base.blobId);
+    ids.add(doc.motionEditor.camera.original.blobId);
+  }
   return ids;
 }
 
@@ -211,5 +223,32 @@ function parseVideo2Vmd(v: unknown): Video2VmdDoc | undefined {
     downscale: v.downscale === true,
     targetModelId: typeof v.targetModelId === 'string' ? v.targetModelId : null,
     step: typeof v.step === 'string' && steps.includes(v.step) ? (v.step as Video2VmdDoc['step']) : 'import',
+  };
+}
+
+function parseMotionEditor(v: unknown): MotionEditorDoc | undefined {
+  if (!isObj(v)) return undefined;
+  const models: MotionEditorDoc['models'] = {};
+  if (isObj(v.models)) {
+    for (const [id, m] of Object.entries(v.models)) {
+      if (isObj(m) && isFileRef(m.base) && isFileRef(m.original)) {
+        models[id] = {
+          base: m.base,
+          original: m.original,
+          pins: Array.isArray(m.pins) ? (m.pins as MotionEditorDoc['models'][string]['pins']) : [],
+          name: typeof m.name === 'string' ? m.name : 'motion.vmd',
+        };
+      }
+    }
+  }
+  const cam = isObj(v.camera) && isFileRef(v.camera.base) && isFileRef(v.camera.original) ? v.camera : null;
+  return {
+    models,
+    camera: cam
+      ? { base: cam.base as FileRef, original: cam.original as FileRef, name: typeof cam.name === 'string' ? cam.name : 'camera.vmd' }
+      : null,
+    markers: Array.isArray(v.markers) ? (v.markers as MotionEditorDoc['markers']) : [],
+    grid: isObj(v.grid) ? (v.grid as unknown as MotionEditorDoc['grid']) : { bpm: 0, offset: 0, beatsPerBar: 4 },
+    shots: Array.isArray(v.shots) ? (v.shots as MotionEditorDoc['shots']) : [],
   };
 }

@@ -91,6 +91,12 @@ input[type='color']::-webkit-color-swatch {
   .input {
     @apply h-7 rounded border border-line bg-bg px-2 text-[12px] text-fg outline-none transition-colors placeholder:text-fg-dim hover:border-[#3a4150] focus:border-accent;
   }
+  .btn {
+    @apply inline-flex h-7 select-none items-center justify-center gap-1.5 rounded border border-line bg-bg-raised px-2.5 text-[12px] font-medium text-fg transition-colors hover:bg-bg-hover disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply inline-flex h-7 select-none items-center justify-center gap-1.5 rounded bg-accent-strong px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40;
+  }
 }
 
 /* ---------------------------------------------------------------- mobile */
@@ -116,6 +122,10 @@ body {
 
 @media (pointer: coarse) {
   /* iOS zooms the page when focusing inputs below 16px. */
+  .btn,
+  .btn-primary {
+    min-height: 44px;
+  }
   .input,
   input,
   select,

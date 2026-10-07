@@ -6,6 +6,7 @@ import { Inspector } from '@/features/inspector/Inspector';
 import { Timeline } from '@/features/timeline/Timeline';
 import { Viewport } from '@/features/viewport/Viewport';
 import { useStudio } from '@/store/studio';
+import { useMotionEditor } from '@/store/motionEditor';
 
 const Playground = lazy(() => import('@/features/playground/Playground'));
 const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
@@ -51,6 +52,15 @@ export function DesktopShell() {
       sceneWidth.current = null;
     }
   }, [mode, leftRef]);
+
+  // The motion editor needs more height than the playback timeline.
+  const editorOpen = useMotionEditor((s) => s.open);
+  useEffect(() => {
+    const panel = bottomRef.current;
+    if (!editorOpen || !panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    if (panel.getSize().asPercentage < 45) panel.resize('45%');
+  }, [editorOpen, bottomRef]);
 
   useEffect(() => {
     // Tablets: start with the scene panel collapsed.

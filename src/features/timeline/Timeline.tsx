@@ -12,8 +12,9 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  PenLine,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton, NumberField, Select } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import { engineOrNull } from '@/store/engineRef';
@@ -23,6 +24,7 @@ import type { PlaybackState } from '@/engine/types';
 import { pinchScale, pinchState, type Point } from '@/lib/gestures';
 import { setLoop, setSpeed, togglePlay } from '@/store/actions';
 import { useStudio } from '@/store/studio';
+import { me, useMotionEditor } from '@/store/motionEditor';
 import {
   formatTimecode,
   frameToX,
@@ -34,6 +36,33 @@ import {
   zoomAt,
   type TimelineView,
 } from '@/lib/timeline';
+
+const EditorDock = lazy(() => import('@/features/motion-editor/EditorDock'));
+
+/** Open or close the motion editor (loaded on demand). */
+function toggleMotionEditor(): void {
+  void import('@/features/motion-editor/actions').then((a) => (me.get().open ? a.closeEditor() : a.openEditor()));
+}
+
+/** Bottom dock: the playback timeline, or the motion editor sharing the same space and transport. */
+export function Timeline() {
+  const editorOpen = useMotionEditor((s) => s.open);
+  if (!editorOpen) return <PlaybackTimeline />;
+  const zoom = (factor: number): void =>
+    me.set((s) => {
+      const center = s.view.start + s.view.span / 2;
+      const span = Math.min(20000, Math.max(20, s.view.span / factor));
+      return { view: { span, start: Math.max(-10, center - span / 2) } };
+    });
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-bg-panel" aria-label="Motion editor dock">
+      <TransportBar onFit={() => me.set({ view: { start: -2, span: Math.max(60, (engineOrNull()?.getPlayback().duration ?? 300) + 12) } })} onZoom={zoom} />
+      <Suspense fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading editor…</div>}>
+        <EditorDock />
+      </Suspense>
+    </div>
+  );
+}
 
 const ROW_H = 22;
 const RULER_H = 22;
@@ -55,7 +84,7 @@ function mergeFrames(lists: number[][]): number[] {
   return [...set].sort((a, b) => a - b);
 }
 
-export function Timeline() {
+function PlaybackTimeline() {
   const playback = useStudio((s) => s.playback);
   const models = useStudio((s) => s.models);
   const cameraMotion = useStudio((s) => s.cameraMotion);
@@ -474,6 +503,25 @@ export function Timeline() {
   );
 }
 
+function EditorToggle() {
+  const open = useMotionEditor((s) => s.open);
+  return (
+    <button
+      type="button"
+      onClick={toggleMotionEditor}
+      aria-pressed={open}
+      data-testid="open-editor"
+      title={open ? 'Back to the playback timeline' : 'Edit keyframes (Motion Editor & Camera Director)'}
+      className={cn(
+        'mr-1 flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] coarse:h-10 coarse:px-3',
+        open ? 'border-accent bg-accent-soft text-fg' : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
+      )}
+    >
+      <PenLine size={13} /> {open ? 'Editing' : 'Edit'}
+    </button>
+  );
+}
+
 function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number) => void }) {
   const pb = useStudio((s) => s.playback);
   const engine = engineOrNull;
@@ -537,6 +585,7 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
         />
       </div>
       <div className="flex-1" />
+      <EditorToggle />
       <Select
         hideLabel
         label="Playback speed"

@@ -15,6 +15,7 @@ import { useHistory } from '@/store/history';
 import { initialPlayback, studio, toast, useStudio } from '@/store/studio';
 import { registerProjectImporter, restoreModel } from '@/store/actions';
 import { buildVideo2VmdDoc, restoreVideo2Vmd } from '@/features/video2vmd/actions';
+import { buildMotionEditorDoc, restoreMotionEditor } from '@/features/motion-editor/persist';
 
 const { get, set } = studio;
 const LAST_PROJECT = 'lastProjectId';
@@ -57,6 +58,7 @@ export function buildProjectDoc(): ProjectDoc {
     hdr: s.hdrRef,
     models,
     video2vmd: buildVideo2VmdDoc(),
+    motionEditor: buildMotionEditorDoc(),
   };
 }
 
@@ -216,6 +218,11 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
       },
     });
     engine.setActiveModel(get().selectedModelId);
+    try {
+      await restoreMotionEditor(doc.motionEditor);
+    } catch (e) {
+      failures.push(`motion editor: ${String(e)}`);
+    }
     try {
       await restoreVideo2Vmd(doc.video2vmd);
     } catch (e) {

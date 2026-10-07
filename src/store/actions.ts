@@ -17,6 +17,7 @@ import { isLowMemoryDevice, LARGE_MODEL_BYTES } from '@/lib/device';
 import type { FileRef, ProjectModel } from '@/lib/project';
 import { engineOrNull, whenEngine } from './engineRef';
 import { useHistory } from './history';
+import { motionHooks } from './motionEditor';
 import { markDirty, selectedModel, setTask, studio, toast, updateModel, type ModelUI } from './studio';
 
 const { get, set } = studio;
@@ -349,6 +350,7 @@ export function setMorph(id: string, name: string, weight: number, record = true
   const prev = get().models.find((m) => m.id === id)?.morphs[name] ?? 0;
   engineOrNull()?.setMorph(id, name, weight);
   updateModel(id, (m) => ({ morphs: { ...m.morphs, [name]: weight } }));
+  if (record) motionHooks.morphChanged?.(id, name, weight);
   if (record) {
     useHistory.getState().push({
       label: `Morph ${name}`,
@@ -478,6 +480,7 @@ export async function assignMotion(modelId: string, file: VFile | null): Promise
     const ref = file ? await registerFile(file) : null;
     const motion = await engine.loadMotion(modelId, file);
     updateModel(modelId, { motion, motionRef: ref });
+    motionHooks.motionReplaced?.(modelId);
     if (file)
       toast(
         'success',
@@ -494,6 +497,7 @@ export async function setCameraMotion(file: VFile | null): Promise<void> {
     const ref = file ? await registerFile(file) : null;
     const info = await engine.loadCameraMotion(file);
     set({ cameraMotion: info && ref ? { info, ref } : null });
+    motionHooks.motionReplaced?.('__camera__');
     if (info) setCameraMode('vmd');
     markDirty();
   } catch (e) {
