@@ -133,6 +133,34 @@ test('motion editor: dope sheet, key edits, undo/redo, camera, export, persist',
   await page.getByLabel('Rot Y°').press('Enter');
   await expect.poll(async () => (await curve()).r).not.toEqual(before);
   await page.screenshot({ path: 'e2e/__shots/me-desktop.png' });
+  await page.getByTestId('me-graph').click();
+
+  // Motion tools: smooth a range, mirror, then undo both.
+  await page.getByTestId('me-tools').click();
+  await expect(page.getByTestId('me-tools-panel')).toBeVisible();
+  const range = page.getByTestId('me-range');
+  await range.getByLabel('From').fill('0');
+  await range.getByLabel('To').fill('60');
+  const armR = () =>
+    page.evaluate(() => {
+      const s = (window as ME).__motionEditor!.state();
+      const c = s.clips[s.modelId!] as unknown as { bones: { name: string; keys: { f: number; r: number[] }[] }[] };
+      return {
+        left: c.bones.find((t) => t.name === '左腕')!.keys[1].r,
+        right: c.bones.find((t) => t.name === '右腕')!.keys[1].r,
+      };
+    });
+  const headCount = (await boneFrames(page, '頭')).length;
+  await page.getByTestId('tool-smooth').click();
+  await expect.poll(async () => (await boneFrames(page, '頭')).length).toBeGreaterThan(headCount);
+  const arms = await armR();
+  await page.getByTestId('tool-mirror').click();
+  await expect.poll(async () => (await armR()).left[1]).toBeCloseTo(-arms.right[1], 5);
+  await page.screenshot({ path: 'e2e/__shots/me-tools.png' });
+  await page.getByTestId('me-undo').click();
+  await page.getByTestId('me-undo').click();
+  await expect.poll(async () => (await boneFrames(page, '頭')).length).toBe(headCount);
+  await page.getByTestId('me-tools').click();
 
   // Camera motion appears as its own track.
   const camChooser = page.waitForEvent('filechooser');

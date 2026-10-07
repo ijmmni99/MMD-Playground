@@ -199,6 +199,16 @@ export function DopeSheet() {
       ctx.fillRect(Math.round(x), RULER_H - 7, 1, 6);
       ctx.fillText(String(f), x + 3, RULER_H / 2);
     }
+    if (s.range) {
+      const xa = Math.max(g.labelW, frameToX(g, s.range[0]));
+      const xb = frameToX(g, s.range[1] + 1);
+      if (xb > xa) {
+        ctx.fillStyle = 'rgba(255,213,79,0.28)';
+        ctx.fillRect(xa, 0, xb - xa, RULER_H - 1);
+        ctx.fillStyle = 'rgba(255,213,79,0.05)';
+        ctx.fillRect(xa, HEADER_H, xb - xa, g.height - HEADER_H);
+      }
+    }
     for (const sh of s.shots) {
       const xa = Math.max(g.labelW, frameToX(g, sh.start));
       const xb = frameToX(g, sh.end + 1);
@@ -324,6 +334,7 @@ export function DopeSheet() {
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<
     | { type: 'scrub' }
+    | { type: 'range'; from: number }
     | { type: 'drag'; startX: number; anchor: number; moved: boolean }
     | { type: 'box' }
     | { type: 'pinch'; dist: number; mid: number; start: number; span: number }
@@ -366,6 +377,17 @@ export function DopeSheet() {
     }
     const g = geo.current;
     if (p.y < HEADER_H) {
+      if (e.shiftKey && p.x > g.labelW) {
+        // Shift-drag on the ruler: set the tool range.
+        const from = Math.max(0, Math.round(xToFrame(g, p.x)));
+        gesture.current = { type: 'range', from };
+        me.set({ range: [from, from] });
+        return;
+      }
+      if (e.altKey) {
+        me.set({ range: null });
+        return;
+      }
       gesture.current = { type: 'scrub' };
       if (p.x > g.labelW) seekTo(p.x);
       return;
@@ -433,6 +455,11 @@ export function DopeSheet() {
     }
     if (gst.type === 'scrub') {
       seekTo(p.x);
+      return;
+    }
+    if (gst.type === 'range') {
+      const f = Math.max(0, Math.round(xToFrame(geo.current, p.x)));
+      me.set({ range: [Math.min(gst.from, f), Math.max(gst.from, f)] });
       return;
     }
     if (gst.type === 'drag') {

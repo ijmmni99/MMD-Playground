@@ -185,6 +185,33 @@ export function commit(
   });
 }
 
+/** One undo step that may change the edited model's clip and/or the camera clip. */
+export function commitClips(
+  label: string,
+  modelFn: ((clip: MotionClip) => MotionClip) | null,
+  cameraFn: ((clip: MotionClip) => MotionClip) | null = null,
+): boolean {
+  const s = me.get();
+  const steps: { target: Target; before: MotionClip; after: MotionClip }[] = [];
+  const run = (target: Target, fn: ((clip: MotionClip) => MotionClip) | null): void => {
+    const before = fn ? getClip(target) : null;
+    if (!before || !fn) return;
+    const after = fn(before);
+    if (after !== before) steps.push({ target, before, after });
+  };
+  if (s.modelId) run(s.modelId, modelFn);
+  run(CAMERA, cameraFn);
+  if (!steps.length) return false;
+  const selBefore = [...s.selection];
+  const apply = (which: 'before' | 'after'): void => {
+    for (const st of steps) putClip(st.target, st[which]);
+    me.set({ selection: new Set(which === 'before' ? selBefore : []) });
+  };
+  apply('after');
+  useHistory.getState().push({ label, undo: () => apply('before'), redo: () => apply('after') });
+  return true;
+}
+
 /** Commit to the current model and/or camera, routing refs by kind. */
 export function commitRefs(
   label: string,

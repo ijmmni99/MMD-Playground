@@ -46,6 +46,8 @@ export interface MotionEditorState {
   ikOverlay: boolean;
   /** Collapsed dope-sheet groups. */
   collapsed: Record<string, boolean>;
+  /** Tool range [from, to] (inclusive), null = whole clip. Shift-drag on the ruler sets it. */
+  range: [number, number] | null;
   /** Visible frame range of the dope sheet. */
   view: { start: number; span: number };
   clipboard: Clipboard | null;
@@ -80,6 +82,7 @@ export const useMotionEditor = create<MotionEditorState>(() => ({
   cameraPath: false,
   ikOverlay: false,
   collapsed: { fingers: true, other: true },
+  range: null,
   view: { start: 0, span: 300 },
   clipboard: null,
   saved: { models: {}, camera: null },
