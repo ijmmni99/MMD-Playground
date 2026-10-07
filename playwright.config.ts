@@ -51,7 +51,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chromium',
-      testMatch: /smoke\.spec\.ts/,
+      testMatch: /(smoke|video2vmd)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 800 },

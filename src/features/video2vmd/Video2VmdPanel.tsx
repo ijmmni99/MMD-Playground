@@ -18,6 +18,7 @@ import { cn } from '@/components/ui/cn';
 import { formatTime } from '@/engine/video2vmd/convert';
 import { PRESETS, type PresetId } from '@/engine/video2vmd/types';
 import { pickFiles } from '@/features/app/filePickers';
+import { isLowMemoryDevice } from '@/lib/device';
 import { setAudioOffset } from '@/store/actions';
 import { useStudio } from '@/store/studio';
 import { useV2V, V2V_STEPS, v2v, type V2VStep } from '@/store/video2vmd';
@@ -198,6 +199,7 @@ function ImportStep() {
   const { info } = video;
   const long = trim[1] - trim[0] > LONG_VIDEO_SECONDS;
   const big = Math.max(info.width, info.height) > 1920;
+  const lowMemory = isLowMemoryDevice();
   const set = (i: 0 | 1, v: number): void => setTrim(i === 0 ? [v, trim[1]] : [trim[0], v]);
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -221,6 +223,12 @@ function ImportStep() {
         <Notice tone="warn">
           The selected range is over {LONG_VIDEO_SECONDS / 60} minutes. It will take a while; consider
           trimming to the part you need.
+        </Notice>
+      )}
+      {lowMemory && (
+        <Notice tone="warn">
+          This device has limited memory, so frames are analysed at up to 720p and 30 fps. Trim long videos to the
+          part you need.
         </Notice>
       )}
       {big && (
