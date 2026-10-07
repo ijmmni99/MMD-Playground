@@ -38,14 +38,21 @@ export interface StudioEvents {
   error: string;
   physicsStatus: { available: boolean; message?: string };
   boneSelected: { modelId: string; bone: number } | null;
+  /** The scale gizmo changed a model transform (for undo/redo). */
+  modelTransformEdited: { modelId: string; before: TransformState; after: TransformState };
   /** Fired at the end of a gizmo drag, for undo/redo. */
   boneEdited: { modelId: string; bone: number; before: BoneLocalTransform; after: BoneLocalTransform };
   cameraChanged: CameraState;
+  /** The WebGL context was lost (mobile memory pressure, GPU reset). */
+  contextLost: undefined;
+  /** The context came back; GPU resources were rebuilt. */
+  contextRestored: undefined;
   /** Morph weights changed outside of the UI (e.g. playground scripts). */
   morphsChanged: { modelId: string };
 }
 
-export type GizmoMode = 'rotate' | 'translate';
+/** 'scale' applies to the whole active model (uniform). */
+export type GizmoMode = 'rotate' | 'translate' | 'scale';
 
 export interface LoadModelOptions {
   id?: string;
@@ -117,12 +124,23 @@ export interface StudioEngine {
   // posing
   selectBone(modelId: string | null, bone: number | null): void;
   setGizmoMode(mode: GizmoMode): void;
+  /** Model the scale gizmo / bone tap-picking operate on. */
+  setActiveModel(id: string | null): void;
+  /** Tap picking in canvas CSS pixels: nearest bone of the active model, else the tapped model. */
+  pickAt(x: number, y: number, radius?: number): { modelId: string; bone: number | null } | null;
   getBoneTransform(modelId: string, bone: number): BoneLocalTransform | null;
   setBoneTransform(modelId: string, bone: number, t: BoneLocalTransform): void;
   getPose(modelId: string): PoseData | null;
   applyPose(modelId: string, pose: PoseData): void;
   resetPose(modelId: string): void;
   resetPhysics(): void;
+
+  /** Unlock the audio context from a user gesture (required by iOS Safari). */
+  unlockAudio(): void;
+  /** Skip rendering while the viewport is hidden (playback keeps rendering). */
+  setRenderPaused(paused: boolean): void;
+  /** Current measured frames per second. */
+  getFps(): number;
 
   /** Run a callback before every rendered frame (delta in ms). Returns an unsubscribe fn. */
   onBeforeFrame(cb: (deltaMs: number) => void): () => void;

@@ -2,11 +2,11 @@ import { Camera, Circle, Square } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Button, NumberField, Row, Section, Select, ToggleRow } from '@/components/ui/controls';
 import type { RecordProgress } from '@/engine/StudioEngine';
-import { downloadBlob } from '@/features/app/filePickers';
+import { saveOrShare } from '@/features/app/filePickers';
 import { engineOrNull } from '@/store/engineRef';
 import { toast, useStudio } from '@/store/studio';
 import { formatTimecode } from '@/lib/timeline';
-import { resolutionFor, supportedFormats, type ResolutionId } from './formats';
+import { hasVideoEncoder, resolutionFor, supportedFormats, type ResolutionId } from './formats';
 
 export function ExportPanel() {
   return (
@@ -89,7 +89,7 @@ function ScreenshotSection() {
           try {
             const [w, h] = resolutionFor(res, custom);
             const blob = await engine.screenshot({ width: w, height: h, transparent });
-            downloadBlob(blob, `mmd-studio-${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
+            await saveOrShare(blob, `mmd-studio-${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
             toast('success', `Saved ${w}×${h} screenshot`);
           } catch (e) {
             toast('error', `Screenshot failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -122,16 +122,6 @@ function VideoSection() {
   const format = formats.find((f) => f.id === formatId) ?? formats[0];
   const duration = Math.round(playback.duration);
 
-  if (!formats.length) {
-    return (
-      <Section title="Video">
-        <p className="text-[12px] text-warn">
-          This browser cannot record video (MediaRecorder / WebCodecs unavailable).
-        </p>
-      </Section>
-    );
-  }
-
   const record = async (): Promise<void> => {
     const engine = engineOrNull();
     if (!engine || !format) return;
@@ -163,7 +153,7 @@ function VideoSection() {
         setProgress,
         ctrl.signal,
       );
-      downloadBlob(blob, `mmd-studio-${Date.now()}.${format.ext}`);
+      await saveOrShare(blob, `mmd-studio-${Date.now()}.${format.ext}`);
       toast('success', `Video saved (${(blob.size / 1024 / 1024).toFixed(1)} MB)`);
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') toast('info', 'Recording cancelled');
@@ -176,6 +166,15 @@ function VideoSection() {
 
   return (
     <Section title="Video">
+      {!hasVideoEncoder(formats) && (
+        <p
+          className="mb-2 rounded-md border border-warn/40 bg-warn/10 p-2 text-[12px] leading-relaxed text-warn"
+          role="status"
+        >
+          This browser can’t encode video (no MediaRecorder/WebCodecs support — common on older iOS Safari).
+          You can still export every frame as PNGs in a ZIP and combine them on a computer.
+        </p>
+      )}
       <ResolutionPicker value={res} onChange={setRes} custom={custom} setCustom={setCustom} max={3840} />
       <Select
         label="Frame rate"

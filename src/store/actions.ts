@@ -13,6 +13,7 @@ import type { BoneLocalTransform, GizmoMode } from '@/engine/StudioEngine';
 import { registerFile, registerFiles, resolveRef, resolveRefs } from '@/lib/assets';
 import { collectFromDataTransfer, collectFromFileList, expandZips, planImport } from '@/lib/ingest';
 import { basename, stripExt } from '@/lib/paths';
+import { isLowMemoryDevice, LARGE_MODEL_BYTES } from '@/lib/device';
 import type { FileRef, ProjectModel } from '@/lib/project';
 import { engineOrNull, whenEngine } from './engineRef';
 import { useHistory } from './history';
@@ -20,6 +21,15 @@ import { markDirty, selectedModel, setTask, studio, toast, updateModel, type Mod
 
 const { get, set } = studio;
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** Map low-level failures (allocation errors on phones) to actionable messages. */
+export function friendlyError(e: unknown): string {
+  const msg = errMsg(e);
+  if (e instanceof RangeError || /out of memory|allocation failed|array buffer allocation/i.test(msg)) {
+    return 'the device ran out of memory. Try Low quality, close other tabs, or use a smaller model.';
+  }
+  return msg;
+}
 
 // ---------------------------------------------------------------- import
 
@@ -59,6 +69,19 @@ export async function importFiles(raw: VFile[]): Promise<void> {
     const plan = await planImport(files);
     const engine = await whenEngine();
     const newModelIds: string[] = [];
+    // Memory safety: very large models can crash a phone tab, so ask first on constrained devices.
+    if (isLowMemoryDevice()) {
+      const large = plan.models.filter(
+        (m) => (m.files.find((f) => f.path === m.mainPath)?.blob.size ?? 0) > LARGE_MODEL_BYTES,
+      );
+      for (const m of large) {
+        const size = ((m.files.find((f) => f.path === m.mainPath)?.blob.size ?? 0) / 1024 / 1024).toFixed(0);
+        const ok = window.confirm(
+          `${basename(m.mainPath)} is ${size} MB. Large models may run out of memory on this device and close the tab. Load it anyway?\n\nTip: use Low quality (textures are downscaled).`,
+        );
+        if (!ok) plan.models.splice(plan.models.indexOf(m), 1);
+      }
+    }
     for (const [i, m] of plan.models.entries()) {
       setTask(
         taskId,
@@ -70,7 +93,7 @@ export async function importFiles(raw: VFile[]): Promise<void> {
         const id = await addModel(m.files, m.mainPath);
         newModelIds.push(id);
       } catch (e) {
-        toast('error', `Failed to load ${basename(m.mainPath)}: ${errMsg(e)}`);
+        toast('error', `Failed to load ${basename(m.mainPath)}: ${friendlyError(e)}`);
       }
     }
     // Motions: pair with new models in order, otherwise go to the selected model.
@@ -89,7 +112,11 @@ export async function importFiles(raw: VFile[]): Promise<void> {
       const target = get().selectedModelId ?? newModelIds[0];
       if (target) await loadPoseFile(target, p.blob);
     }
-    if (newModelIds.length && !get().cameraMotion) engine.focusModel();
+    if (newModelIds.length && !get().cameraMotion) {
+      // Let the runtime compute bone positions for a frame before framing the model.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      engine.focusModel();
+    }
     if (plan.ignored.length) toast('info', `Skipped ${plan.ignored.length} unsupported file(s)`);
     if (
       !plan.models.length &&
@@ -146,6 +173,7 @@ export async function addModel(
     selectedModelId: opts.select === false ? s.selectedModelId : info.id,
     selectedBone: null,
   }));
+  engine.setActiveModel(get().selectedModelId);
   markDirty();
   toast('success', `Loaded ${info.name}`);
   return info.id;
@@ -215,7 +243,36 @@ export function renameModel(id: string, name: string): void {
 export function selectModel(id: string | null): void {
   if (get().selectedModelId === id) return;
   engineOrNull()?.selectBone(null, null);
+  engineOrNull()?.setActiveModel(id);
   set({ selectedModelId: id, selectedBone: null });
+}
+
+/** Tap in the viewport: select the bone/model under the finger (or clear the bone selection). */
+export function tapSelect(x: number, y: number, allowDeselect = true): void {
+  const engine = engineOrNull();
+  if (!engine) return;
+  const hit = engine.pickAt(x, y);
+  if (!hit) {
+    if (allowDeselect && get().selectedBone !== null) selectBone(null);
+    return;
+  }
+  if (!hit.modelId) return; // gizmo handle
+  if (hit.modelId !== get().selectedModelId) selectModel(hit.modelId);
+  if (hit.bone !== null) {
+    selectBone(hit.bone);
+    const name = get().models.find((m) => m.id === hit.modelId)?.info.bones[hit.bone]?.name;
+    if (name) toast('info', `Bone: ${name}`, 1200);
+  }
+}
+
+/** Undo entry for model transforms changed by the on-screen scale gizmo. */
+export function recordTransformEdit(modelId: string, before: TransformState, after: TransformState): void {
+  updateModel(modelId, { transform: after });
+  useHistory.getState().push({
+    label: 'Scale model',
+    undo: () => setTransform(modelId, before, false),
+    redo: () => setTransform(modelId, after, false),
+  });
 }
 
 export function setModelVisible(id: string, visible: boolean): void {

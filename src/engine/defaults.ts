@@ -54,6 +54,23 @@ export const DEFAULT_CAMERA: CameraState = {
 
 export const DEFAULT_TRANSFORM: TransformState = { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 };
 
+/**
+ * Starting settings for new projects on this device. Touch devices (phones/tablets) start on the
+ * Low preset with cheap effects; desktop keeps the full defaults.
+ */
+export function deviceDefaultSettings(coarse: boolean): SceneSettings {
+  const s = structuredClone(DEFAULT_SETTINGS);
+  if (!coarse) return s;
+  s.viewport.quality = 'low';
+  s.lighting.softShadows = false;
+  s.postfx.fxaa = true;
+  s.postfx.ssao = false;
+  s.postfx.dof = false;
+  s.postfx.bloom = false;
+  s.physics.substeps = 3;
+  return s;
+}
+
 export function cloneSettings(s: SceneSettings): SceneSettings {
   return structuredClone(s);
 }

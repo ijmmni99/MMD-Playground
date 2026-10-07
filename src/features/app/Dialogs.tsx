@@ -1,5 +1,5 @@
 import { FolderOpen, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Button, Kbd } from '@/components/ui/controls';
 import { Dialog } from '@/components/ui/Dialog';
 import { listProjects } from '@/lib/db';
@@ -8,6 +8,8 @@ import { deleteProjectById, newProject, openProjectById } from '@/features/proje
 import { openFilePicker } from '@/features/app/filePickers';
 import { studio, useStudio } from '@/store/studio';
 import { SHORTCUTS } from './useShortcuts';
+
+const MoreMenu = lazy(() => import('@/features/shell/MoreMenu'));
 
 export function Dialogs() {
   const dialog = useStudio((s) => s.dialog);
@@ -38,6 +40,13 @@ export function Dialogs() {
         wide
       >
         {dialog === 'projects' && <ProjectList />}
+      </Dialog>
+      <Dialog open={dialog === 'more'} onOpenChange={close} title="More">
+        {dialog === 'more' && (
+          <Suspense fallback={<div className="p-4 text-fg-muted">Loading…</div>}>
+            <MoreMenu />
+          </Suspense>
+        )}
       </Dialog>
       <Dialog open={dialog === 'about'} onOpenChange={close} title="About MMD Studio">
         <div className="space-y-3 text-[12px] leading-relaxed text-fg-muted">

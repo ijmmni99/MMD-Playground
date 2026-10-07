@@ -13,7 +13,8 @@ export function Toasts() {
   const toasts = useStudio((s) => s.toasts);
   return (
     <div
-      className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2"
+      className="pointer-events-none fixed right-4 z-50 flex w-80 max-w-[calc(100vw-1rem)] flex-col gap-2 max-sm:left-2 max-sm:right-2 max-sm:w-auto"
+      style={{ bottom: 'var(--toast-bottom, 1rem)' }}
       aria-live="polite"
       role="region"
       aria-label="Notifications"

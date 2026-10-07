@@ -84,3 +84,58 @@ input[type='color']::-webkit-color-swatch {
     @apply h-7 rounded border border-line bg-bg px-2 text-[12px] text-fg outline-none transition-colors placeholder:text-fg-dim hover:border-[#3a4150] focus:border-accent;
   }
 }
+
+/* ---------------------------------------------------------------- mobile */
+
+html,
+body,
+#root {
+  /* Dynamic viewport height: follows mobile browser toolbars. */
+  height: 100dvh;
+}
+@supports not (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (pointer: coarse) {
+  /* iOS zooms the page when focusing inputs below 16px. */
+  .input,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .input {
+    @apply h-11;
+  }
+}
+
+/* Toasts sit above the transport + tab bar on phones. */
+:root {
+  --toast-bottom: 1rem;
+}
+[data-layout='phone'] {
+  --toast-bottom: calc(126px + env(safe-area-inset-bottom));
+}
+[data-layout='phone-landscape'] {
+  --toast-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

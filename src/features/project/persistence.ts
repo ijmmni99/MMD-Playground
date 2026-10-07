@@ -1,4 +1,5 @@
-import { DEFAULT_CAMERA, DEFAULT_SETTINGS } from '@/engine/defaults';
+import { DEFAULT_CAMERA, deviceDefaultSettings } from '@/engine/defaults';
+import { isCoarsePointer } from '@/lib/device';
 import { cacheBlob, getAsset, resolveRef } from '@/lib/assets';
 import * as store from '@/lib/db';
 import {
@@ -211,6 +212,7 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
         restoring: false,
       },
     });
+    engine.setActiveModel(get().selectedModelId);
     await store.setMeta(LAST_PROJECT, doc.id);
     if (failures.length) toast('warning', `Some items could not be restored: ${failures.join('; ')}`, 10000);
   } finally {
@@ -227,7 +229,7 @@ export async function newProject(): Promise<void> {
   const doc = createEmptyProject();
   await openProject({
     ...doc,
-    settings: structuredClone(DEFAULT_SETTINGS),
+    settings: deviceDefaultSettings(isCoarsePointer()),
     camera: structuredClone(DEFAULT_CAMERA),
   });
   await store.saveProject(doc);

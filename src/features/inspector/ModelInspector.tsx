@@ -5,6 +5,8 @@ import {
   Download,
   Eye,
   EyeOff,
+  Minus,
+  Plus,
   RotateCcw,
   Search,
   Upload,
@@ -19,10 +21,12 @@ import {
   Row,
   Section,
   Slider,
+  Stepper,
   Switch,
   ToggleRow,
 } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
+import { useLayout } from '@/store/layout';
 import type { BoneInfo, MorphCategory, MorphInfo, TransformState, Vec3 } from '@/engine/types';
 import { downloadBlob, pickFiles } from '@/features/app/filePickers';
 import {
@@ -291,11 +295,27 @@ const MorphSlider = memo(function MorphSlider({
   name: string;
   value: number;
 }) {
+  const coarse = useLayout((st) => st.coarse);
+  const nudge = (d: number): void =>
+    setMorph(modelId, name, Math.min(1, Math.max(0, Math.round((value + d) * 100) / 100)));
   return (
-    <div className="grid grid-cols-[96px_1fr_34px] items-center gap-2 py-[3px]">
-      <span className={cn('truncate text-[12px]', value ? 'text-fg' : 'text-fg-muted')} title={name}>
+    <div
+      className={cn(
+        'grid items-center gap-2 py-[3px]',
+        coarse ? 'grid-cols-[minmax(56px,96px)_44px_1fr_44px_40px]' : 'grid-cols-[96px_1fr_34px]',
+      )}
+    >
+      <span
+        className={cn('truncate text-[12px] coarse:text-[13px]', value ? 'text-fg' : 'text-fg-muted')}
+        title={name}
+      >
         {name}
       </span>
+      {coarse && (
+        <Stepper label={`Decrease morph ${name}`} onStep={(n) => nudge(-0.05 * n)}>
+          <Minus size={16} />
+        </Stepper>
+      )}
       <Slider
         label={`Morph ${name}`}
         value={value}
@@ -304,7 +324,14 @@ const MorphSlider = memo(function MorphSlider({
         max={1}
         step={0.01}
       />
-      <span className="text-right font-mono text-[10px] tabular-nums text-fg-dim">{value.toFixed(2)}</span>
+      {coarse && (
+        <Stepper label={`Increase morph ${name}`} onStep={(n) => nudge(0.05 * n)}>
+          <Plus size={16} />
+        </Stepper>
+      )}
+      <span className="text-right font-mono text-[10px] tabular-nums text-fg-dim coarse:text-[12px]">
+        {value.toFixed(2)}
+      </span>
     </div>
   );
 });

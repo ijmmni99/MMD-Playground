@@ -1,6 +1,7 @@
 import { PmdReader } from 'babylon-mmd/esm/Loader/Parser/pmdReader';
 import { PmxReader } from 'babylon-mmd/esm/Loader/Parser/pmxReader';
 import { basename, dirname, extname, joinPath, normalizePath, PathResolver } from '@/lib/paths';
+import { downscaleImage } from '@/lib/textureScale';
 import type { VFile } from '../types';
 
 // 1x1 white PNG used when a referenced texture can't be found.
@@ -44,7 +45,16 @@ async function readTexturePaths(buffer: ArrayBuffer, ext: string): Promise<strin
  * is given a `webkitRelativePath` that exactly matches the lookup key the loader will compute,
  * so case differences, backslashes, NFC/NFD and misplaced files (basename fallback) all resolve.
  */
-export async function prepareModelFiles(files: VFile[], mainPath: string): Promise<PreparedModelFiles> {
+export interface PrepareOptions {
+  /** Downscale decodable textures larger than this (mobile memory safety). */
+  maxTextureSize?: number | null;
+}
+
+export async function prepareModelFiles(
+  files: VFile[],
+  mainPath: string,
+  options: PrepareOptions = {},
+): Promise<PreparedModelFiles> {
   const mainVf = files.find((f) => f.path === mainPath);
   if (!mainVf) throw new Error(`Model file not found: ${mainPath}`);
   const ext = extname(mainPath);
@@ -58,12 +68,22 @@ export async function prepareModelFiles(files: VFile[], mainPath: string): Promi
   const referenceFiles: File[] = [];
   const missing: string[] = [];
   const remapped: string[] = [];
+  const downscaled = new Map<VFile, Blob>();
+  const texture = async (f: VFile): Promise<Blob> => {
+    if (!options.maxTextureSize) return f.blob;
+    let out = downscaled.get(f);
+    if (!out) {
+      out = await downscaleImage(f.blob, f.path, options.maxTextureSize);
+      downscaled.set(f, out);
+    }
+    return out;
+  };
   for (const ref of refs) {
     const lookup = joinPath(modelDir, normalizePath(ref));
     const result = resolver.resolve(ref, modelDir);
     if (result.file) {
       if (result.via === 'basename') remapped.push(ref);
-      referenceFiles.push(withRelativePath(result.file.blob, lookup));
+      referenceFiles.push(withRelativePath(await texture(result.file), lookup));
     } else if (!SHARED_TOON.test(basename(ref))) {
       missing.push(ref);
       // Browser-decoded formats sniff content, so a PNG placeholder works under their extension.

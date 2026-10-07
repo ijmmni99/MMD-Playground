@@ -10,6 +10,7 @@ import { cn } from '@/components/ui/cn';
 import { engineOrNull } from '@/store/engineRef';
 import { createStudioApi, STUDIO_DTS, type ScriptConsole } from './studioApi';
 import { DEFAULT_SCRIPT, EXAMPLES } from './examples';
+import { AsyncFunction, formatLog } from './runner';
 
 // Bundle Monaco locally (no CDN) and wire its web workers through Vite.
 self.MonacoEnvironment = {
@@ -39,20 +40,7 @@ interface LogLine {
   text: string;
 }
 
-function format(v: unknown): string {
-  if (v instanceof Error) return v.stack ?? `${v.name}: ${v.message}`;
-  if (typeof v === 'string') return v;
-  try {
-    return JSON.stringify(v, null, 1);
-  } catch {
-    return String(v);
-  }
-}
-
 let logSeq = 0;
-const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor as new (
-  ...args: string[]
-) => (...a: unknown[]) => Promise<unknown>;
 
 export default function Playground() {
   const [code, setCode] = useState(() => localStorage.getItem(STORAGE_KEY) ?? DEFAULT_SCRIPT);
@@ -64,7 +52,7 @@ export default function Playground() {
   const logEnd = useRef<HTMLDivElement>(null);
 
   const push = useCallback((level: LogLine['level'], args: unknown[]) => {
-    setLogs((l) => [...l.slice(-300), { id: ++logSeq, level, text: args.map(format).join(' ') }]);
+    setLogs((l) => [...l.slice(-300), { id: ++logSeq, level, text: args.map(formatLog).join(' ') }]);
   }, []);
 
   // Block body: in newer browsers scrollIntoView() returns a Promise, which React would treat as a cleanup.

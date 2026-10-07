@@ -47,6 +47,25 @@ export class AudioSync {
     return this.ctx;
   }
 
+  /** Create/resume the AudioContext and prime the element inside a user gesture (iOS). */
+  unlock(): void {
+    const ctx = this.ensureGraph();
+    if (ctx.state === 'suspended') void ctx.resume();
+    if (!this.url) {
+      // A silent play/pause on an empty element is enough to unlock HTMLMediaElement on iOS.
+      this.element.muted = true;
+      this.element.play().then(
+        () => {
+          this.element.pause();
+          this.element.muted = false;
+        },
+        () => {
+          this.element.muted = false;
+        },
+      );
+    }
+  }
+
   async load(blob: Blob, name: string): Promise<AudioInfo> {
     this.unload();
     this.url = URL.createObjectURL(blob);

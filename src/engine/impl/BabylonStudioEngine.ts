@@ -1,6 +1,7 @@
 import {
   AbstractEngine,
   ArcRotateCamera,
+  ArcRotateCameraPointersInput,
   AssetContainer,
   AxesViewer,
   Camera,
@@ -22,6 +23,7 @@ import {
   PositionGizmo,
   Quaternion,
   RotationGizmo,
+  ScaleGizmo,
   SSAO2RenderingPipeline,
   Scene,
   SceneInstrumentation,
@@ -87,8 +89,10 @@ import type {
 } from '../types';
 import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
-import { recordDeterministic, recordRealtime } from './recording';
+import { PNG_SEQUENCE_MIME, recordDeterministic, recordPngSequence, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
+import { isCoarsePointer, textureCap } from '@/lib/device';
+import { nearestWithin } from '@/lib/gestures';
 
 const CATEGORY: Record<number, MorphCategory> = {
   0: 'system',
@@ -164,6 +168,9 @@ export class BabylonStudioEngine implements StudioEngine {
   private cameraEmitTimer: ReturnType<typeof setTimeout> | null = null;
   private capturing = false;
   private disposed = false;
+  private renderPaused = false;
+  /** Touch-first device: caps pixel ratio and texture sizes. */
+  private readonly coarse = isCoarsePointer();
 
   // posing
   private utilLayer!: UtilityLayerRenderer;
@@ -171,6 +178,9 @@ export class BabylonStudioEngine implements StudioEngine {
   private rotationGizmo!: RotationGizmo;
   private positionGizmo!: PositionGizmo;
   private gizmoMode: GizmoMode = 'rotate';
+  private scaleGizmo!: ScaleGizmo;
+  private scaleStart: TransformState | null = null;
+  private activeModelId: string | null = null;
   private selected: { modelId: string; bone: number } | null = null;
   private dragging: {
     startLocal: BoneLocalTransform;
@@ -246,6 +256,13 @@ export class BabylonStudioEngine implements StudioEngine {
     this.orbit.maxZ = 5000;
     this.orbit.wheelDeltaPercentage = 0.02;
     this.orbit.panningSensibility = 60;
+    // Touch: natural pinch-to-zoom and two-finger pan.
+    this.orbit.useNaturalPinchZoom = true;
+    const pointers = this.orbit.inputs.attached.pointers as ArcRotateCameraPointersInput | undefined;
+    if (pointers) {
+      pointers.multiTouchPanning = true;
+      pointers.multiTouchPanAndZoom = true;
+    }
     this.orbit.lowerRadiusLimit = 1;
     this.orbit.fov = DEFAULT_CAMERA.fov * DEG;
     this.fly = new UniversalCamera('fly', new Vector3(0, 12, -40), scene);
@@ -296,16 +313,39 @@ export class BabylonStudioEngine implements StudioEngine {
     this.utilLayer = new UtilityLayerRenderer(scene);
     this.gizmoProxy = new TransformNode('gizmoProxy', scene);
     this.gizmoProxy.rotationQuaternion = Quaternion.Identity();
-    this.rotationGizmo = new RotationGizmo(this.utilLayer);
+    // Touch: thicker handles (bigger pick area) and a larger on-screen size.
+    const thickness = this.coarse ? 3 : 1;
+    this.rotationGizmo = new RotationGizmo(this.utilLayer, 32, false, thickness);
     this.rotationGizmo.updateGizmoRotationToMatchAttachedMesh = true;
-    this.rotationGizmo.scaleRatio = 0.9;
-    this.positionGizmo = new PositionGizmo(this.utilLayer);
+    this.rotationGizmo.scaleRatio = this.coarse ? 1.5 : 0.9;
+    this.positionGizmo = new PositionGizmo(this.utilLayer, thickness);
     this.positionGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+    this.positionGizmo.scaleRatio = this.coarse ? 1.5 : 1;
     for (const g of [this.rotationGizmo, this.positionGizmo]) {
       g.onDragStartObservable.add(() => this.onGizmoDragStart());
       g.onDragObservable.add(() => this.onGizmoDrag());
       g.onDragEndObservable.add(() => this.onGizmoDragEnd());
     }
+    // Uniform scale gizmo for the active model (on-screen "scale" mode).
+    this.scaleGizmo = new ScaleGizmo(this.utilLayer, thickness);
+    this.scaleGizmo.scaleRatio = this.coarse ? 1.6 : 1.1;
+    this.scaleGizmo.xGizmo.isEnabled = false;
+    this.scaleGizmo.yGizmo.isEnabled = false;
+    this.scaleGizmo.zGizmo.isEnabled = false;
+    this.scaleGizmo.uniformScaleGizmo.sensitivity = 3;
+    this.scaleGizmo.onDragStartObservable.add(() => {
+      const m = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+      this.scaleStart = m ? structuredClone(m.transform) : null;
+    });
+    this.scaleGizmo.onDragEndObservable.add(() => {
+      const m = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+      if (!m || !this.scaleStart) return;
+      const scale = Math.max(0.01, Math.round(m.mesh.scaling.x * 1000) / 1000);
+      const after = { ...m.transform, scale };
+      this.setModelTransform(m.id, after);
+      this.events.emit('modelTransformEdited', { modelId: m.id, before: this.scaleStart, after });
+      this.scaleStart = null;
+    });
 
     // MMD runtime + physics
     await this.initPhysics();
@@ -324,14 +364,21 @@ export class BabylonStudioEngine implements StudioEngine {
     this.vmdLoader.loggingEnabled = false;
 
     scene.onBeforeRenderObservable.add(() => this.beforeRender());
+    this.engine.onContextLostObservable.add(() => this.events.emit('contextLost', undefined));
+    this.engine.onContextRestoredObservable.add(() => this.events.emit('contextRestored', undefined));
     this.applySettings(this.settings);
 
     this.resizeObserver = new ResizeObserver(() => {
-      if (!this.capturing) this.engine.resize();
+      // Skip while capturing or while the canvas is detached/being re-parented (0×0).
+      if (!this.capturing && this.canvas.clientWidth > 0 && this.canvas.clientHeight > 0)
+        this.engine.resize();
     });
     this.resizeObserver.observe(this.canvas);
     this.engine.runRenderLoop(() => {
-      if (!this.capturing) scene.render();
+      if (this.capturing || !this.canvas.isConnected || this.canvas.clientWidth === 0) return;
+      // UI can pause rendering (e.g. a full-height sheet hides the viewport) unless playback needs it.
+      if (this.renderPaused && !this.runtime.isAnimationPlaying) return;
+      scene.render();
     });
   }
 
@@ -384,7 +431,8 @@ export class BabylonStudioEngine implements StudioEngine {
     }
     if (this.selected && !this.dragging) this.syncProxyToBone();
 
-    if (playing && now - this.lastPlaybackEmit > 66) this.emitPlayback();
+    // Live clocks read getPlayback() per frame; the store only needs coarse updates while playing.
+    if (playing && now - this.lastPlaybackEmit > 250) this.emitPlayback();
     if (this.settings.viewport.showStats && now - this.lastStats > 500) {
       this.lastStats = now;
       this.events.emit('stats', {
@@ -509,11 +557,17 @@ export class BabylonStudioEngine implements StudioEngine {
   private applyQuality(q: QualityPreset): void {
     this.appliedQuality = q;
     const dpr = window.devicePixelRatio || 1;
-    this.engine.setHardwareScalingLevel(
-      q === 'low' ? 1.5 : q === 'medium' ? 1 / Math.min(dpr, 1.5) : 1 / dpr,
-    );
-    this.pipeline.samples = q === 'low' ? 1 : q === 'medium' ? 4 : 8;
-    const size = q === 'low' ? 1024 : q === 'medium' ? 2048 : 4096;
+    if (this.coarse) {
+      // Phones/tablets: cap pixel ratio at 2 (1.5 on Low) and rely on FXAA instead of MSAA on Low.
+      this.engine.setHardwareScalingLevel(1 / Math.min(dpr, q === 'low' ? 1.5 : 2));
+      this.pipeline.samples = q === 'low' ? 1 : q === 'medium' ? 2 : 4;
+    } else {
+      this.engine.setHardwareScalingLevel(
+        q === 'low' ? 1.5 : q === 'medium' ? 1 / Math.min(dpr, 1.5) : 1 / dpr,
+      );
+      this.pipeline.samples = q === 'low' ? 1 : q === 'medium' ? 4 : 8;
+    }
+    const size = q === 'low' ? 1024 : q === 'medium' ? 2048 : this.coarse ? 2048 : 4096;
     const casters = this.shadowGen?.getShadowMap()?.renderList?.slice() ?? [];
     this.shadowGen?.dispose();
     this.shadowGen = new ShadowGenerator(size, this.dirLight);
@@ -640,7 +694,9 @@ export class BabylonStudioEngine implements StudioEngine {
     const progressId = `model-${id}`;
     this.events.emit('progress', { id: progressId, label: `Loading ${fileName}`, progress: 0, done: false });
     try {
-      const prepared = await prepareModelFiles(files, mainPath);
+      const prepared = await prepareModelFiles(files, mainPath, {
+        maxTextureSize: textureCap(this.settings.viewport.quality, this.coarse),
+      });
       const container = await LoadAssetContainerAsync(prepared.main, this.scene, {
         rootUrl: prepared.rootUrl,
         pluginOptions: {
@@ -760,6 +816,7 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!m) return;
     if (this.selected?.modelId === id) this.selectBone(null, null);
     if (this.follow?.modelId === id) this.follow = null;
+    if (this.activeModelId === id) this.setActiveModel(null);
     if (m.motion) m.model.destroyRuntimeAnimation(m.motion.handle);
     for (const mesh of m.container.meshes) this.shadowGen.removeShadowCaster(mesh, false);
     this.runtime.destroyMmdModel(m.model);
@@ -1056,6 +1113,15 @@ export class BabylonStudioEngine implements StudioEngine {
         max.maximizeInPlace(tmp);
       }
     }
+    // Before the runtime's first update all bones report the origin: fall back to mesh bounds.
+    if (max.y - min.y < 0.5) {
+      for (const e of entries) {
+        const b = e.mesh.getHierarchyBoundingVectors(true);
+        min.minimizeInPlace(b.min);
+        max.maximizeInPlace(b.max);
+      }
+      return { center: min.add(max).scale(0.5), size: max.subtract(min).scale(0.7) };
+    }
     // Bones sit inside the mesh: pad a little so heads and feet are not cropped.
     const size = max.subtract(min);
     const pad = Math.max(size.y * 0.08, 0.5);
@@ -1191,9 +1257,57 @@ export class BabylonStudioEngine implements StudioEngine {
 
   setGizmoMode(mode: GizmoMode): void {
     this.gizmoMode = mode;
-    if (!this.selected) return;
-    this.rotationGizmo.attachedNode = mode === 'rotate' ? this.gizmoProxy : null;
-    this.positionGizmo.attachedNode = mode === 'translate' ? this.gizmoProxy : null;
+    const active = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+    this.scaleGizmo.attachedMesh = mode === 'scale' && active ? active.mesh : null;
+    const bone = this.selected !== null && mode !== 'scale';
+    this.rotationGizmo.attachedNode = bone && mode === 'rotate' ? this.gizmoProxy : null;
+    this.positionGizmo.attachedNode = bone && mode === 'translate' ? this.gizmoProxy : null;
+  }
+
+  setActiveModel(id: string | null): void {
+    this.activeModelId = id && this.models.has(id) ? id : null;
+    this.setGizmoMode(this.gizmoMode);
+  }
+
+  /**
+   * Touch picking: a tap near a bone of the active model selects that bone; otherwise the tapped
+   * model. Coordinates are CSS pixels relative to the canvas.
+   */
+  pickAt(x: number, y: number, radius = 28): { modelId: string; bone: number | null } | null {
+    const cam = this.scene.activeCamera;
+    if (!cam) return null;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const viewport = cam.viewport.toGlobal(w, h);
+    const transform = this.scene.getTransformMatrix();
+    const scaling = this.engine.getHardwareScalingLevel();
+    // Taps on gizmo handles belong to the gizmo, not to selection.
+    const gizmoHit = this.utilLayer.utilityLayerScene.pick(x / scaling, y / scaling);
+    if (gizmoHit?.hit) return { modelId: '', bone: null };
+    const active = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+    if (active?.visible) {
+      const world = active.mesh.getWorldMatrix();
+      const tmp = new Vector3();
+      const screen = active.model.runtimeBones.map((b) => {
+        b.getWorldTranslationToRef(tmp);
+        const p = Vector3.Project(
+          Vector3.TransformCoordinates(tmp, world),
+          Matrix.IdentityReadOnly,
+          transform,
+          viewport,
+        );
+        return p.z < 0 || p.z > 1 ? null : { x: p.x, y: p.y };
+      });
+      const hit = nearestWithin(screen, { x, y }, radius);
+      if (hit >= 0) return { modelId: active.id, bone: hit };
+    }
+    const pick = this.scene.pick(x / scaling, y / scaling, (mesh) => mesh.isEnabled() && mesh.isVisible);
+    if (pick?.hit && pick.pickedMesh) {
+      for (const m of this.models.values()) {
+        if (m.container.meshes.includes(pick.pickedMesh)) return { modelId: m.id, bone: null };
+      }
+    }
+    return null;
   }
 
   private boneWorldMatrix(m: ModelEntry, index: number): Matrix {
@@ -1341,6 +1455,19 @@ export class BabylonStudioEngine implements StudioEngine {
     this.runtime.initializeAllMmdModelsPhysics(false);
   }
 
+  /** iOS only allows audio after a user gesture: call from the first tap. */
+  unlockAudio(): void {
+    this.audio.unlock();
+  }
+
+  setRenderPaused(paused: boolean): void {
+    this.renderPaused = paused;
+  }
+
+  getFps(): number {
+    return this.engine.getFps();
+  }
+
   onBeforeFrame(cb: (deltaMs: number) => void): () => void {
     const obs = this.scene.onBeforeRenderObservable.add(() => {
       try {
@@ -1436,6 +1563,16 @@ export class BabylonStudioEngine implements StudioEngine {
         engine.getDeltaTime = () => 1000 / o.fps;
         this.audio.suspended = true;
         try {
+          if (o.mimeType === PNG_SEQUENCE_MIME) {
+            return await recordPngSequence({
+              canvas: this.canvas,
+              options: o,
+              signal,
+              onProgress,
+              renderFrame: () => this.scene.render(),
+              begin: () => this.runtime.playAnimation(),
+            });
+          }
           return await recordDeterministic({
             canvas: this.canvas,
             options: o,

@@ -1,8 +1,32 @@
-import { Copy, Eye, EyeOff, FileAudio, Film, Music, Plus, Trash2, User, Video, X } from 'lucide-react';
+import {
+  Copy,
+  Eye,
+  EyeOff,
+  FileArchive,
+  FileAudio,
+  Film,
+  FolderInput,
+  Music,
+  Plus,
+  Trash2,
+  User,
+  UserPlus,
+  Video,
+  X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Button, Empty, IconButton, Section, SliderRow, NumberField, Row } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
-import { openFilePicker, pickFiles } from '@/features/app/filePickers';
+import {
+  addAudioPicker,
+  addModelPicker,
+  addMotionPicker,
+  importProjectPicker,
+  importZipPicker,
+  openFilePicker,
+  pickFiles,
+} from '@/features/app/filePickers';
+import { useLayout } from '@/store/layout';
 import {
   assignMotion,
   duplicateModel,
@@ -18,21 +42,29 @@ import {
 import { useStudio, type ModelUI } from '@/store/studio';
 import { formatTimecode } from '@/lib/timeline';
 
-export function ModelsPanel() {
+export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
   const models = useStudio((s) => s.models);
   const selected = useStudio((s) => s.selectedModelId);
+  const coarse = useLayout((s) => s.coarse);
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-panel" aria-label="Scene panel">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
-        <span className="panel-title">Scene</span>
-        <IconButton label="Add model or files" onClick={() => void openFilePicker()} size="sm">
-          <Plus size={14} />
-        </IconButton>
-      </div>
+      {!embedded && (
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
+          <span className="panel-title">Scene</span>
+          <IconButton label="Add model or files" onClick={() => void openFilePicker()} size="sm">
+            <Plus size={14} />
+          </IconButton>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {(embedded || coarse) && <AddButtons />}
         <Section title={`Models (${models.length})`}>
           {models.length === 0 ? (
-            <Empty>No models yet. Drop a PMX/PMD folder or ZIP onto the viewport.</Empty>
+            <Empty>
+              {coarse
+                ? 'No models yet. Tap “Add model” or “Import ZIP” above.'
+                : 'No models yet. Drop a PMX/PMD folder or ZIP onto the viewport.'}
+            </Empty>
           ) : (
             <ul
               role="listbox"
@@ -48,6 +80,66 @@ export function ModelsPanel() {
         </Section>
         <MediaSection />
       </div>
+    </div>
+  );
+}
+
+/** Big, touch-friendly import buttons (phones have no drag and drop). */
+export function AddButtons() {
+  const items = [
+    {
+      label: 'Add model',
+      hint: '.pmx + textures or .zip',
+      icon: <UserPlus size={18} />,
+      run: addModelPicker,
+      testid: 'add-model',
+    },
+    {
+      label: 'Add motion',
+      hint: '.vmd',
+      icon: <Film size={18} />,
+      run: addMotionPicker,
+      testid: 'add-motion',
+    },
+    {
+      label: 'Add audio',
+      hint: 'mp3 / wav / m4a',
+      icon: <Music size={18} />,
+      run: addAudioPicker,
+      testid: 'add-audio',
+    },
+    {
+      label: 'Import ZIP',
+      hint: 'recommended on phones',
+      icon: <FileArchive size={18} />,
+      run: importZipPicker,
+      testid: 'import-zip',
+    },
+    {
+      label: 'Import project',
+      hint: '.mmdstudio.zip',
+      icon: <FolderInput size={18} />,
+      run: importProjectPicker,
+      testid: 'import-project',
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 border-b border-line p-3" data-testid="add-buttons">
+      {items.map((it) => (
+        <button
+          key={it.label}
+          type="button"
+          data-testid={it.testid}
+          onClick={() => void it.run()}
+          className="flex min-h-[52px] items-center gap-2 rounded-lg border border-line bg-bg-raised px-3 py-2 text-left active:bg-bg-hover hover:bg-bg-hover"
+        >
+          <span className="text-accent">{it.icon}</span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-medium">{it.label}</span>
+            <span className="block truncate text-[11px] text-fg-dim">{it.hint}</span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -105,7 +197,7 @@ function ModelRow({ model, selected }: { model: ModelUI; selected: boolean }) {
             {model.name}
           </span>
         )}
-        <div className="flex items-center opacity-70 group-hover:opacity-100">
+        <div className="flex items-center opacity-70 group-hover:opacity-100 coarse:opacity-100">
           <IconButton
             size="sm"
             label={model.visible ? 'Hide model' : 'Show model'}

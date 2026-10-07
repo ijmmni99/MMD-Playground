@@ -11,6 +11,7 @@ import {
   type VideoCodec,
 } from 'mediabunny';
 import type { RecordOptions } from '../types';
+export { PNG_SEQUENCE_MIME } from '../types';
 import type { RecordProgress } from '../StudioEngine';
 
 class AbortError extends Error {
@@ -165,6 +166,44 @@ export async function recordDeterministic(a: DeterministicArgs): Promise<Blob> {
   }
   a.onProgress({ phase: 'done', progress: 1, frame: o.endFrame });
   return new Blob([target.buffer!], { type: mp4 ? 'video/mp4' : 'video/webm' });
+}
+
+interface PngArgs {
+  canvas: HTMLCanvasElement;
+  options: RecordOptions;
+  signal: AbortSignal;
+  onProgress: (p: RecordProgress) => void;
+  renderFrame: () => void;
+  begin: () => Promise<void>;
+}
+
+/**
+ * Fallback for browsers without video encoders (older iOS Safari): render every frame
+ * deterministically and pack the PNGs into a ZIP for editing elsewhere.
+ */
+export async function recordPngSequence(a: PngArgs): Promise<Blob> {
+  const { options: o } = a;
+  const { zipFiles } = await import('@/lib/zip');
+  const frameCount = Math.max(1, Math.round(((o.endFrame - o.startFrame) / 30) * o.fps));
+  const files: { path: string; data: Blob }[] = [];
+  await a.begin();
+  for (let i = 0; i < frameCount; i++) {
+    if (a.signal.aborted) throw new AbortError();
+    a.renderFrame();
+    const png = await new Promise<Blob>((resolve, reject) =>
+      a.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Frame capture failed'))), 'image/png'),
+    );
+    files.push({ path: `frames/frame_${String(i).padStart(5, '0')}.png`, data: png });
+    if (i % 3 === 0) {
+      a.onProgress({ phase: 'recording', progress: i / frameCount, frame: o.startFrame + (i / o.fps) * 30 });
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+  a.onProgress({ phase: 'encoding', progress: 1, frame: o.endFrame });
+  const readme = `Rendered by MMD Studio at ${o.fps} fps (${o.width}x${o.height}).\nCombine with e.g.: ffmpeg -framerate ${o.fps} -i frames/frame_%05d.png -pix_fmt yuv420p out.mp4\n`;
+  const zip = await zipFiles([...files, { path: 'README.txt', data: new Blob([readme]) }]);
+  a.onProgress({ phase: 'done', progress: 1, frame: o.endFrame });
+  return zip;
 }
 
 /** Cut [start, start+duration) out of an AudioBuffer, padding with silence where out of range. */

@@ -12,7 +12,9 @@ import {
   Upload,
   Undo2,
   Box,
+  MoreHorizontal,
 } from 'lucide-react';
+import { useLayout } from '@/store/layout';
 import { useState } from 'react';
 import type { PanelToggles } from '@/App';
 import { Button, IconButton, Select } from '@/components/ui/controls';
@@ -32,20 +34,22 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
   const canRedo = useHistory((h) => h.future.length > 0);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Tablets: project/file/view actions move into a "More" menu so the bar fits.
+  const compact = useLayout((s) => s.mode === 'tablet');
 
   return (
     <header
-      className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-bg-panel px-2"
+      className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-bg-panel px-2 coarse:h-14"
       role="toolbar"
       aria-label="Main toolbar"
     >
       <div className="mr-2 flex items-center gap-2 pl-1">
-        <div className="grid h-6 w-6 place-items-center rounded-md bg-accent text-white">
+        <div className="grid h-6 w-6 place-items-center rounded-md bg-accent-strong text-white">
           <Box size={14} />
         </div>
-        <span className="hidden font-semibold sm:inline">MMD Studio</span>
+        {!compact && <span className="hidden font-semibold sm:inline">MMD Studio</span>}
       </div>
-      <div className="hidden min-w-0 items-center gap-1.5 sm:flex">
+      <div className={cn('hidden min-w-0 items-center gap-1.5 sm:flex', compact && '!hidden')}>
         {editing ? (
           <input
             autoFocus
@@ -80,39 +84,43 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
           {project.dirty ? 'Unsaved' : project.lastSavedAt ? 'Saved' : ''}
         </span>
       </div>
-      <div className="mx-2 h-5 w-px bg-line" />
-      <IconButton label="New project" onClick={() => void newProject()}>
-        <FilePlus2 size={15} />
-      </IconButton>
-      <IconButton label="Projects…" onClick={() => studio.set({ dialog: 'projects' })}>
-        <FolderOpen size={15} />
-      </IconButton>
-      <IconButton
-        label="Save project (Ctrl+S)"
-        onClick={() => void saveNow({ thumbnail: true, announce: true })}
-      >
-        <Save size={15} />
-      </IconButton>
-      <IconButton
-        label="Export project as .mmdstudio.zip"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            const { blob, fileName } = await exportProjectArchive();
-            downloadBlob(blob, fileName);
-          } catch (e) {
-            toast('error', `Export failed: ${e instanceof Error ? e.message : String(e)}`);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <Download size={15} />
-      </IconButton>
-      <IconButton label="Import files / project" onClick={() => void openFilePicker()}>
-        <Upload size={15} />
-      </IconButton>
+      {!compact && (
+        <>
+          <div className="mx-2 h-5 w-px bg-line" />
+          <IconButton label="New project" onClick={() => void newProject()}>
+            <FilePlus2 size={15} />
+          </IconButton>
+          <IconButton label="Projects…" onClick={() => studio.set({ dialog: 'projects' })}>
+            <FolderOpen size={15} />
+          </IconButton>
+          <IconButton
+            label="Save project (Ctrl+S)"
+            onClick={() => void saveNow({ thumbnail: true, announce: true })}
+          >
+            <Save size={15} />
+          </IconButton>
+          <IconButton
+            label="Export project as .mmdstudio.zip"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const { blob, fileName } = await exportProjectArchive();
+                downloadBlob(blob, fileName);
+              } catch (e) {
+                toast('error', `Export failed: ${e instanceof Error ? e.message : String(e)}`);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Download size={15} />
+          </IconButton>
+          <IconButton label="Import files / project" onClick={() => void openFilePicker()}>
+            <Upload size={15} />
+          </IconButton>
+        </>
+      )}
       <div className="mx-2 h-5 w-px bg-line" />
       <IconButton label="Undo (Ctrl+Z)" disabled={!canUndo} onClick={undo}>
         <Undo2 size={15} />
@@ -139,7 +147,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
           </button>
         ))}
       </div>
-      <div className="hidden md:block">
+      <div className={cn('hidden md:block', compact && '!hidden')}>
         <Select<QualityPreset>
           hideLabel
           label="Render quality"
@@ -162,17 +170,25 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
       <IconButton label="Toggle inspector" active={panels.right} onClick={() => panels.toggle('right')}>
         <PanelRight size={15} />
       </IconButton>
-      <IconButton label="Keyboard shortcuts (?)" onClick={() => studio.set({ dialog: 'shortcuts' })}>
-        <Keyboard size={15} />
-      </IconButton>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hidden lg:inline-flex"
-        onClick={() => studio.set({ dialog: 'about' })}
-      >
-        About
-      </Button>
+      {compact ? (
+        <IconButton label="More: project, quality, install…" onClick={() => studio.set({ dialog: 'more' })}>
+          <MoreHorizontal size={17} />
+        </IconButton>
+      ) : (
+        <>
+          <IconButton label="Keyboard shortcuts (?)" onClick={() => studio.set({ dialog: 'shortcuts' })}>
+            <Keyboard size={15} />
+          </IconButton>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden lg:inline-flex"
+            onClick={() => studio.set({ dialog: 'about' })}
+          >
+            About
+          </Button>
+        </>
+      )}
     </header>
   );
 }

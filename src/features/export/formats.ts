@@ -1,3 +1,4 @@
+import { PNG_SEQUENCE_MIME } from '@/engine/types';
 export type ResolutionId = '720p' | '1080p' | '1440p' | '4k' | 'vertical' | 'square' | 'viewport' | 'custom';
 
 export function resolutionFor(id: ResolutionId, custom: [number, number]): [number, number] {
@@ -82,5 +83,19 @@ export function supportedFormats(): VideoFormat[] {
       }
     }
   }
+  // Always available: deterministic PNG frames in a ZIP (works even where video encoding doesn't).
+  out.push({
+    id: 'png-zip',
+    label: 'PNG sequence (ZIP) · frame-stepped',
+    mimeType: PNG_SEQUENCE_MIME,
+    ext: 'zip',
+    deterministic: true,
+    description:
+      'Every frame as a PNG in a ZIP, no audio — for browsers without video encoders (e.g. older iOS Safari).',
+  });
   return out;
 }
+
+/** True when the browser can produce an actual video file. */
+export const hasVideoEncoder = (formats: VideoFormat[]): boolean =>
+  formats.some((f) => f.mimeType !== PNG_SEQUENCE_MIME);

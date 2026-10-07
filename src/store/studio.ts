@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { DEFAULT_CAMERA, DEFAULT_SETTINGS } from '@/engine/defaults';
+import { DEFAULT_CAMERA, deviceDefaultSettings } from '@/engine/defaults';
+import { isCoarsePointer } from '@/lib/device';
 import type {
   AudioInfo,
   CameraMotionInfo,
@@ -42,7 +43,7 @@ export interface Toast {
   message: string;
 }
 
-export type DialogId = 'shortcuts' | 'export' | 'projects' | 'about' | null;
+export type DialogId = 'shortcuts' | 'export' | 'projects' | 'about' | 'more' | null;
 export type RightTab = 'model' | 'scene' | 'camera' | 'export';
 export type AppMode = 'studio' | 'playground';
 
@@ -100,7 +101,7 @@ export const useStudio = create<StudioState>(() => ({
   selectedModelId: null,
   selectedBone: null,
   gizmoMode: 'rotate',
-  settings: structuredClone(DEFAULT_SETTINGS),
+  settings: deviceDefaultSettings(isCoarsePointer()),
   camera: structuredClone(DEFAULT_CAMERA),
   cameraMotion: null,
   audio: null,

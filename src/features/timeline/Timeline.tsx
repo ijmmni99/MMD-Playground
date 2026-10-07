@@ -17,6 +17,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton, NumberField, Select } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import { engineOrNull } from '@/store/engineRef';
+import { useLayout } from '@/store/layout';
+import { usePlaybackClock } from '@/hooks/usePlaybackClock';
+import type { PlaybackState } from '@/engine/types';
+import { pinchScale, pinchState, type Point } from '@/lib/gestures';
 import { setLoop, setSpeed, togglePlay } from '@/store/actions';
 import { useStudio } from '@/store/studio';
 import {
@@ -66,6 +70,7 @@ export function Timeline() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rulerRef = useRef<HTMLCanvasElement>(null);
   const scrubbing = useRef(false);
+  const coarse = useLayout((st) => st.coarse);
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -268,14 +273,18 @@ export function Timeline() {
         ctx.fillRect(px - 0.5, 0, 1.5, height);
         r.fillStyle = '#ff6b6b';
         r.beginPath();
-        r.moveTo(px - 5, 0);
-        r.lineTo(px + 5, 0);
-        r.lineTo(px, 7);
+        // Touch: a large grab handle on the playhead.
+        const hw = coarse ? 9 : 5;
+        r.moveTo(px - hw, 0);
+        r.lineTo(px + hw, 0);
+        r.lineTo(px + hw, coarse ? 10 : 0);
+        r.lineTo(px, coarse ? RULER_H - 2 : 7);
+        r.lineTo(px - hw, coarse ? 10 : 0);
         r.fill();
-        r.fillRect(px - 0.5, 0, 1.5, RULER_H);
+        r.fillRect(px - 0.5, 0, coarse ? 2 : 1.5, RULER_H);
       }
     },
-    [width, height, rows, scrollTop, audio, audioOffset, playback],
+    [width, height, rows, scrollTop, audio, audioOffset, playback, coarse],
   );
 
   // redraw on data changes
@@ -309,20 +318,50 @@ export function Timeline() {
     draw(f);
   };
 
+  // One finger/mouse scrubs; two fingers pinch-zoom the time range and pan it.
+  const pointers = useRef(new Map<number, Point>());
+  const pinch = useRef<{ distance: number; center: Point; view: TimelineView; anchor: number } | null>(null);
+
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>): void => {
     if (e.button !== 0) return;
-    scrubbing.current = true;
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      scrubbing.current = false;
+      const [a, b] = [...pointers.current.values()];
+      const st = pinchState(a, b);
+      const rect = target.getBoundingClientRect();
+      pinch.current = {
+        ...st,
+        view: viewRef.current,
+        anchor: xToFrame(st.center.x - rect.left, viewRef.current),
+      };
+      return;
+    }
+    scrubbing.current = true;
     const engine = engineOrNull();
     if (engine?.getPlayback().playing) engine.pause();
     seekFromEvent(e.clientX, target);
   };
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const p = pinch.current;
+    if (p && pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const st = pinchState(a, b);
+      const zoomed = zoomAt(p.view, p.anchor, pinchScale(p.distance, st.distance), 0.05, 40);
+      // Keep the anchor frame under the fingers' midpoint while they move (pan).
+      const panFrames = (p.center.x - st.center.x) / zoomed.zoom;
+      setView({ zoom: zoomed.zoom, start: Math.max(0, zoomed.start + panFrames) });
+      return;
+    }
     if (scrubbing.current) seekFromEvent(e.clientX, e.currentTarget);
   };
-  const onPointerUp = (): void => {
-    scrubbing.current = false;
+  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) scrubbing.current = false;
   };
 
   // Native non-passive wheel listener so Ctrl+wheel zooms the timeline instead of the page.
@@ -367,11 +406,12 @@ export function Timeline() {
         </div>
         <canvas
           ref={rulerRef}
-          className="cursor-ew-resize"
+          className="cursor-ew-resize touch-none"
           aria-label="Timeline ruler — click or drag to scrub"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
         />
       </div>
       <div ref={areaRef} className="relative min-h-0 flex-1 overflow-hidden">
@@ -415,7 +455,7 @@ export function Timeline() {
             </div>
             <canvas
               ref={canvasRef}
-              className="sticky top-0 cursor-ew-resize"
+              className="sticky top-0 cursor-ew-resize touch-none"
               style={{ marginLeft: LABEL_W }}
               aria-label="Timeline tracks — click or drag to scrub, Ctrl+wheel to zoom, Shift+wheel to pan"
               onPointerDown={onPointerDown}
@@ -437,6 +477,14 @@ export function Timeline() {
 function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number) => void }) {
   const pb = useStudio((s) => s.playback);
   const engine = engineOrNull;
+  const timeRef = useRef<HTMLSpanElement>(null);
+  const totalRef = useRef<HTMLSpanElement>(null);
+  // Updated per animation frame via refs, not React state.
+  const paint = useCallback((p: PlaybackState) => {
+    if (timeRef.current) timeRef.current.textContent = formatTimecode(p.frame);
+    if (totalRef.current) totalRef.current.textContent = `/ ${formatTimecode(p.duration)}`;
+  }, []);
+  usePlaybackClock(paint);
   return (
     <div
       className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2"
@@ -474,8 +522,10 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
         aria-live="off"
         data-testid="timecode"
       >
-        <span>{formatTimecode(pb.frame)}</span>
-        <span className="text-fg-dim">/ {formatTimecode(pb.duration)}</span>
+        <span ref={timeRef}>{formatTimecode(pb.frame)}</span>
+        <span ref={totalRef} className="text-fg-dim">
+          / {formatTimecode(pb.duration)}
+        </span>
       </div>
       <div className="ml-2 w-16">
         <NumberField

@@ -1,24 +1,36 @@
-import { Axis3D, BarChart3, Camera, Focus, Grid3x3, Move3D, Plane, Rotate3D, Video } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { createStudioEngine } from '@/engine/StudioEngine';
+import {
+  Axis3D,
+  BarChart3,
+  Camera,
+  Focus,
+  Grid3x3,
+  Move3D,
+  Plane,
+  Rotate3D,
+  Scaling,
+  Video,
+} from 'lucide-react';
+import { useLayout } from '@/store/layout';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { CameraMode } from '@/engine/types';
 import { IconButton } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
-import { setEngine } from '@/store/engineRef';
 import { useStudio, studio } from '@/store/studio';
 import {
   focusSelected,
   importDataTransfer,
+  tapSelect,
   setCameraMode,
   setGizmoMode,
   updateSettings,
 } from '@/store/actions';
-import { connectEngine } from '@/features/app/bridge';
-import { restoreLastProject, startAutosave } from '@/features/project/persistence';
+import { TapDetector } from '@/lib/gestures';
+import { haptic } from '@/lib/haptics';
 import { EmptyState } from './EmptyState';
+import { bootEngine, getCanvas } from './engineHost';
 
-export function Viewport() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function Viewport({ compact = false }: { compact?: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
   const ready = useStudio((s) => s.engineReady);
   const error = useStudio((s) => s.engineError);
   const hasModels = useStudio((s) => s.models.length > 0);
@@ -27,38 +39,41 @@ export function Viewport() {
   const dragActive = useStudio((s) => s.dragActive);
   const [dragDepth, setDragDepth] = useState(0);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let disposed = false;
-    let cleanup: (() => void) | null = null;
-    createStudioEngine(canvas)
-      .then(async (engine) => {
-        if (disposed) {
-          engine.dispose();
-          return;
-        }
-        const disconnect = connectEngine(engine);
-        setEngine(engine);
-        engine.applySettings(studio.get().settings);
-        studio.set({ engineReady: true });
-        (window as unknown as { __studio?: unknown }).__studio = engine;
-        await restoreLastProject();
-        const stopAutosave = startAutosave();
-        cleanup = () => {
-          stopAutosave();
-          disconnect();
-          setEngine(null);
-          engine.dispose();
-        };
-      })
-      .catch((e: unknown) => {
-        console.error(e);
-        studio.set({ engineError: e instanceof Error ? e.message : String(e) });
-      });
+  // Re-parent the persistent canvas into this container; the engine itself is never torn down.
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const canvas = getCanvas();
+    host.prepend(canvas);
+    void bootEngine();
+    // Touch/mouse taps: tap selects a bone/model, double-tap focuses the selected model.
+    const taps = new TapDetector();
+    const sample = (e: PointerEvent) => ({ x: e.clientX, y: e.clientY, t: e.timeStamp });
+    const onDown = (e: PointerEvent): void => taps.pointerDown(sample(e));
+    const onMove = (e: PointerEvent): void => taps.pointerMove(sample(e));
+    const onUp = (e: PointerEvent): void => {
+      const result = taps.pointerUp(sample(e));
+      if (result === 'none' || e.button > 0) return;
+      const r = canvas.getBoundingClientRect();
+      if (result === 'double') {
+        haptic();
+        focusSelected();
+      } else if (e.pointerType !== 'mouse' || studio.get().selectedModelId) {
+        // Mouse users select from the panels; a mouse click only picks bones of the selected model.
+        tapSelect(e.clientX - r.left, e.clientY - r.top, e.pointerType !== 'mouse');
+      }
+    };
+    const onCancel = (): void => taps.pointerCancel();
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onCancel);
     return () => {
-      disposed = true;
-      cleanup?.();
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onCancel);
+      if (canvas.parentElement === host) canvas.remove();
     };
   }, []);
 
@@ -66,7 +81,7 @@ export function Viewport() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden bg-[#0c0e12]"
+      className="relative h-full w-full touch-none overflow-hidden overscroll-none bg-[#0c0e12]"
       onDragEnter={(e) => {
         e.preventDefault();
         setDragDepth((d) => d + 1);
@@ -89,15 +104,8 @@ export function Viewport() {
         void importDataTransfer(e.dataTransfer);
       }}
     >
-      <canvas
-        ref={canvasRef}
-        className="block h-full w-full outline-none"
-        tabIndex={0}
-        aria-label="3D viewport. Drag to orbit, right-drag to pan, scroll to zoom."
-        data-testid="viewport-canvas"
-        onContextMenu={(e) => e.preventDefault()}
-      />
-      {ready && <ViewportToolbar />}
+      <div ref={hostRef} className="absolute inset-0 overscroll-none" />
+      {ready && (!compact || hasModels) && <ViewportToolbar compact={compact} />}
       {ready && <StatsOverlay />}
       {ready && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
       {!ready && !error && (
@@ -161,12 +169,14 @@ export function Viewport() {
   );
 }
 
-function ViewportToolbar() {
+function ViewportToolbar({ compact }: { compact: boolean }) {
   const settings = useStudio((s) => s.settings.viewport);
   const cameraMode = useStudio((s) => s.camera.mode);
   const hasCamMotion = useStudio((s) => s.cameraMotion !== null);
   const bone = useStudio((s) => s.selectedBone);
   const gizmo = useStudio((s) => s.gizmoMode);
+  const hasModel = useStudio((s) => s.selectedModelId !== null);
+  const coarse = useLayout((s) => s.coarse);
   const modes: { mode: CameraMode; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
     { mode: 'orbit', label: 'Orbit camera', icon: <Rotate3D size={15} /> },
     { mode: 'fly', label: 'Free-fly camera (WASD + Q/E)', icon: <Plane size={15} /> },
@@ -179,7 +189,10 @@ function ViewportToolbar() {
   ];
   return (
     <div
-      className="absolute left-2 top-2 flex items-center gap-1 rounded-md border border-line bg-bg-panel/90 p-1 shadow backdrop-blur"
+      className={cn(
+        'absolute left-2 top-2 z-10 flex items-center gap-1 rounded-md border border-line bg-bg-panel/90 p-1 shadow backdrop-blur',
+        compact && 'max-w-[calc(100%-1rem)] overflow-x-auto',
+      )}
       role="toolbar"
       aria-label="Viewport tools"
     >
@@ -194,51 +207,65 @@ function ViewportToolbar() {
           {m.icon}
         </IconButton>
       ))}
-      <div className="mx-1 h-5 w-px bg-line" />
-      <IconButton label="Focus selected model (F)" onClick={focusSelected}>
+      <div className="mx-1 h-5 w-px shrink-0 bg-line" />
+      <IconButton label="Focus selected model (F, or double-tap)" onClick={focusSelected}>
         <Focus size={15} />
       </IconButton>
-      <IconButton
-        label="Toggle grid"
-        active={settings.showGrid}
-        onClick={() => updateSettings((s) => void (s.viewport.showGrid = !s.viewport.showGrid))}
-      >
-        <Grid3x3 size={15} />
-      </IconButton>
-      <IconButton
-        label="Toggle axis gizmo"
-        active={settings.showAxes}
-        onClick={() => updateSettings((s) => void (s.viewport.showAxes = !s.viewport.showAxes))}
-      >
-        <Axis3D size={15} />
-      </IconButton>
-      <IconButton
-        label="Toggle stats overlay"
-        active={settings.showStats}
-        onClick={() => updateSettings((s) => void (s.viewport.showStats = !s.viewport.showStats))}
-      >
-        <BarChart3 size={15} />
-      </IconButton>
-      {bone !== null && (
+      {!compact && (
         <>
-          <div className="mx-1 h-5 w-px bg-line" />
+          <IconButton
+            label="Toggle grid"
+            active={settings.showGrid}
+            onClick={() => updateSettings((s) => void (s.viewport.showGrid = !s.viewport.showGrid))}
+          >
+            <Grid3x3 size={15} />
+          </IconButton>
+          <IconButton
+            label="Toggle axis gizmo"
+            active={settings.showAxes}
+            onClick={() => updateSettings((s) => void (s.viewport.showAxes = !s.viewport.showAxes))}
+          >
+            <Axis3D size={15} />
+          </IconButton>
+          <IconButton
+            label="Toggle stats overlay"
+            active={settings.showStats}
+            onClick={() => updateSettings((s) => void (s.viewport.showStats = !s.viewport.showStats))}
+          >
+            <BarChart3 size={15} />
+          </IconButton>
+        </>
+      )}
+      {(bone !== null || (coarse && hasModel)) && (
+        <>
+          <div className="mx-1 h-5 w-px shrink-0 bg-line" />
           <IconButton
             label="Rotate bone (R)"
-            active={gizmo === 'rotate'}
+            active={bone !== null && gizmo === 'rotate'}
+            disabled={bone === null}
             onClick={() => setGizmoMode('rotate')}
           >
             <Rotate3D size={15} />
           </IconButton>
           <IconButton
             label="Move bone (T)"
-            active={gizmo === 'translate'}
+            active={bone !== null && gizmo === 'translate'}
+            disabled={bone === null}
             onClick={() => setGizmoMode('translate')}
           >
             <Move3D size={15} />
           </IconButton>
+          <IconButton
+            label="Scale model"
+            active={gizmo === 'scale'}
+            disabled={!hasModel}
+            onClick={() => setGizmoMode(gizmo === 'scale' ? 'rotate' : 'scale')}
+          >
+            <Scaling size={15} />
+          </IconButton>
         </>
       )}
-      {cameraMode === 'vmd' && (
+      {cameraMode === 'vmd' && !compact && (
         <span className="ml-1 flex items-center gap-1 rounded bg-accent-soft px-2 py-0.5 text-[11px] text-accent">
           <Camera size={12} /> VMD camera
         </span>

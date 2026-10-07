@@ -204,3 +204,6 @@ export interface ModelRuntimeState {
   materials: { visible: boolean; outline: boolean; alpha: number }[];
   morphs: Record<string, number>;
 }
+
+/** Pseudo MIME type for the frame-stepped PNG-sequence ZIP export (no video encoder needed). */
+export const PNG_SEQUENCE_MIME = 'application/x-png-sequence+zip';
