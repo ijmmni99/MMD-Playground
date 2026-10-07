@@ -41,6 +41,8 @@ export interface EstimatorOptions {
   modelUrl: string;
   /** Try the GPU delegate first (falls back to CPU). */
   preferGpu: boolean;
+  /** Synthetic backend only: artificial per-frame delay (tests). */
+  delayMs?: number;
 }
 
 export const POSE_MODEL_URL =
@@ -49,7 +51,7 @@ export const POSE_MODEL_URL =
 export async function createEstimator(id: EstimatorId, options: EstimatorOptions): Promise<PoseEstimator> {
   if (id === 'synthetic') {
     const { SyntheticEstimator } = await import('./syntheticEstimator');
-    return new SyntheticEstimator();
+    return new SyntheticEstimator(options.delayMs ?? 0);
   }
   const { MediaPipeEstimator } = await import('./mediapipeEstimator');
   return new MediaPipeEstimator(options);

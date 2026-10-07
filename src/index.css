@@ -14,6 +14,14 @@ body,
   overflow: hidden;
 }
 
+/* Pin the app to the visible screen. In iOS home-screen apps, percentage/vh heights can come out one
+   status bar short, leaving a strip at the bottom and pushing the header under the status bar. */
+#root {
+  position: fixed;
+  inset: 0;
+  height: auto;
+}
+
 body {
   @apply bg-bg text-fg antialiased;
   font-family:

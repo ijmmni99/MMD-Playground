@@ -100,6 +100,7 @@ export async function startDetection(): Promise<void> {
     wasmBase: new URL('mediapipe/wasm', document.baseURI).href,
     modelUrl: POSE_MODEL_URL,
     preferGpu: true,
+    estimatorDelayMs: Number(new URLSearchParams(location.search).get('poseDelay')) || 0,
     resumeFrom: resume ? resume.frames[resume.frames.length - 1].time + 1e-3 : undefined,
   };
   controller = new AbortController();

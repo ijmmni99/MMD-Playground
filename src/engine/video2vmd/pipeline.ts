@@ -15,6 +15,8 @@ export interface DetectRequest {
   wasmBase: string;
   modelUrl: string;
   preferGpu: boolean;
+  /** Synthetic backend only: artificial per-frame delay (tests). */
+  estimatorDelayMs?: number;
   /** Resume: skip frames before this source time. */
   resumeFrom?: number;
 }
@@ -56,6 +58,7 @@ export async function detectPoses(
       wasmBase: req.wasmBase,
       modelUrl: req.modelUrl,
       preferGpu: req.preferGpu,
+      delayMs: req.estimatorDelayMs,
     }));
   let backend = estimator.label;
   await estimator.init((s) => {

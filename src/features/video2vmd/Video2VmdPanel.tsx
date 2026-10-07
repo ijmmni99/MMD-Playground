@@ -78,11 +78,7 @@ function Stepper() {
   useV2V((s) => s.pose);
   const current = V2V_STEPS.findIndex((s) => s.id === step);
   return (
-    <ol
-      className="flex flex-wrap gap-1 px-3 py-2"
-      aria-label="Conversion steps"
-      data-testid="v2v-stepper"
-    >
+    <ol className="flex flex-wrap gap-1 px-3 py-2" aria-label="Conversion steps" data-testid="v2v-stepper">
       {V2V_STEPS.map((s, i) => {
         const ok = reachable(s.id);
         return (
@@ -227,8 +223,8 @@ function ImportStep() {
       )}
       {lowMemory && (
         <Notice tone="warn">
-          This device has limited memory, so frames are analysed at up to 720p and 30 fps. Trim long videos to the
-          part you need.
+          This device has limited memory, so frames are analysed at up to 720p and 30 fps. Trim long videos to
+          the part you need.
         </Notice>
       )}
       {big && (

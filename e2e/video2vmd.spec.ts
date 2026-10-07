@@ -18,8 +18,8 @@ interface Studio {
 }
 type W = Window & { __studio?: Studio };
 
-async function boot(page: Page): Promise<void> {
-  await page.goto('/?engine=1&pose=synthetic');
+async function boot(page: Page, query = ''): Promise<void> {
+  await page.goto(`/?engine=1&pose=synthetic${query}`);
   await page.waitForFunction(() => (window as W).__studio !== undefined, null, {
     timeout: 90_000,
     polling: 500,
@@ -36,7 +36,7 @@ async function chooseVideo(page: Page): Promise<void> {
 test('video → VMD: detect, retarget onto a PMX, apply, export, reload', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await boot(page);
+  await boot(page, '&poseDelay=40');
   await page.getByLabel('Render quality').selectOption('low');
 
   // A model with the standard MMD bones and leg IK.
