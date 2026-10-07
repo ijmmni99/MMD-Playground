@@ -49,6 +49,8 @@ export type AppMode = 'studio' | 'playground';
 
 export interface StudioState {
   engineReady: boolean;
+  /** True once the engine bundle has been requested. */
+  engineBooting: boolean;
   engineError: string | null;
   physics: { available: boolean; message?: string };
 
@@ -95,6 +97,7 @@ export const initialPlayback: PlaybackState = {
 
 export const useStudio = create<StudioState>(() => ({
   engineReady: false,
+  engineBooting: false,
   engineError: null,
   physics: { available: true },
   models: [],

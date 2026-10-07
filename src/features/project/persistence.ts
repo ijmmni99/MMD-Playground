@@ -256,6 +256,17 @@ export async function deleteProjectById(id: string): Promise<void> {
 }
 
 /** Restore the last opened project on startup (or start a fresh one). */
+/** True when the last session left a project with content worth restoring right away. */
+export async function hasRestorableProject(): Promise<boolean> {
+  try {
+    const id = await store.getMeta<string>(LAST_PROJECT);
+    const doc = id ? await store.loadProject(id) : undefined;
+    return !!doc && (doc.models.length > 0 || !!doc.audio || !!doc.cameraMotion);
+  } catch {
+    return false;
+  }
+}
+
 export async function restoreLastProject(): Promise<void> {
   try {
     const id = await store.getMeta<string>(LAST_PROJECT);

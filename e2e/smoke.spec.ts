@@ -30,7 +30,7 @@ test('load model + motion + audio, play, screenshot, restore after reload', asyn
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
 
-  await page.goto('/');
+  await page.goto('/?engine=1');
   await waitForEngine(page);
   await expect(page.getByTestId('empty-state')).toBeVisible();
   await page.getByLabel('Render quality').selectOption('low');
@@ -96,7 +96,7 @@ test('built-in sample and playground script', async ({ page }) => {
   });
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
+  await page.goto('/?engine=1');
   await waitForEngine(page);
   await page.getByLabel('Render quality').selectOption('low');
   await page.getByTestId('load-sample').click();
@@ -108,4 +108,13 @@ test('built-in sample and playground script', async ({ page }) => {
   await page.getByTestId('run-script').click();
   await expect(page.getByTestId('console')).toContainText('Blinking with morph: まばたき');
   expect(errors).toEqual([]);
+});
+
+test('first visit defers the 3D engine until it is needed', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('empty-state')).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => '__studio' in window)).toBe(false);
+  await page.getByTestId('load-sample').first().click();
+  await waitForEngine(page);
 });

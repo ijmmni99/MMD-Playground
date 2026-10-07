@@ -183,6 +183,10 @@ Rotating the device switches layouts without restarting the 3D engine, so the sc
 - textures larger than 1024 px (2048 px on higher presets) are downscaled
 - fewer physics substeps
 
+**Lazy engine:** on a first visit, the 3D engine (about 6 MB of Babylon.js + Bullet WASM) only downloads on your first tap, key press or drop, or when an action needs it. Returning visitors with a saved scene get it immediately. Add `?engine=1` to the URL to start it at once.
+
+**Lighthouse (mobile, simulated slow 4G):** Performance 94, Accessibility 100, Best Practices 100. Chromium reports the app as installable, with no installability errors.
+
 **Adaptive quality** (More menu, on by default on mobile) steps quality down when the frame rate stays below 30 fps for 3 s. Rendering pauses when a full-height sheet covers the viewport, and playback pauses when the app goes to the background.
 
 **Mobile limitations**
@@ -210,7 +214,7 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
 
 - **Unit (Vitest, 85 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
 - **E2E (Playwright):**
-  - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example.
+  - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
   - **Device matrix:** iPhone 14 and iPad (WebKit) and Pixel 7 (Chromium), each in portrait and landscape. Each run checks for horizontal overflow, the expected layout, sheet / side-panel / drawer navigation, loading a model and motion through the Add buttons, touch orbit and pinch zoom, play/pause, and console errors. If headless WebKit has no WebGL2, only the layout checks run.
 
 Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch to the Low quality preset. Inside a container that already has Chromium, set `PW_CHROMIUM_PATH=/path/to/chrome`. Without WebKit, `PW_WEBKIT_AS_CHROMIUM=1` runs the iPhone/iPad profiles on Chromium.

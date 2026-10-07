@@ -27,11 +27,12 @@ import {
 import { TapDetector } from '@/lib/gestures';
 import { haptic } from '@/lib/haptics';
 import { EmptyState } from './EmptyState';
-import { bootEngine, getCanvas } from './engineHost';
+import { getCanvas, scheduleEngineBoot } from './engineHost';
 
 export function Viewport({ compact = false }: { compact?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ready = useStudio((s) => s.engineReady);
+  const booting = useStudio((s) => s.engineBooting);
   const error = useStudio((s) => s.engineError);
   const hasModels = useStudio((s) => s.models.length > 0);
   const restoring = useStudio((s) => s.project.restoring);
@@ -45,7 +46,7 @@ export function Viewport({ compact = false }: { compact?: boolean }) {
     if (!host) return;
     const canvas = getCanvas();
     host.prepend(canvas);
-    void bootEngine();
+    scheduleEngineBoot();
     // Touch/mouse taps: tap selects a bone/model, double-tap focuses the selected model.
     const taps = new TapDetector();
     const sample = (e: PointerEvent) => ({ x: e.clientX, y: e.clientY, t: e.timeStamp });
@@ -107,8 +108,8 @@ export function Viewport({ compact = false }: { compact?: boolean }) {
       <div ref={hostRef} className="absolute inset-0 overscroll-none" />
       {ready && (!compact || hasModels) && <ViewportToolbar compact={compact} />}
       {ready && <StatsOverlay />}
-      {ready && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
-      {!ready && !error && (
+      {(ready || !booting) && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
+      {booting && !ready && !error && (
         <div className="absolute inset-0 grid place-items-center text-fg-muted">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />

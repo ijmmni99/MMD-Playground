@@ -3,8 +3,8 @@
 // or crossing a breakpoint never recreates the engine or loses the scene.
 import { createStudioEngine, type StudioEngine } from '@/engine/StudioEngine';
 import { connectEngine } from '@/features/app/bridge';
-import { restoreLastProject, startAutosave } from '@/features/project/persistence';
-import { setEngine } from '@/store/engineRef';
+import { hasRestorableProject, restoreLastProject, startAutosave } from '@/features/project/persistence';
+import { setEngine, setEngineBooter } from '@/store/engineRef';
 import { studio } from '@/store/studio';
 
 let canvas: HTMLCanvasElement | null = null;
@@ -27,6 +27,7 @@ export function getCanvas(): HTMLCanvasElement {
 
 /** Start the engine once. Safe to call repeatedly. */
 export function bootEngine(): Promise<StudioEngine | null> {
+  if (!booting) studio.set({ engineBooting: true });
   booting ??= createStudioEngine(getCanvas())
     .then(async (engine) => {
       connectEngine(engine);
@@ -44,4 +45,27 @@ export function bootEngine(): Promise<StudioEngine | null> {
       return null;
     });
   return booting;
+}
+
+setEngineBooter(() => void bootEngine());
+
+let scheduled = false;
+/**
+ * The engine bundle is several MB, so a first visit only downloads it once the user interacts
+ * (or an action needs it). Returning users with a saved scene get it immediately.
+ */
+export function scheduleEngineBoot(): void {
+  if (scheduled) return;
+  scheduled = true;
+  const events = ['pointerdown', 'keydown', 'dragenter', 'touchstart'] as const;
+  const start = (): void => {
+    events.forEach((t) => window.removeEventListener(t, start, true));
+    void bootEngine();
+  };
+  events.forEach((t) => window.addEventListener(t, start, { capture: true, passive: true }));
+  const params = new URLSearchParams(location.search);
+  if (params.has('shared') || params.has('engine')) return start();
+  void hasRestorableProject().then((restore) => {
+    if (restore) start();
+  });
 }

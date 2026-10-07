@@ -75,7 +75,7 @@ export function useAppLifecycle(): void {
   // GPU context loss (common under mobile memory pressure): rebuild the scene from saved state.
   useEffect(() => {
     let offs: (() => void)[] = [];
-    void whenEngine().then((engine) => {
+    void whenEngine(true).then((engine) => {
       offs = [
         engine.events.on('contextLost', () =>
           toast('warning', 'Graphics were reset by the system — recovering…', 6000),
@@ -103,6 +103,6 @@ export function useAppLifecycle(): void {
   // PWA: install prompt + files shared to the app (Android share target).
   useEffect(() => {
     initInstallPrompt();
-    void whenEngine().then(() => consumeShareInbox());
+    void whenEngine(true).then(() => consumeShareInbox());
   }, []);
 }

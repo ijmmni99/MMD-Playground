@@ -26,7 +26,8 @@ async function boot(page: Page): Promise<boolean> {
   await page.addInitScript(() =>
     Object.defineProperty(Navigator.prototype, 'maxTouchPoints', { get: () => 5 }),
   );
-  await page.goto('/');
+  // ?engine=1 boots the 3D engine right away instead of on first interaction.
+  await page.goto('/?engine=1');
   const started = await page
     .waitForFunction(
       () => window.__studio !== undefined || document.querySelector('[role="alert"]') !== null,

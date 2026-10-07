@@ -50,4 +50,16 @@ Baseline screenshots (before any change): `docs/mobile/baseline/{390x844,844x390
 - [x] e. Performance: mobile defaults, adaptive quality, render pausing, rAF time display
 - [x] f. iOS/Android quirks: audio unlock, export fallbacks, share, orientation
 - [x] g. PWA (manifest, icons, SW, share target, install hint)
-- [ ] h. Accessibility, tests (unit + Playwright device matrix), Lighthouse, docs
+- [x] h. Accessibility, tests (unit + Playwright device matrix), Lighthouse, docs
+
+## Lighthouse (mobile, built app, `vite preview`)
+
+| Category       | Before lazy engine | Final                                                     |
+| -------------- | ------------------ | --------------------------------------------------------- |
+| Performance    | 25                 | **94** (FCP 2.3 s, LCP 2.4 s, TBT 70 ms, CLS 0)           |
+| Accessibility  | 100                | **100**                                                   |
+| Best practices | 100                | **100**                                                   |
+| PWA            | —                  | Installable (`Page.getInstallabilityErrors` returns `[]`) |
+
+Lighthouse 12+ no longer has a PWA category, so installability was checked through Chromium's DevTools protocol.
+The main fix was deferring the ~6 MB engine chunk until the first interaction (`scheduleEngineBoot`).
