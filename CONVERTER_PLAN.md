@@ -132,7 +132,7 @@ Output ZIP: `model.pmx`, `tex/*`, `README.txt` (source, license, notes), `conver
 ## Milestones
 
 - [x] a. PMX writer + validator + round-trip through babylon-mmd `PmxReader`
-- [ ] b. glTF / GLB / VRM → SourceModel (procedural fixture generator in tests)
+- [x] b. glTF / GLB / VRM → SourceModel (procedural fixture generator in tests)
 - [ ] c. Normalization: axes, winding, scale, grounding
 - [ ] d. Humanoid mapping + manual mapping UI
 - [ ] e. A-pose rebind + axes / twist bones
