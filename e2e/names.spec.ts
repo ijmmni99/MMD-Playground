@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const PMX = join(fixtures, 'NameTest/nametest.pmx');
@@ -149,4 +149,60 @@ test('rename a label, reset, and keep it across reloads (motion still plays)', a
   expect(moves).toBeGreaterThan(0.05);
   await page.screenshot({ path: 'e2e/__shots/names-renamed.png' });
   expect(errors).toEqual([]);
+});
+
+test.describe('phone', () => {
+  const { viewport, deviceScaleFactor, isMobile, hasTouch, userAgent } = devices['Pixel 7'];
+  test.use({ viewport, deviceScaleFactor, isMobile, hasTouch, userAgent });
+
+  test('labels truncate cleanly and long-press opens the rename dialog', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await load(page);
+    await page.getByTestId('tab-bar').locator('[data-tab="inspector"]').click();
+    const insp = page.getByTestId('model-inspector');
+    await expect(insp.getByText('Blink (まばたき)')).toBeVisible();
+    const sw = insp.getByTestId('name-display').getByRole('radio', { name: 'EN' });
+    expect((await sw.boundingBox())!.height).toBeGreaterThanOrEqual(36);
+    await insp.getByRole('button', { name: /^Bones/ }).click();
+    await insp.getByLabel(/Search bones/).fill('スカート');
+    const skirt = insp.locator('[data-ja="右スカート前２"]');
+    await expect(skirt).toContainText('Right Skirt Front 2');
+    const row = (await skirt.boundingBox())!;
+    expect(row.height).toBeGreaterThanOrEqual(16);
+    // Long-press → name menu → rename.
+    await skirt.scrollIntoViewIfNeeded();
+    const box = (await skirt.boundingBox())!;
+    const cx = box.x + Math.min(40, box.width / 2);
+    const cy = box.y + box.height / 2;
+    await page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y)!;
+        if (!el.closest('[data-ja]')) throw new Error(`long-press target is ${el.tagName}.${el.className}`);
+        const ev = (type: string) =>
+          new PointerEvent(type, {
+            bubbles: true,
+            clientX: x,
+            clientY: y,
+            pointerType: 'touch',
+            pointerId: 7,
+            isPrimary: true,
+          });
+        el.dispatchEvent(ev('pointerdown'));
+        setTimeout(() => el.dispatchEvent(ev('pointerup')), 700);
+      },
+      { x: cx, y: cy },
+    );
+    await expect(page.getByTestId('name-menu')).toBeVisible();
+    const item = page.getByRole('menuitem', { name: 'Rename label…' });
+    expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await item.click();
+    await page.getByTestId('rename-label').getByLabel('English label').fill('Front Skirt R2');
+    await page.getByTestId('rename-label').getByRole('button', { name: 'Save' }).click();
+    await expect(skirt).toContainText('Front Skirt R2');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: 'e2e/__shots/names-phone.png' });
+    expect(errors).toEqual([]);
+  });
 });

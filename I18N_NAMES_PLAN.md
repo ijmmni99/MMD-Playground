@@ -73,4 +73,4 @@ names come from the loader's serialization metadata (`preserveSerializationData`
 - [x] c. Display setting + bilingual search
 - [x] d. Overrides: rename / reset / reset all, project + zip persistence, JSON import/export
 - [x] e. Materials dictionary + PMX material English names
-- [ ] f. Mobile polish (long-press, 44 px, truncation), Playwright desktop + phone, README
+- [x] f. Mobile polish (long-press, 44 px, truncation), Playwright desktop + phone, README

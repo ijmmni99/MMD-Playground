@@ -296,6 +296,33 @@ Work on the tool range and either all or only the selected tracks:
 - Every edit autosaves into the project (IndexedDB) and survives `.mmdstudio.zip` export / import; the original motion is kept, so **Revert** and **Compare** (A/B) always work.
 - **Export:** the motion `.vmd` with a choice of bone / morph / IK-state tracks, the camera `.vmd` separately (61-byte camera records), and an optional JSON sidecar with markers, BPM, shots and pins. Light and self-shadow tracks in a loaded VMD are preserved.
 
+## English names
+
+Bones, morphs and materials show English labels next to their Japanese names, e.g. **Left Arm (左腕)**. It's display only: the Japanese names stay the identifiers in the engine, IK, physics, VMD import / export and project files, so motions keep working.
+
+- **Language:** the **EN / 日本語 / Both** switch at the top of the Model inspector (remembered per device).
+- **Search** boxes match English or Japanese, ignoring case, full-width / half-width forms and katakana vs hiragana (`ヒジ` finds 左ひじ, `ＬＥＧ ＩＫ` finds 左足ＩＫ).
+- **Tooltips** show the original Japanese name and where the label came from. Guessed labels have a dotted underline and `≈`.
+- Labels appear in the inspector (morphs, bone tree, materials), the timeline, the camera follow-bone list and the Motion Editor (dope sheet, graph editor, status bar, IK and Camera Director panels).
+
+### How a name is resolved (first hit wins)
+
+1. **Your label** for this model (see below).
+2. **Built-in dictionary** of standard MMD names: the full standard bone set (センター, グルーブ, 上半身2, fingers, 足ＩＫ, つま先ＩＫ, 足D, 腰キャンセル, 肩P…, with 左 / 右 variants), the standard morph set with eyebrow / eye / mouth / other categories (morphs a PMX files under "other" are regrouped by the dictionary), and common material names.
+3. **Pattern rules** for non-standard names: 左 / 右 (prefix, suffix or `_L` / `.R`), IK, numbers, full-width digits and letters, and parts like 先 Tip, 親 Parent, 捩 Twist, 補助 Helper, 袖 Sleeve, 髪 Hair, スカート Skirt, リボン Ribbon, 胸 Chest, 目 Eye, 口 Mouth (`右スカート前２` → Right Skirt Front 2). A rule only applies when every part of the name is known.
+4. **The PMX's own English name**, if it has one that differs from the Japanese name.
+5. **The Japanese name**, unchanged.
+
+### Your labels
+
+Right-click (or long-press on touch) any name → **Rename label…**. The dialog also has **Reset label**, **Reset all labels for this model**, and **Export / Import labels** as a small JSON file you can share for that model. Labels are stored per model (its name plus a hash of its bone and morph names), saved with the project and included in `.mmdstudio.zip`.
+
+### Adding dictionary entries
+
+Edit the JSON files in `src/lib/names/`: `bones.json` (`"sided": true` adds 左 / 右 variants), `morphs.json` (with `category`: `eyebrow`, `eye`, `mouth` or `other`) and `materials.json`. Pattern words live in `patterns.ts`. The unit tests check that every entry has an English label and that no Japanese name appears twice (after full-width / half-width normalisation).
+
+**Limitations:** names the dictionary and patterns don't cover show in Japanese (or the PMX's English name) until you rename them; pattern labels are approximate; nothing is machine-translated and no network is used.
+
 ## Mobile & tablet
 
 MMD Studio is touch-first on phones and tablets and can be installed as an app (PWA).
@@ -364,7 +391,7 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
 
 ## Tests
 
-- **Unit (Vitest, 187 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+- **Unit (Vitest, 204 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
   - **Video to VMD:**
     - The VMD writer: byte-exact header, 111-byte records, section counts and Shift-JIS names.
     - Round-trips through babylon-mmd's VMD parser and `VmdLoader`.
@@ -372,7 +399,9 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
     - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
     - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
+  - **English names:** dictionary integrity, resolution order, left / right and full-width pattern rules, bilingual search, per-model name tables, label overrides and their `.mmdstudio.zip` round-trip.
 - **E2E (Playwright):**
+  - **English names:** a generated PMX with Japanese bones, morphs and materials (`e2e/fixtures/NameTest`): labels in every panel, EN / 日本語 / Both, search in both languages, renaming and resetting labels, reload persistence while the motion still plays, and a phone variant with long-press rename.
   - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.
   - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
   - **Video to VMD:**
