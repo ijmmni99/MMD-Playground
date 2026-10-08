@@ -296,6 +296,50 @@ Work on the tool range and either all or only the selected tracks:
 - Every edit autosaves into the project (IndexedDB) and survives `.mmdstudio.zip` export / import; the original motion is kept, so **Revert** and **Compare** (A/B) always work.
 - **Export:** the motion `.vmd` with a choice of bone / morph / IK-state tracks, the camera `.vmd` separately (61-byte camera records), and an optional JSON sidecar with markers, BPM, shots and pins. Light and self-shadow tracks in a loaded VMD are preserved.
 
+## Model Converter (FBX / VRM / glTF → PMX)
+
+Turn a non-MMD character into a PMX that dances: open **Model Converter** in the top bar (on a phone: **More → Model Converter**), or simply drop an FBX / VRM / glTF file on the studio. Everything runs in your browser, in a background worker; nothing is uploaded.
+
+### Supported input
+
+| Format | Versions | Notes |
+|---|---|---|
+| VRM | 0.x and 1.0 | humanoid map, expressions / blend shape groups, spring bones, MToon, license meta |
+| glTF / GLB | 2.0 | skins, morph targets (incl. sparse), embedded, external or data-URI buffers and textures |
+| FBX | 7.x binary and ASCII | parsed with three's `FBXLoader` (parse only — no ufbx build is published on npm); cm / m units, embedded media, multi-material meshes, blend shapes |
+| ZIP | — | the model plus its textures (recommended on phones) |
+
+### How it works
+
+```mermaid
+flowchart LR
+  A[FBX / VRM / glTF / ZIP] --> B[Parse in a worker → SourceModel]
+  B --> C[Map bones: VRM map → known rigs → names → structure]
+  C --> D[Stand up, face the camera, scale to 20 units, feet on Y = 0]
+  D --> E[T-pose → A-pose, mesh re-skinned]
+  E --> F[MMD bones, twist bones, leg IK]
+  F --> G[Mirror Z + reverse winding, 4 weights, materials, morphs]
+  G --> H[Physics: VRM springs or detected hair / skirt chains]
+  H --> I[Validate → PMX 2.0 → preview / load / ZIP]
+```
+
+1. **Import** — drop or choose files; the summary shows bones, vertices, textures and warnings. Very large models get a warning and downscaled textures.
+2. **Check** — every body bone with its confidence. Anything guessed opens the **mapping screen**: tap a body part on the diagram, then the model's bone (works on touch; *Accept suggestions* confirms the guesses). Non-humanoids (animals, robots) are flagged and convert as static or partially rigged models.
+3. **Pose & scale** — rest pose detected (T / A / other); arms are rotated to the MMD A-pose (angle slider) and the mesh is re-skinned so it deforms cleanly. Height, twist bones (腕捩 / 手捩), leg D bones, 肩P, 腰 and texture size are options.
+4. **Face** — VRM expressions and morph targets matched to MMD names (まばたき, ウィンク, あいうえお, 笑い, 怒り, 困る…) from VRM presets, ARKit, VRoid `Fcl_*`, VRChat visemes and Japanese / English names; a review table lets you change or drop any mapping. Several sources for one MMD morph become a group morph; unmatched morphs are kept under *Other*.
+5. **Physics** — VRM spring bones become rigid bodies and spring joints (stiffness → springs and limits, drag → damping, gravity → mass, hit radius → capsule size). Without VRM data, hair, skirt, tail, ribbon, sleeve, ear and bust chains are found by name or by hanging off the head / hips / chest. Body colliders keep skirts out of the legs. A sway slider and per-chain presets (Soft, Skirt, Stiff) tune it.
+6. **Preview** — the converted model plays a built-in procedural test dance (stepping on leg IK, arm waves, blinking, talking) or any VMD; *Show the original* puts the source geometry next to it.
+7. **Export** — the model's license is shown and must be acknowledged; then **Load into studio** (saved with the project and in `.mmdstudio.zip`) or **Download PMX ZIP** (`model.pmx`, `tex/`, `README.txt` with the license, `conversion-report.json`).
+
+Bones, morphs and materials keep Japanese MMD names as their real IDs; the studio shows English labels as usual.
+
+### What works well / known limits
+
+- **Works well:** humanoid Mixamo characters, VRoid / VRM avatars, Unity / Booth anime models with standard skeletons, Blender rigs with `.L` / `.R` naming.
+- **Limits:** non-human characters don't dance; unusual rigs may need the mapping screen; generated physics is less tuned than a hand-made PMX; MToon / PBR shaders are approximated with MMD materials (no shader graph, no sphere maps); hair and skirt need actual bones to sway (shape keys can't); FBX animations and cameras are ignored.
+- **Better results:** export FBX with skin and blend shapes, in a T- or A-pose, with textures packed or alongside in the ZIP; name morphs after VRM / ARKit conventions; check the Face and Physics steps before exporting.
+- **Legal:** you are responsible for the license of every model you convert. The converter never strips license information: VRM metadata (allowed users, commercial use, redistribution, modification) is shown before export and written into the output README; FBX and glTF files usually carry none, so check the terms where you got them (e.g. Adobe's terms for Mixamo characters).
+
 ## Clip Timeline & 3D text
 
 Arrange motions like a video editor: drop VMDs on tracks, cut, repeat and reorder them, add camera cuts, music, face presets and 3D text. Nothing is destructive — clips point into their source files and the timeline is baked into ordinary motions for playback and export.
@@ -437,11 +481,13 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
     - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
     - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
+  - **Model converter:** PMX writer byte layout and round-trip through babylon-mmd's `PmxReader`, glTF / VRM 0.x / 1.0 / ASCII-FBX parsing of a procedural humanoid, name analysis and mapping for Mixamo, VRoid, Blender and scrambled rigs, orientation / scale / grounding, T- to A-pose rebind (vertices exact), winding after the Z mirror, weight limits, IK chains, morph name matching, capsule orientation against Babylon, VRM spring chains, static (non-humanoid) conversion and manual mapping overrides.
   - **Clip timeline:** clip segments match the motion tools, split continuity at any speed and inside loops, ops (move / trim / split / duplicate / reorder / paste), overlap and adjacent crossfades, root continuity, camera cut / blend, face overrides, snapping, timeline serialisation, SRT and LRC parsing. 3D text: closed, outward-facing meshes (signed volume and normal checks) for Latin, kana, kanji, digits and symbols with real fonts, holes with either winding, font fallback and missing-glyph reports, multi-line layout and alignment, glyph caching, and every in / out / idle animation.
   - **English names:** dictionary integrity, resolution order, left / right and full-width pattern rules, bilingual search, per-model name tables, label overrides and their `.mmdstudio.zip` round-trip.
 - **E2E (Playwright):**
   - **English names:** a generated PMX with Japanese bones, morphs and materials (`e2e/fixtures/NameTest`): labels in every panel, EN / 日本語 / Both, search in both languages, renaming and resetting labels, reload persistence while the motion still plays, and a phone variant with long-press rename.
   - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.
+  - **Model converter:** a VRM through every step (mapping, face, physics, test dance with bounded physics, original side by side), license gate, ZIP contents, load into the studio, a VMD with IK feet, reload; FBX and glTF ZIPs with external textures; a mis-named rig fixed in the mapping screen; phone and tablet. Fixtures are procedural (`e2e/fixtures/converter`, regenerate with `GEN_FIXTURES=1 pnpm vitest run src/lib/convert/genFixtures.test.ts`).
   - **Clip timeline:** two dances back to back, split with S, select and Ctrl+D, undo / redo, drag-move and trim, retime, a camera clip and a face preset, playback through the baked timeline, the keyframe-editor round trip, VMD export and a reload restoring every clip. A text test checks bone-attached text above the head facing the camera, editing in the text panel (neon, typewriter), neon pixels in a screenshot, a recorded video, SRT import as timed captions and that removed text frees its meshes, materials and glow layer. Phone and tablet variants check the default view, 44 px targets, touch selection and the text sheet.
   - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
   - **Video to VMD:**
@@ -465,7 +511,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
 
 - Manual morph and bone edits apply on top of the motion. While playing, or after a seek, tracks that the VMD keys override your edits. This matches MMD.
 - Some features are not supported:
-  - FBX, glTF / GLB, VRM and OBJ models (only PMX / PMD; convert with Blender + MMD Tools — the app says so when one is dropped)
+  - OBJ, Collada, .blend and other model formats (FBX, VRM and glTF go through the Model Converter)
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
   - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)

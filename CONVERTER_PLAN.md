@@ -142,4 +142,4 @@ Output ZIP: `model.pmx`, `tex/*`, `README.txt` (source, license, notes), `conver
 - [x] i. Physics: VRM spring bones, then heuristic chains
 - [x] j. FBX parsing
 - [x] k. Preview, studio integration, license, report, persistence
-- [ ] l. Mobile, polish, e2e, docs
+- [x] l. Mobile, polish, e2e, docs
