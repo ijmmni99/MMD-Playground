@@ -45,6 +45,11 @@ const ClipDock = lazy(() => import('@/features/clip-timeline/ClipDock'));
 
 /** Open or close the motion editor (loaded on demand). */
 function toggleMotionEditor(): void {
+  // Leaving a clip's keyframes goes back to the clip timeline with the edit applied.
+  if (me.get().open && ct.get().editing) {
+    void import('@/features/clip-timeline/advanced').then((a) => a.backToClips());
+    return;
+  }
   void import('@/features/motion-editor/actions').then((a) => {
     if (me.get().open) return a.closeEditor();
     ct.set({ open: false });
@@ -104,6 +109,7 @@ export function Timeline() {
         }
         onZoom={zoom}
       />
+      <ClipEditBanner />
       <Suspense
         fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading editor…</div>}
       >
@@ -586,6 +592,31 @@ function EditorToggle() {
   );
 }
 
+/** Shown while a clip's keyframes are open in the editor. */
+function ClipEditBanner() {
+  const editing = useClipTimeline((s) => s.editing);
+  const name = useClipTimeline((s) => {
+    const c = s.editing ? s.doc.clips.find((x) => x.id === s.editing!.clipId) : undefined;
+    return s.doc.sources.find((x) => x.id === c?.sourceId)?.name;
+  });
+  if (!editing) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-line bg-accent-soft px-2 py-1 text-[12px]">
+      <span className="min-w-0 flex-1 truncate">
+        Editing keyframes of clip <b>{name ?? ''}</b> — changes apply to this clip only.
+      </span>
+      <button
+        type="button"
+        data-testid="back-to-clips"
+        className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-accent px-2 coarse:h-10"
+        onClick={() => void import('@/features/clip-timeline/advanced').then((a) => a.backToClips())}
+      >
+        <Film size={13} /> Back to clips
+      </button>
+    </div>
+  );
+}
+
 function ClipsToggle() {
   const open = useClipTimeline((s) => s.open);
   const editorOpen = useMotionEditor((s) => s.open);
@@ -595,7 +626,7 @@ function ClipsToggle() {
       type="button"
       onClick={() => {
         if (!editorOpen) return toggleClips();
-        ct.set({ open: true });
+        if (!ct.get().editing) ct.set({ open: true });
         toggleMotionEditor();
       }}
       aria-pressed={on}

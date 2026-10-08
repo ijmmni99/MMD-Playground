@@ -27,7 +27,7 @@ interface ClipLite {
 interface Doc {
   tracks: { id: string; kind: string; name: string }[];
   clips: ClipLite[];
-  sources: { id: string }[];
+  sources: { id: string; name: string }[];
 }
 interface CT {
   get(): { doc: Doc; selection: string[]; open: boolean };
@@ -163,6 +163,28 @@ test('clip timeline: add, split, duplicate, move, trim, reorder, camera, undo, p
   await page.getByTestId('play-toggle').click();
   await expect.poll(() => page.evaluate(() => (window as W).__studio!.getPlayback().frame), { timeout: 20_000 }).toBeGreaterThan(cut + 5);
   await page.getByTestId('play-toggle').click();
+
+  // Advanced: double-click a dance clip → keyframe editor on that clip → key a pose → back to clips.
+  const first = (await kindClips(page, 'dance'))[0];
+  await page.locator(`[data-clip-id="${first.id}"]`).dblclick();
+  await expect(page.getByTestId('dope-sheet')).toBeVisible();
+  await expect(page.getByTestId('back-to-clips')).toBeVisible();
+  await page.evaluate((f) => (window as W).__studio!.seek(f), first.startFrame + 5);
+  await page.getByTestId('dope-sheet').hover();
+  await page.keyboard.press('k');
+  await page.getByTestId('back-to-clips').click();
+  await expect(page.getByTestId('clip-dock')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const d = await doc(page);
+      const c = d.clips.find((x) => x.id === first.id)!;
+      return d.sources.find((x) => x.id === (c as unknown as { sourceId: string }).sourceId)?.name;
+    })
+    .toMatch(/\(edited\)\.vmd$/);
+  await page.getByTestId('ct-undo').click();
+  await expect
+    .poll(async () => ((await doc(page)).clips.find((x) => x.id === first.id) as unknown as { sourceId: string }).sourceId)
+    .toBe((first as unknown as { sourceId: string }).sourceId);
 
   // Reload: the timeline is restored from the autosaved project.
   const before = await doc(page);
