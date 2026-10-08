@@ -63,6 +63,40 @@ async function keyPoint(page: Page, track: string, f: number): Promise<{ x: numb
   return (await get())!;
 }
 
+/** Wait until the dope sheet stops moving / resizing (panels animate and resize after the editor opens). */
+async function waitSettled(page: Page): Promise<void> {
+  const box = async () => {
+    const b = await page.getByTestId('dope-sheet').boundingBox();
+    return b ? [b.x, b.y, b.width, b.height].map((v) => Math.round(v)).join(',') : '';
+  };
+  let prev = '';
+  let same = 0;
+  for (let i = 0; i < 60 && same < 3; i++) {
+    const cur = await box();
+    same = cur && cur === prev ? same + 1 : 0;
+    prev = cur;
+    await page.waitForTimeout(150);
+  }
+}
+
+/** A key's screen point, checked to really land on the dope-sheet canvas (not an overlay or a moved panel). */
+async function hitKeyPoint(page: Page, track: string, f: number): Promise<{ x: number; y: number }> {
+  await waitSettled(page);
+  const p = await keyPoint(page, track, f);
+  const hit = await page.evaluate(
+    ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[data-testid="dope-sheet"]'),
+    p,
+  );
+  if (!hit) {
+    const state = await page.evaluate(() => ({
+      snap: document.querySelector('[data-testid="bottom-sheet"]')?.getAttribute('data-snap'),
+      top: document.elementFromPoint(0, 0)?.tagName,
+    }));
+    throw new Error(`key ${track}@${f} at ${p.x},${p.y} is covered (${JSON.stringify(state)})`);
+  }
+  return p;
+}
+
 test('motion editor: dope sheet, key edits, undo/redo, camera, export, persist', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -78,10 +112,11 @@ test('motion editor: dope sheet, key edits, undo/redo, camera, export, persist',
 
   // Select a key and drag it 4 frames right (snapping off so it lands exactly).
   await page.getByTestId('me-snap').click();
-  const p = await keyPoint(page, '頭', f0);
+  const p = await hitKeyPoint(page, '頭', f0);
   await page.mouse.click(p.x, p.y);
   await expect(page.getByTestId('me-selected')).toContainText('1 selected');
-  const p2 = await keyPoint(page, '頭', f0 + 4);
+  const p2 = await hitKeyPoint(page, '頭', f0 + 4);
+  expect(p2.y).toBe(p.y);
   await page.mouse.move(p.x, p.y);
   await page.mouse.down();
   await page.mouse.move((p.x + p2.x) / 2, p.y, { steps: 3 });
@@ -447,19 +482,7 @@ for (const [name, device] of [
       if (name === 'phone') await expect(page.getByTestId('bottom-sheet')).toHaveAttribute('data-snap', 'full');
       await expect(page.getByTestId('dope-sheet')).toBeVisible();
       await expect.poll(() => boneFrames(page, '頭')).not.toEqual([]);
-      await expect
-        .poll(async () => (await page.getByTestId('dope-sheet').boundingBox())?.y ?? -1, { intervals: [100, 100, 200] })
-        .toBeGreaterThan(0);
-      const settle = async () => {
-        let prev = -1;
-        for (let i = 0; i < 20; i++) {
-          const y = (await page.getByTestId('dope-sheet').boundingBox())!.y;
-          if (Math.abs(y - prev) < 0.5) return;
-          prev = y;
-          await page.waitForTimeout(100);
-        }
-      };
-      await settle();
+      await waitSettled(page);
       // Touch targets: toolbar buttons are at least 40px tall on coarse pointers.
       const key = await page.getByTestId('me-key').boundingBox();
       expect(key!.height).toBeGreaterThanOrEqual(40);
@@ -467,7 +490,9 @@ for (const [name, device] of [
       // Re-read the key's position on each attempt: the sheet / rows may still be settling.
       const f1 = (await boneFrames(page, '頭'))[1];
       await expect(async () => {
-        const p = await keyPoint(page, '頭', f1);
+        // If the editor went away, say so instead of retrying blindly.
+        await expect(page.getByTestId('dope-sheet')).toBeVisible({ timeout: 1000 });
+        const p = await hitKeyPoint(page, '頭', f1);
         await page.touchscreen.tap(p.x, p.y);
         await expect(page.getByTestId('me-selected')).toContainText('1 selected', { timeout: 1500 });
       }).toPass({ timeout: 20_000 });
