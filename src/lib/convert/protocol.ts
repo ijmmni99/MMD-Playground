@@ -36,6 +36,8 @@ export interface ConvertedPayload {
   morphNames: Record<string, string>;
   chains: Omit<PhysicsChain, 'vrm'>[];
   boneNames: string[];
+  /** Source materials and their texture (index into the summary's textures, -1 = none). */
+  materials: { name: string; texture: number }[];
   pmx: ArrayBuffer;
   textures: { path: string; mime: string; data: ArrayBuffer }[];
   errors: string[];

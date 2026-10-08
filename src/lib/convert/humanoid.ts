@@ -144,6 +144,11 @@ export function mapByNames(src: MapInput): HumanMap {
     if (!cur || cur.confidence < confidence) map[slot] = { bone, confidence, via };
   };
   if (src.humanoid) for (const [slot, bone] of Object.entries(src.humanoid)) if (bone !== undefined) set(slot as HumanSlot, bone, 1, 'vrm');
+  // MMD models re-exported to FBX / glTF keep their Japanese bone names (左腕, or 腕L / 腕.L).
+  src.bones.forEach((b, i) => {
+    const slot = mmdSlot(b.name);
+    if (slot) set(slot, i, 0.97, 'dictionary');
+  });
 
   const bones = src.bones;
   const kids = childrenOf(bones);
@@ -344,4 +349,68 @@ export function assess(map: HumanMap): MappingResult {
   const weak = REQUIRED.filter((s) => !map[s] || map[s]!.confidence < CONFIDENT);
   const found = REQUIRED.filter((s) => map[s]).length;
   return { map, weak, humanoid: found >= 10 };
+}
+
+// ---------------------------------------------------------------- MMD (Japanese) names
+
+const JP_SLOTS: Record<string, string> = {
+  下半身: 'hips', 上半身: 'spine', 上半身2: 'chest', 上半身3: 'upperChest', 首: 'neck', 頭: 'head',
+  目: 'Eye', 肩: 'Shoulder', 腕: 'UpperArm', ひじ: 'LowerArm', 手首: 'Hand',
+  足: 'UpperLeg', ひざ: 'LowerLeg', 足首: 'Foot', つま先: 'Toes',
+  親指0: 'ThumbMetacarpal', 親指1: 'ThumbProximal', 親指2: 'ThumbDistal',
+  ...Object.fromEntries(
+    (
+      [
+        ['人指', 'Index'],
+        ['中指', 'Middle'],
+        ['薬指', 'Ring'],
+        ['小指', 'Little'],
+      ] as const
+    ).flatMap(([ja, en]) => [
+      [`${ja}1`, `${en}Proximal`],
+      [`${ja}2`, `${en}Intermediate`],
+      [`${ja}3`, `${en}Distal`],
+    ]),
+  ),
+};
+
+/** Split an MMD bone name into side and base: 左腕 / 腕L / 腕.L / 腕_L → ('left', '腕'). */
+export function mmdSide(raw: string): { side: 'left' | 'right' | null; base: string } {
+  let n = raw.normalize('NFKC').trim();
+  let side: 'left' | 'right' | null = null;
+  if (/^左/.test(n)) {
+    side = 'left';
+    n = n.slice(1);
+  } else if (/^右/.test(n)) {
+    side = 'right';
+    n = n.slice(1);
+  } else {
+    const m = /^(.*\P{ASCII}[^._]*?)[._]?([LR])$/u.exec(n);
+    if (m) {
+      side = m[2] === 'L' ? 'left' : 'right';
+      n = m[1];
+    }
+  }
+  return { side, base: n };
+}
+
+/** Humanoid slot of a standard MMD bone name, or null. */
+export function mmdSlot(raw: string): HumanSlot | null {
+  if (!/[\u3040-\u30ff\u4e00-\u9fff]/.test(raw)) return null;
+  const { side, base } = mmdSide(raw);
+  const v = JP_SLOTS[base];
+  if (!v) return null;
+  const sided = /^[A-Z]/.test(v);
+  if (sided !== !!side) return null;
+  return (sided ? `${side}${v}` : v) as HumanSlot;
+}
+
+/** Canonical MMD name (左/右 prefix) for side-suffixed names: ひざR → 右ひざ, 足ＩＫL → 左足ＩＫ. */
+export function canonicalMmdName(raw: string): string {
+  if (!/[\u3040-\u30ff\u4e00-\u9fff]/.test(raw)) return raw;
+  const { side, base } = mmdSide(raw);
+  if (!side || /^[左右]/.test(raw)) return raw;
+  // Keep the original width of IK letters (足ＩＫ is the standard spelling).
+  const fixed = base.replace(/IK/g, 'ＩＫ').replace(/ＩＫ親/, 'IK親');
+  return `${side === 'left' ? '左' : '右'}${fixed}`;
 }

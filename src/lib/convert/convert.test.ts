@@ -249,3 +249,65 @@ describe('full conversion', () => {
     expect(fixed.validation.filter((v) => v.level === 'error')).toEqual([]);
   });
 });
+
+describe('MMD-sourced models and loose textures', () => {
+  it('reads Japanese MMD bone names in 左/右 and …L / …R styles', async () => {
+    const { mmdSlot, canonicalMmdName } = await import('./humanoid');
+    expect(mmdSlot('左腕')).toBe('leftUpperArm');
+    expect(mmdSlot('腕L')).toBe('leftUpperArm');
+    expect(mmdSlot('ひざR')).toBe('rightLowerLeg');
+    expect(mmdSlot('中指１L')).toBe('leftMiddleProximal');
+    expect(mmdSlot('親指０R')).toBe('rightThumbMetacarpal');
+    expect(mmdSlot('上半身2')).toBe('chest');
+    expect(mmdSlot('下半身')).toBe('hips');
+    expect(mmdSlot('スカートC1R')).toBeNull();
+    expect(canonicalMmdName('足ＩＫR')).toBe('右足ＩＫ');
+    expect(canonicalMmdName('足IK親L')).toBe('左足IK親');
+    expect(canonicalMmdName('スカートC1R')).toBe('右スカートC1');
+    expect(canonicalMmdName('腕捩L')).toBe('左腕捩');
+  });
+
+  it('maps an MMD rig exported with …L / …R names and reuses its own helper bones', () => {
+    const src = load('mixamo');
+    const ja: Record<string, string> = {
+      Hips: '下半身', Spine: '上半身', Spine1: '上半身2', Neck: '首', Head: '頭',
+      LeftShoulder: '肩L', LeftArm: '腕L', LeftForeArm: 'ひじL', LeftHand: '手首L', LeftUpLeg: '足L', LeftLeg: 'ひざL', LeftFoot: '足首L', LeftToeBase: 'つま先L',
+      RightShoulder: '肩R', RightArm: '腕R', RightForeArm: 'ひじR', RightHand: '手首R', RightUpLeg: '足R', RightLeg: 'ひざR', RightFoot: '足首R', RightToeBase: 'つま先R',
+    };
+    for (const b of src.bones) {
+      const k = b.name.replace('mixamorig:', '');
+      if (ja[k]) b.name = ja[k];
+    }
+    // The source's own IK target (weightless) must not be duplicated.
+    src.bones.push({ name: '足ＩＫL', parent: 0, position: [0.09, 0.08, 0] });
+    const r = convertModel(src);
+    expect(r.mapping.weak).toEqual([]);
+    expect(r.map.leftUpperArm?.via).toBe('dictionary');
+    const names = r.pmx.bones.map((b) => b.name);
+    expect(names.filter((n) => n === '左足ＩＫ')).toHaveLength(1);
+    expect(names.some((n) => /足ＩＫ_/.test(n))).toBe(false);
+  });
+
+  it('links loose texture files by material name and drops outline shells', () => {
+    const src = load('mixamo');
+    // Like a Sketchfab export: no texture links, images beside the model, plus an outline duplicate.
+    src.materials[0] = { ...src.materials[0], name: '体', texture: -1 };
+    src.materials[1] = { ...src.materials[1], name: '前髪', texture: -1 };
+    const png = src.textures[0].data;
+    src.textures = [
+      { name: 'face.png', mime: 'image/png', data: png, loose: true },
+      { name: 'hair.png', mime: 'image/png', data: png, loose: true },
+      { name: 'body.png', mime: 'image/png', data: png, loose: true },
+    ];
+    src.materials.push({ ...src.materials[0], name: 'OH_Outline_Material' });
+    src.meshes.push({ ...src.meshes[0], material: 2 });
+    const r = convertModel(src);
+    expect(r.materials.map((m) => m.texture)).toEqual([2, 1, -1]);
+    expect(r.pmx.textures.sort()).toEqual(['tex/body.png', 'tex/hair.png']);
+    expect(r.pmx.materials.map((m) => m.name)).not.toContain('OH_Outline_Material');
+    expect(r.report.fixes.join(' ')).toMatch(/outline/);
+    // A manual choice wins.
+    const edited = convertModel(src, { textureEdits: { 0: 0 } });
+    expect(edited.materials[0].texture).toBe(0);
+  });
+});

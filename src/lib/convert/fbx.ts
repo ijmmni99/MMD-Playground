@@ -251,10 +251,24 @@ export async function parseFbx(
       const mat = mats[grp.materialIndex ?? 0] ?? mats[0];
       const idx = index.subarray(grp.start, grp.start + Math.min(grp.count, index.length - grp.start));
       const tri = idx.subarray(0, idx.length - (idx.length % 3));
-      // Compact: only the vertices this material group uses.
+      // Compact and weld: FBXLoader gives every polygon corner its own vertex; merge corners with the
+      // same position, normal, UV, skin and morph offsets (often a 4–6× smaller mesh).
       const remap = new Map<number, number>();
-      for (const i of tri) if (!remap.has(i)) remap.set(i, remap.size);
-      const used = [...remap.keys()];
+      const byKey = new Map<string, number>();
+      const used: number[] = [];
+      const q = (v: number, s: number): number => Math.round(v * s);
+      for (const i of tri) {
+        if (remap.has(i)) continue;
+        let key = `${q(positions[i * 3], 1e5)},${q(positions[i * 3 + 1], 1e5)},${q(positions[i * 3 + 2], 1e5)}|${q(normals[i * 3], 1e3)},${q(normals[i * 3 + 1], 1e3)},${q(normals[i * 3 + 2], 1e3)}|${q(uvs[i * 2], 1e5)},${q(uvs[i * 2 + 1], 1e5)}|${joints[i * 4]},${joints[i * 4 + 1]},${joints[i * 4 + 2]},${joints[i * 4 + 3]}|${q(weights[i * 4], 1e4)},${q(weights[i * 4 + 1], 1e4)},${q(weights[i * 4 + 2], 1e4)}`;
+        for (const mo of morphs) key += `|${q(mo.deltas[i * 3], 1e5)},${q(mo.deltas[i * 3 + 1], 1e5)},${q(mo.deltas[i * 3 + 2], 1e5)}`;
+        const hit = byKey.get(key);
+        if (hit !== undefined) remap.set(i, hit);
+        else {
+          byKey.set(key, used.length);
+          remap.set(i, used.length);
+          used.push(i);
+        }
+      }
       const pick = (src: Float32Array, k: number): Float32Array => {
         const out = new Float32Array(used.length * k);
         used.forEach((i, j) => out.set(src.subarray(i * k, i * k + k), j * k));

@@ -202,12 +202,52 @@ function CheckStep() {
           );
         })}
       </div>
+      <TextureTable />
       <div className="text-[11px] text-fg-dim">
         Kept as extra bones: {r.report.unmappedBones.length ? r.report.unmappedBones.slice(0, 12).join(', ') : 'none'}
         {r.report.unmappedBones.length > 12 ? '…' : ''}
       </div>
       <NextButton step="check" />
     </div>
+  );
+}
+
+const NO_EDITS: Record<number, number> = {};
+
+/** Material → texture picker (files that weren't linked are matched by name; fix them here). */
+function TextureTable() {
+  const r = useConverter((s) => s.result);
+  const summary = useConverter((s) => s.summary);
+  const edits = useConverter((s) => s.options.textureEdits) ?? NO_EDITS;
+  if (!r || !summary || !summary.textures.length) return null;
+  return (
+    <details className="rounded-md border border-line px-2 py-1 text-[12px]" data-testid="cv-textures" open={r.materials.some((m) => m.texture < 0)}>
+      <summary className="cursor-pointer py-1 coarse:min-h-[44px]">
+        Textures · {r.materials.filter((m) => m.texture >= 0).length}/{r.materials.length} materials textured
+      </summary>
+      <div className="flex flex-col gap-1 pb-1">
+        {r.materials.map((m, i) => (
+          <div key={`${m.name}-${i}`} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate" title={m.name}>
+              {m.name}
+            </span>
+            <select
+              aria-label={`Texture for ${m.name}`}
+              value={String(m.texture)}
+              onChange={(e) => setOptions({ textureEdits: { ...edits, [i]: Number(e.target.value) } })}
+              className="h-7 max-w-[160px] rounded-md border border-line bg-bg px-1 text-[12px] coarse:h-10"
+            >
+              <option value="-1">No texture</option>
+              {summary.textures.map((t, ti) => (
+                <option key={ti} value={ti}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 

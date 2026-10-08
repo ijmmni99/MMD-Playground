@@ -52,6 +52,8 @@ export interface SourceTexture {
   name: string;
   mime: string;
   data: Uint8Array;
+  /** An image from the upload that the model file doesn't reference (assigned by material name). */
+  loose?: boolean;
 }
 
 /** VRM humanoid bone names (VRM 1.0 naming; 0.x is mapped onto the same keys). */

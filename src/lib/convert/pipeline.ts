@@ -2,7 +2,7 @@
 // (z-flip + winding), materials, morphs, physics, display frames, validation and a report.
 
 import { assess, completeByStructure, mapByNames, type HumanMap, type MappingResult } from './humanoid';
-import { texturePaths, toPmxMaterial } from './materials';
+import { autoAssignTextures, texturePaths, toPmxMaterial } from './materials';
 import { panelFor, planMorphs, type MorphPlan } from './morphs';
 import { orient, scaleAndGround } from './normalize';
 import { buildPhysics, classify, DEFAULT_PHYSICS, detectChains, presetFor, type ChainPreset, type PhysicsChain, type PhysicsOptions } from './physics';
@@ -29,6 +29,10 @@ export interface ConvertOptions {
   chainEdits: Record<string, { enabled?: boolean; preset?: ChainPreset }>;
   /** Treat as a static / partial rig even when it looks humanoid. */
   forceStatic?: boolean;
+  /** Material index → texture index (-1 = none), overriding the file and the automatic assignment. */
+  textureEdits?: Record<number, number>;
+  /** Keep inverted-hull outline meshes (dropped by default: MMD draws edges itself). */
+  keepOutlines?: boolean;
   name?: string;
 }
 
@@ -61,6 +65,8 @@ export interface ConversionReport {
 
 export interface ConvertResult {
   pmx: PmxModel;
+  /** Source materials and the texture each one ended up with (texture picker). */
+  materials: { name: string; texture: number }[];
   /** Output texture paths and the SourceModel texture each one comes from. */
   textures: { path: string; source: number }[];
   map: HumanMap;
@@ -80,6 +86,24 @@ export function convertModel(src: SourceModel, options: Partial<ConvertOptions> 
   const m: SourceModel = structuredClone(src);
   const fixes: string[] = [];
   const warnings: string[] = [...m.warnings];
+
+  // Textures: link loose images by material name, then apply manual choices.
+  const auto = autoAssignTextures(m.materials, m.textures);
+  for (const [mi, ti] of auto) m.materials[mi].texture = ti;
+  if (auto.size) fixes.push(`Linked ${new Set(auto.values()).size} texture file(s) from the upload to ${auto.size} material(s) by name.`);
+  for (const [mi, ti] of Object.entries(opts.textureEdits ?? {})) if (m.materials[+mi]) m.materials[+mi].texture = ti;
+  // Inverted-hull outline shells (a duplicate of the whole mesh) — MMD draws outlines with edges.
+  if (!opts.keepOutlines) {
+    const outline = new Set(m.materials.map((x, i) => (/outline/i.test(x.name) ? i : -1)).filter((i) => i >= 0));
+    if (outline.size && outline.size < m.materials.length) {
+      const before = m.meshes.length;
+      m.meshes = m.meshes.filter((x) => !outline.has(x.material));
+      if (m.meshes.length < before) {
+        fixes.push('Removed the outline shell mesh (MMD draws outlines with material edges instead).');
+      }
+    }
+  }
+  const sourceMaterials = m.materials.map((x) => ({ name: x.name, texture: x.texture }));
   const manual = (map: HumanMap): HumanMap => {
     const out = { ...map };
     for (const [slot, bone] of Object.entries(opts.mapping)) {
@@ -310,7 +334,7 @@ export function convertModel(src: SourceModel, options: Partial<ConvertOptions> 
     warnings,
     tips,
   };
-  return { pmx, textures, map, mapping, morphPlan, chains, validation, report, model: m };
+  return { pmx, materials: sourceMaterials, textures, map, mapping, morphPlan, chains, validation, report, model: m };
 }
 
 function displayFrames(bones: PmxBone[], morphs: PmxMorph[], chains: PhysicsChain[], extras: number[]): PmxDisplayFrame[] {

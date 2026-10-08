@@ -2,7 +2,7 @@
 // Positions stay in the right-handed working space; `assemble` flips Z when writing PMX.
 
 import { lookupDictionary } from '@/lib/names/dictionary';
-import { FINGER_SLOTS, type HumanMap } from './humanoid';
+import { canonicalMmdName, FINGER_SLOTS, type HumanMap } from './humanoid';
 import { BoneFlag, type PmxBone, type V3 } from './pmx/types';
 import type { HumanSlot, SourceModel, Vec3 } from './types';
 
@@ -205,6 +205,10 @@ export function buildRig(m: SourceModel, map: HumanMap, opts: RigOptions): RigRe
     if (remap[i] >= 0) return;
     const t = twistTarget(i);
     if (t !== undefined) remap[i] = t;
+    // A source that already is an MMD model (re-exported): its own センター, 足ＩＫR, 腕捩L… are
+    // the bones we just generated — reuse them instead of duplicating.
+    const same = index.get(canonicalMmdName(m.bones[i].name));
+    if (same !== undefined && remap[i] < 0) remap[i] = same;
   });
   const extras = keepExtras(m, bones, remap, index, (i) => {
     // Nearest mapped ancestor; the hips' unmapped children hang off 下半身.
@@ -224,9 +228,17 @@ function keepExtras(
 ): number[] {
   const used = new Set<number>();
   for (const mesh of m.meshes) for (let i = 0; i < mesh.joints.length; i++) if (mesh.weights[i] > 0) used.add(mesh.joints[i]);
-  const springBones = new Set<number>();
-  // Children counts (to drop weightless leaf helpers like HeadTop_End).
-  const hasKids = new Set(m.bones.map((b) => b.parent));
+  const springBones = new Set<number>(m.springs?.chains.flatMap((c) => c.joints.map((j) => j.bone)) ?? []);
+  // Weightless helper subtrees (tips, _end, IK targets, dummies) are dropped.
+  const kids: number[][] = m.bones.map(() => []);
+  m.bones.forEach((b, i) => b.parent >= 0 && kids[b.parent].push(i));
+  const weighted = new Map<number, boolean>();
+  const anyWeight = (i: number): boolean => {
+    if (weighted.has(i)) return weighted.get(i)!;
+    const w = used.has(i) || springBones.has(i) || kids[i].some(anyWeight);
+    weighted.set(i, w);
+    return w;
+  };
   const extras: number[] = [];
   // Parents before children: source order is already parent-first for glTF; sort by depth to be safe.
   const depth = (i: number): number => {
@@ -237,10 +249,11 @@ function keepExtras(
   const order = m.bones.map((_, i) => i).sort((a, b) => depth(a) - depth(b));
   for (const i of order) {
     if (remap[i] >= 0) continue;
-    if (!used.has(i) && !hasKids.has(i) && !springBones.has(i) && /end|nub|top|tip/i.test(m.bones[i].name)) continue;
-    let name = m.bones[i].name.replace(/^mixamorig\d*:?/, '');
+    const raw = m.bones[i].name;
+    if (!anyWeight(i) && /end|nub|top|tip|先|^_|IK|ＩＫ|dummy|shadow/i.test(raw)) continue;
+    let name = canonicalMmdName(raw.replace(/^mixamorig\d*:?/, ''));
     if (index.has(name)) name = `${name}_${i}`;
-    bones.push({ name, nameEn: m.bones[i].name, position: [...m.bones[i].position] as V3, parent: parentFor(i), layer: 0, flags: ROT, tail: [0, 0, 0] });
+    bones.push({ name, nameEn: raw, position: [...m.bones[i].position] as V3, parent: parentFor(i), layer: 0, flags: ROT, tail: [0, 0, 0] });
     index.set(name, bones.length - 1);
     remap[i] = bones.length - 1;
     extras.push(bones.length - 1);

@@ -43,9 +43,12 @@ async function parse(files: InputFile[]): Promise<void> {
     byName.set(f.path.toLowerCase(), f.data);
     byName.set(f.path.split('/').pop()!.toLowerCase(), f.data);
   }
+  const resolved = new Set<Uint8Array>();
   const resolve = (uri: string): Uint8Array | undefined => {
     const clean = uri.replace(/\\/g, '/').replace(/^\.\//, '');
-    return byName.get((dir + clean).toLowerCase()) ?? byName.get(clean.toLowerCase()) ?? byName.get(clean.split('/').pop()!.toLowerCase());
+    const hit = byName.get((dir + clean).toLowerCase()) ?? byName.get(clean.toLowerCase()) ?? byName.get(clean.split('/').pop()!.toLowerCase());
+    if (hit) resolved.add(hit);
+    return hit;
   };
   post({ type: 'progress', stage: 'Reading the model', progress: 0.2 });
   const fileName = main.path.split('/').pop()!;
@@ -53,6 +56,19 @@ async function parse(files: InputFile[]): Promise<void> {
     ? await parseFbx(main.data.buffer.slice(main.data.byteOffset, main.data.byteOffset + main.data.byteLength) as ArrayBuffer, resolve, fileName)
     : parseGltf(main.data, resolve, fileName);
   if (models.length > 1) source.warnings.push(`Several models in the upload; converting ${fileName}.`);
+  // Images in the upload that the model doesn't reference (e.g. Sketchfab's textures/ folder).
+  const IMG = /\.(png|jpe?g|tga|bmp|webp)$/i;
+  for (const f of all) {
+    if (!IMG.test(f.path) || resolved.has(f.data) || /(^|\/)__MACOSX\//.test(f.path)) continue;
+    if (source.textures.some((t) => t.data.length === f.data.length && t.name.toLowerCase() === f.path.split('/').pop()!.toLowerCase())) continue;
+    const name = f.path.split('/').pop()!;
+    source.textures.push({
+      name,
+      mime: /\.jpe?g$/i.test(name) ? 'image/jpeg' : /\.tga$/i.test(name) ? 'image/tga' : /\.bmp$/i.test(name) ? 'image/bmp' : /\.webp$/i.test(name) ? 'image/webp' : 'image/png',
+      data: f.data,
+      loose: true,
+    });
+  }
   const bytes = all.reduce((s, f) => s + f.data.length, 0);
   post({
     type: 'parsed',
@@ -127,6 +143,7 @@ async function convert(id: number, options: WorkerOptions): Promise<void> {
         morphNames,
         chains: r.chains.map(({ vrm: _vrm, ...c }) => c),
         boneNames: r.pmx.bones.map((b) => b.name),
+        materials: r.materials,
         pmx,
         textures,
         errors: r.validation.filter((v) => v.level === 'error').map((v) => v.message),

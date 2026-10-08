@@ -31,11 +31,11 @@ export interface PhysicsOptions {
 export const DEFAULT_PHYSICS: PhysicsOptions = { enabled: true, sway: 0.5, colliders: true };
 
 const KIND_RULES: [RegExp, ChainKind][] = [
-  [/hair|髪|ahoge|bang|fringe|ponytail|twintail|tail_?hair|もみあげ|前髪|後髪|横髪/i, 'hair'],
+  [/hair|髪|ahoge|bang|fringe|ponytail|twintail|tail_?hair|もみあげ|前髪|後髪|横髪|おさげ|ツインテ|ポニテ/i, 'hair'],
   [/skirt|スカート|dress|ドレス|裾/i, 'skirt'],
   [/tail|尻尾|しっぽ/i, 'tail'],
   [/bust|breast|chest_?(sub|soft)|胸(?!.*上半身)|oppai|boob/i, 'bust'],
-  [/ribbon|リボン|cloth|cape|マント|sleeve|袖|ear|耳|scarf|tie|ネクタイ|acc|accessory|飾り|string|ひも|紐|coat|コート|hood|フード/i, 'accessory'],
+  [/ribbon|リボン|cloth|cape|マント|sleeve|袖|ear|耳|scarf|tie|ネクタイ|acc|accessory|飾り|string|ひも|紐|coat|コート|hood|フード|ヒレ|ひれ|fin\b/i, 'accessory'],
 ];
 
 export const presetFor = (kind: ChainKind): ChainPreset => (kind === 'skirt' ? 'skirt' : kind === 'bust' || kind === 'accessory' ? 'stiff' : 'soft');
