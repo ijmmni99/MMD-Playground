@@ -244,6 +244,58 @@ flowchart LR
 - **Higher-quality estimators:** an SMPL-based one such as WHAM or 4DHumans (on a server, or in WebGPU / ONNX Runtime Web) can be added as another implementation. It would map SMPL joints onto the BlazePose landmark set, register itself in `createEstimator()`, and need no other changes. A future backend could also emit joint rotations directly; the retargeting step would then skip its direction-vector solve.
 - **Built-in test backend:** `?pose=synthetic` swaps in a procedural stick-figure dancer, used by the tests and demos.
 
+## Motion Editor & Camera Director
+
+Edit any loaded VMD — keys, curves, IK and the camera — and export it back to valid VMD files.
+
+Open it with **Edit** in the transport bar. The editor shares the timeline's bottom dock (on a phone it opens in the Timeline sheet). **Editing** goes back to the plain timeline.
+
+### Keys
+
+- **Dope sheet:** rows per bone group (center, upper body, arms, legs, IK, fingers…), morphs and the camera. Click / Shift-click / box-select keys, drag to move (Alt-drag copies), double-click a group to select it. Keys snap to whole frames and, with the magnet on, to beats and markers. Ctrl-wheel or pinch zooms, Shift-wheel pans, the ruler scrubs. Shift-drag the ruler to set the **tool range** (Alt-click clears it).
+- **Keying:** pose a bone with the gizmo and press **K** (or turn on **Auto** to key every gizmo / slider edit). With no bone selected, K keys every animated bone. Morph sliders key with the smile button.
+- **Graph editor:** the selected track's value curves. Rotations show as Euler degrees (unwrapped for continuity; stored as quaternions). Drag keys vertically or type values. The VMD interpolation box edits the selected keys' bezier handles per channel (or all channels), with presets: linear, ease in, ease out, ease in-out, step.
+- **Shortcuts:** K key, Delete, Ctrl+C / Ctrl+V (paste at playhead) / Ctrl+D, `[` `]` nudge, arrows step frames, Ctrl+A select all, A frame all, Esc clear selection, Ctrl+Z / Ctrl+Shift+Z undo / redo (200 steps; a drag is one step).
+
+### Motion tools (wand button)
+
+Work on the tool range and either all or only the selected tracks:
+
+- **Time:** trim, delete range, insert frames, retime (speed factor; camera cuts stay cuts), loop N times with seam blending.
+- **Mirror** left ↔ right (bone names and X axis, IK included).
+- **Smooth** (Gaussian or One Euro, quaternion-safe), **reduce keys** (Douglas–Peucker with position / rotation tolerance) and **bake every frame**.
+- **Offset / scale** with falloff, **retarget scale** for differently sized models.
+- **Blend:** crossfade into a second VMD at the playhead, or add it as an additive layer.
+- **Face:** blink, あいうえお mouth shapes, seeded auto-blink, a talking-mouth pattern.
+
+### IK (footprints button)
+
+- 足ＩＫ / 手ＩＫ bones are tracks. Select one, drag it with the move gizmo — the leg follows through babylon-mmd's solver — and press K. With *Keying an IK bone also keys its FK chain* the solved knee / thigh are keyed too. A grey cross shows where the target was before the drag.
+- **Bake IK → FK** writes the solved chain rotations every frame over the range and turns IK off there (restored after it). **Fit IK from FK** keys the IK targets where FK puts the feet and turns IK on. Both report the maximum target error, so you can see there's no pop.
+- **Foot pinning:** pin an IK bone over the range with blend in / out. The planted foot holds its position (captured when you pin), and IK height is clamped at the floor. Pins show as lock bands in the dope sheet and cyan squares in the viewport; they're applied non-destructively and baked on export.
+- Overlay of IK chains, targets and knee direction, and a per-model IK solver switch.
+
+### Camera Director (camera button)
+
+- **Key from view:** position the viewport camera and key it at the playhead. **View through camera** does the reverse.
+- **3D path** with key positions and the current frustum; select one camera key to drag it in the viewport (the eye moves, the target stays). **Picture-in-picture** shows the VMD camera while you orbit freely.
+- **Shots:** from the range or from markers; split at the playhead, merge, reorder (the keys travel with the shot), delete, and choose a hard **cut** or a **blend** per shot. Cuts are written the MMD way: keys on two consecutive frames.
+- **Auto camera:** orbit, dolly in, crane up, front → side cut and face close-up, generated on the range with keys on the beat grid and cuts on bar lines.
+- **Look-at** a bone (baked into rotation keys, the camera path is kept), seeded **handheld shake**, FOV / distance on selected keys, a depth-of-field preview, and checks that clamp FOV to 1–125° and keep distances valid.
+- **Markers & BPM** (flag button): enter or tap the tempo, set the downbeat; the beat / bar grid drives snapping and presets. There is no audio beat detection.
+
+### VMD interpolation notes
+
+- Each bone key stores four bezier curves (X, Y, Z, rotation) as control points `x1, y1, x2, y2` in 0–127; a camera key stores six (X, Y, Z, rotation, distance, FOV). The curve on a key shapes the segment that **ends** at that key, as in MMD.
+- Rotations interpolate by slerp (shortest path), so the editor keeps quaternion signs continuous; the graph shows them as Euler degrees only for readability.
+- A camera **cut** is two keys on consecutive frames: the first holds the old shot until the next frame. The editor writes cuts this way and never creates accidental ones when baking.
+- Bone positions are offsets from the rest pose; 足ＩＫ / つま先ＩＫ keys are IK target offsets. IK on/off per range lives in the VMD's display / IK property track.
+
+### Saving and export
+
+- Every edit autosaves into the project (IndexedDB) and survives `.mmdstudio.zip` export / import; the original motion is kept, so **Revert** and **Compare** (A/B) always work.
+- **Export:** the motion `.vmd` with a choice of bone / morph / IK-state tracks, the camera `.vmd` separately (61-byte camera records), and an optional JSON sidecar with markers, BPM, shots and pins. Light and self-shadow tracks in a loaded VMD are preserved.
+
 ## Mobile & tablet
 
 MMD Studio is touch-first on phones and tablets and can be installed as an app (PWA).
@@ -312,14 +364,16 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
 
 ## Tests
 
-- **Unit (Vitest, 127 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+- **Unit (Vitest, 187 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
   - **Video to VMD:**
     - The VMD writer: byte-exact header, 111-byte records, section counts and Shift-JIS names.
     - Round-trips through babylon-mmd's VMD parser and `VmdLoader`.
     - Coordinate conversion and the mirror toggle; One Euro filtering; gap filling and 30 fps resampling.
     - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
     - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
+  - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
 - **E2E (Playwright):**
+  - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.
   - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
   - **Video to VMD:**
     - Runs the converter on a generated stick-figure video (`e2e/fixtures/stick-dance.webm`) with the synthetic pose estimator.
@@ -344,9 +398,8 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
 - Some features are not supported:
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
-  - VMD light and self-shadow tracks
-  - Exporting edits back to VMD
-  - Multi-camera switching
+  - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)
+- Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks (no dedicated hand-pose tools); BPM is set by hand or tap tempo (no audio beat detection); depth of field is a preview only and isn't stored in the VMD.
 - Model scaling combined with physics can behave oddly because rigid-body sizes don't scale. Use scale 1 for physics-heavy models.
 - Very large PMX files (50 MB+) parse asynchronously with a progress bar. They're stored once in IndexedDB, deduplicated by content hash, so watch the browser's storage quota.
 - The bone gizmo rotates in world space around the bone's pivot. Append/IK constraints are then solved by the runtime, so constrained bones may not follow the gizmo exactly.

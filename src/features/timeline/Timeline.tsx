@@ -48,9 +48,9 @@ function toggleMotionEditor(): void {
 export function Timeline() {
   const editorOpen = useMotionEditor((s) => s.open);
   useEffect(() => {
-    // Phone: the peeking timeline sheet is too short for the editor.
+    // Phone: a peek / half sheet is too short for the editor (drag it down to see the model).
     const sheet = useLayout.getState().sheet;
-    if (editorOpen && sheet.tab === 'timeline' && sheet.snap === 'peek') setSheetSnap('half');
+    if (editorOpen && sheet.tab === 'timeline' && sheet.snap !== 'full') setSheetSnap('full');
   }, [editorOpen]);
   if (!editorOpen) return <PlaybackTimeline />;
   const zoom = (factor: number): void =>

@@ -684,6 +684,7 @@ motionHooks.motionReplaced = onMotionReplaced;
 (window as unknown as { __motionEditor?: unknown }).__motionEditor = {
   state: me.get,
   keyPoint: (track: string, f: number) => dopeProbe.keyPoint?.(track, f) ?? null,
+  drawMs: () => dopeProbe.drawMs ?? -1,
   history: () => ({ past: useHistory.getState().past.length, future: useHistory.getState().future.length }),
 };
 

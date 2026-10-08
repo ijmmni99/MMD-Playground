@@ -114,7 +114,7 @@ export default function GraphEditor() {
     <div
       className={cn(
         'flex shrink-0 flex-col gap-2 overflow-y-auto border-line p-2 text-[11px]',
-        narrow ? 'border-b' : 'border-r',
+        narrow ? 'max-h-[38%] border-b' : 'border-r',
       )}
       style={narrow ? undefined : { width: coarse ? 132 : 172 }}
     >
@@ -122,7 +122,7 @@ export default function GraphEditor() {
         {channel.kind === 'camera' ? 'Camera' : channel.track}
         {activeF !== null && <span className="ml-1 font-mono text-fg-dim">@{activeF}</span>}
       </div>
-      <div className={cn('flex gap-1', narrow ? 'flex-wrap' : 'flex-col')}>
+      <div className={cn('gap-1', narrow ? 'grid grid-cols-2' : 'flex flex-col')}>
         {defs.map((d, i) => (
           <div key={d.id} className="flex items-center gap-1">
             <button
@@ -184,19 +184,23 @@ export default function GraphEditor() {
         </div>
       )}
       {side}
-      <div className="relative flex min-h-0 min-w-0 flex-1">
+      <div className={cn('relative flex min-h-0 min-w-0 flex-1', narrow && 'flex-col')}>
         <ValueGraph channel={channel} hidden={hidden} activeF={activeF} />
         {channel.kind !== 'morph' && (
           <div
             className={cn(
-              'flex shrink-0 gap-2 border-l border-line bg-bg-panel p-2 text-[11px]',
-              narrow ? 'absolute inset-x-0 bottom-0 border-t' : 'w-[260px]',
+              'flex shrink-0 gap-2 border-line bg-bg-panel p-2 text-[11px]',
+              narrow ? 'border-t' : 'w-[260px] border-l',
             )}
           >
-            <div className="w-[120px] shrink-0">
+            <div className={cn('shrink-0', narrow ? 'w-[110px]' : 'w-[120px]')}>
               <CurveBox bytes={bytes} onChange={writeCurve} />
             </div>
-            <div className="flex flex-col gap-1" role="group" aria-label="Curve presets">
+            <div
+              className={cn('gap-1', narrow ? 'grid flex-1 grid-cols-2 content-start' : 'flex flex-col')}
+              role="group"
+              aria-label="Curve presets"
+            >
               {PRESETS.map((p) => (
                 <button
                   key={p.id}

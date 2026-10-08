@@ -88,14 +88,14 @@ The camera goes through the same flow via `engine.setCameraClip`. Playback conti
 
 ## Milestones
 
-- [ ] a. Clip model, VMD read/write (all record types), bezier, runtime build, round-trip and loader tests
-- [ ] b. Editor dock tab and dope sheet (canvas, groups, select / box / drag / alt-copy / snap / zoom)
-- [ ] c. Pose keying from gizmo and morph sliders, auto-key, delete/clear
-- [ ] d. Undo/redo via commands, revert / A-B, autosave and zip round-trip
-- [ ] e. Graph editor (bezier handles, presets, Euler display)
-- [ ] f. Motion tools (time, mirror, smooth, reduce/bake, offset/scale)
-- [ ] g. IK-aware editing (bake, fit, pins, ghost, overlays, solver toggle)
-- [ ] h. Blend / additive layer / retarget scale
-- [ ] i. Camera editor and Camera Director (path, PiP, shots, look-at, presets, shake, lens)
-- [ ] j. Markers and BPM grid (snapping)
-- [ ] k. Mobile, polish, Playwright, docs
+- [x] a. Clip model, VMD read/write (all record types), bezier, runtime build, round-trip and loader tests
+- [x] b. Editor dock tab and dope sheet (canvas, groups, select / box / drag / alt-copy / snap / zoom)
+- [x] c. Pose keying from gizmo and morph sliders, auto-key, delete/clear
+- [x] d. Undo/redo via commands, revert / A-B, autosave and zip round-trip
+- [x] e. Graph editor (bezier handles, presets, Euler display)
+- [x] f. Motion tools (time, mirror, smooth, reduce/bake, offset/scale)
+- [x] g. IK-aware editing (bake, fit, pins, ghost, overlays, solver toggle)
+- [x] h. Blend / additive layer / retarget scale
+- [x] i. Camera editor and Camera Director (path, PiP, shots, look-at, presets, shake, lens)
+- [x] j. Markers and BPM grid (snapping)
+- [x] k. Mobile, polish, Playwright, docs

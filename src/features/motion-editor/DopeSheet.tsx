@@ -64,14 +64,23 @@ export function DopeSheet() {
   const box = useRef<{ x0: number; y0: number; x1: number; y1: number; add: boolean } | null>(null);
   const drawQueued = useRef(false);
 
+  const rowCache = useRef<{ deps: unknown[]; rows: Row[] } | null>(null);
+  /** Rows only change with the clip, camera, collapsed groups or pins (not on scroll / zoom / playhead). */
   const computeRows = useCallback((): Row[] => {
     const s = me.get();
     const clip = s.modelId ? (s.clips[s.modelId] ?? null) : null;
-    return buildRows(clip, s.camera, s.collapsed, s.modelId ? s.pins[s.modelId] : []);
+    const pins = s.modelId ? s.pins[s.modelId] : undefined;
+    const deps = [clip, s.camera, s.collapsed, pins];
+    const c = rowCache.current;
+    if (c && c.deps.every((d, i) => d === deps[i])) return c.rows;
+    const rows = buildRows(clip, s.camera, s.collapsed, pins ?? []);
+    rowCache.current = { deps, rows };
+    return rows;
   }, []);
 
   const draw = useCallback(() => {
     drawQueued.current = false;
+    const t0 = performance.now();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -250,6 +259,7 @@ export function DopeSheet() {
       ctx.fillRect(x, y, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
       ctx.strokeRect(x + 0.5, y + 0.5, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
     }
+    dopeProbe.drawMs = performance.now() - t0;
   }, [coarse, computeRows]);
 
   const requestDraw = useCallback(() => {
@@ -284,14 +294,19 @@ export function DopeSheet() {
       const canvas = canvasRef.current;
       if (i < 0 || !canvas) return null;
       const rect = canvas.getBoundingClientRect();
-      const y = HEADER_H + i * g.rowH - g.scrollY + g.rowH / 2;
+      let y = HEADER_H + i * g.rowH - g.scrollY + g.rowH / 2;
+      if (y < HEADER_H || y > g.height) {
+        g.scrollY = clampScroll(i * g.rowH - (g.height - HEADER_H) / 2);
+        draw();
+        y = HEADER_H + i * g.rowH - g.scrollY + g.rowH / 2;
+      }
       if (y < HEADER_H || y > g.height) return null;
       return { x: rect.left + frameToX(g, f), y: rect.top + y };
     };
     return () => {
       dopeProbe.keyPoint = undefined;
     };
-  }, []);
+  }, [draw]);
 
   // Playhead via rAF (no React state).
   useEffect(() => {
@@ -331,10 +346,25 @@ export function DopeSheet() {
     return best === null ? null : { kind: r.kind, track: r.track, f: best };
   };
 
+  const clampScroll = (y: number): number => {
+    const g = geo.current;
+    const max = Math.max(0, rowsRef.current.length * g.rowH - (g.height - HEADER_H) + g.rowH);
+    return Math.min(max, Math.max(0, y));
+  };
+
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<
     | { type: 'scrub' }
     | { type: 'range'; from: number }
+    | {
+        type: 'pan';
+        x0: number;
+        y0: number;
+        scroll0: number;
+        start0: number;
+        moved: boolean;
+        tap: () => void;
+      }
     | { type: 'drag'; startX: number; anchor: number; moved: boolean }
     | { type: 'box' }
     | { type: 'pinch'; dist: number; mid: number; start: number; span: number }
@@ -393,7 +423,19 @@ export function DopeSheet() {
       return;
     }
     const row = rowsRef.current[hitRow(p.y)];
-    if (p.x < g.labelW) {
+    const touch = e.pointerType === 'touch';
+    const pan = (tap: () => void): void => {
+      gesture.current = {
+        type: 'pan',
+        x0: p.x,
+        y0: p.y,
+        scroll0: g.scrollY,
+        start0: me.get().view.start,
+        moved: false,
+        tap,
+      };
+    };
+    const labelAction = (): void => {
       if (!row) return;
       if (row.type === 'group') {
         me.set((s) => ({ collapsed: { ...s.collapsed, [row.id]: !s.collapsed[row.id] } }));
@@ -402,6 +444,11 @@ export function DopeSheet() {
         setSelection(e.shiftKey ? [...me.get().selection, ...ids] : ids);
         me.set({ channel: { kind: row.kind, track: row.track, channel: row.kind === 'morph' ? 0 : 3 } });
       }
+    };
+    if (p.x < g.labelW) {
+      // Touch: drag the labels to scroll rows; a tap does the label action.
+      if (touch) pan(labelAction);
+      else labelAction();
       return;
     }
     const hit = hitKey(p.x, p.y);
@@ -431,6 +478,14 @@ export function DopeSheet() {
       selectGroup(row.id);
       return;
     }
+    if (touch) {
+      // Touch on empty space: pan time / scroll rows; a tap moves the playhead.
+      pan(() => {
+        setSelection([]);
+        seekTo(p.x);
+      });
+      return;
+    }
     box.current = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, add: e.shiftKey };
     gesture.current = { type: 'box' };
     requestDraw();
@@ -455,6 +510,17 @@ export function DopeSheet() {
     }
     if (gst.type === 'scrub') {
       seekTo(p.x);
+      return;
+    }
+    if (gst.type === 'pan') {
+      const dx = p.x - gst.x0;
+      const dy = p.y - gst.y0;
+      if (!gst.moved && Math.hypot(dx, dy) < 8) return;
+      gst.moved = true;
+      const g = geo.current;
+      g.scrollY = clampScroll(gst.scroll0 - dy);
+      me.set((s) => ({ view: { ...s.view, start: Math.max(-10, gst.start0 - dx / g.ppf) } }));
+      requestDraw();
       return;
     }
     if (gst.type === 'range') {
@@ -491,6 +557,12 @@ export function DopeSheet() {
     if (longPress.current) clearTimeout(longPress.current);
     const gst = gesture.current;
     if (gst?.type === 'drag' && gst.moved) endKeyDrag(e.altKey ? 'Copy keys' : 'Move keys');
+    if (gst?.type === 'pan' && !gst.moved) {
+      gesture.current = null;
+      gst.tap();
+      if (gesture.current && pointers.current.size === 0) gesture.current = null;
+      return;
+    }
     if (gst?.type === 'box' && box.current) {
       const b = box.current;
       const g = geo.current;
@@ -531,8 +603,7 @@ export function DopeSheet() {
       const d = (e.shiftKey ? e.deltaY : e.deltaX) / g.ppf;
       me.set({ view: { ...s.view, start: Math.max(-10, s.view.start + d) } });
     } else {
-      const max = Math.max(0, rowsRef.current.length * g.rowH - (g.height - HEADER_H) + g.rowH);
-      g.scrollY = Math.min(max, Math.max(0, g.scrollY + e.deltaY));
+      g.scrollY = clampScroll(g.scrollY + e.deltaY);
       requestDraw();
     }
   };

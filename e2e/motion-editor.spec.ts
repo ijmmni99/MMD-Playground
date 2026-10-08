@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const PMX = join(fixtures, 'Mannequin/mannequin.pmx');
@@ -27,7 +27,7 @@ async function boot(page: Page): Promise<void> {
 
 async function openFiles(page: Page, files: string[]): Promise<void> {
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Open files / ZIP…' }).click();
+  await page.getByRole('button', { name: /Open files \/ ZIP…|Upload ZIP or files…|^Add model/ }).first().click();
   await (await chooser).setFiles(files);
 }
 
@@ -364,3 +364,107 @@ test('camera director: keys from view, shots with cuts, preset on beats, look-at
   expect(bytes.length).toBeGreaterThanOrEqual(62 + n * 61);
   expect(errors).toEqual([]);
 });
+
+/** A big synthetic VMD: `bones` tracks keyed on every frame 0..frames (ASCII names). */
+function bigVmd(bones: number, frames: number): Buffer {
+  const n = bones * (frames + 1);
+  const buf = Buffer.alloc(50 + 4 + n * 111 + 16);
+  buf.write('Vocaloid Motion Data 0002', 0, 'ascii');
+  buf.write('perf', 30, 'ascii');
+  buf.writeUInt32LE(n, 50);
+  let o = 54;
+  for (let b = 0; b < bones; b++) {
+    for (let f = 0; f <= frames; f++) {
+      buf.write(`b${b}`, o, 'ascii');
+      buf.writeUInt32LE(f, o + 15);
+      const a = Math.sin(f / 15 + b) * 0.3;
+      buf.writeFloatLE(Math.sin(a / 2), o + 31);
+      buf.writeFloatLE(Math.cos(a / 2), o + 43);
+      for (let i = 0; i < 64; i++) buf.writeUInt8(i % 8 < 4 ? 20 : 107, o + 47 + i);
+      o += 111;
+    }
+  }
+  return buf;
+}
+
+test('dope sheet draws 50k+ keys within a 60 fps budget', async ({ page }) => {
+  await boot(page);
+  await openFiles(page, [PMX]);
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add model or files' }).click();
+  await (await chooser).setFiles({ name: 'perf.vmd', mimeType: 'application/octet-stream', buffer: bigVmd(60, 900) });
+  await expect(page.getByTestId('model-list')).toContainText('perf.vmd', { timeout: 30_000 });
+  await page.getByTestId('open-editor').click();
+  const sheet = page.getByTestId('dope-sheet');
+  await expect(sheet).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => Object.values((window as ME).__motionEditor!.state().clips)[0]?.bones.length ?? 0))
+    .toBe(60);
+  // Expand the collapsed "Other" group (first row) so every track draws.
+  const box = (await sheet.boundingBox())!;
+  await page.mouse.click(box.x + 30, box.y + 36 + 10);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const times: number[] = [];
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.wheel(0, i % 2 ? 120 : -120);
+    await page.keyboard.down('Shift');
+    await page.mouse.wheel(0, 200);
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(30);
+    times.push(await page.evaluate(() => (window as unknown as { __motionEditor: { drawMs(): number } }).__motionEditor.drawMs()));
+  }
+  times.sort((a, b) => a - b);
+  const median = times[Math.floor(times.length / 2)];
+  console.log(`dope sheet draw: median ${median.toFixed(2)} ms, max ${times[times.length - 1].toFixed(2)} ms`);
+  expect(median).toBeGreaterThan(0);
+  expect(median).toBeLessThan(8);
+});
+
+async function noOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+}
+
+for (const [name, device] of [
+  ['phone', devices['Pixel 7']],
+  ['tablet', devices['iPad (gen 7)']],
+] as const) {
+  test.describe(name, () => {
+    const { viewport, deviceScaleFactor, isMobile, hasTouch, userAgent } = device;
+    test.use({ viewport, deviceScaleFactor, isMobile, hasTouch, userAgent });
+
+    test(`motion editor is usable on ${name}`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto('/?engine=1');
+      await page.waitForFunction(() => (window as W).__studio !== undefined, null, { timeout: 90_000, polling: 500 });
+      await openFiles(page, [PMX, DANCE]);
+      await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+      if (name === 'phone') await page.getByTestId('tab-bar').locator('[data-tab="timeline"]').click();
+      await page.getByTestId('open-editor').click();
+      await expect(page.getByTestId('dope-sheet')).toBeVisible();
+      await expect.poll(() => boneFrames(page, '頭')).not.toEqual([]);
+      // Touch targets: toolbar buttons are at least 40px tall on coarse pointers.
+      const key = await page.getByTestId('me-key').boundingBox();
+      expect(key!.height).toBeGreaterThanOrEqual(40);
+      // Tap a key to select it.
+      const p = await keyPoint(page, '頭', (await boneFrames(page, '頭'))[1]);
+      await page.touchscreen.tap(p.x, p.y);
+      await expect(page.getByTestId('me-selected')).toContainText('1 selected');
+      await noOverflow(page);
+      await page.screenshot({ path: `e2e/__shots/me-${name}.png` });
+      // Graph editor (full-height on phone) and a side panel.
+      await page.getByTestId('me-graph').click();
+      await expect(page.getByTestId('graph-editor')).toBeVisible();
+      await page.screenshot({ path: `e2e/__shots/me-${name}-graph.png` });
+      if (name === 'phone') await page.getByRole('button', { name: 'Done' }).click();
+      else await page.getByTestId('me-graph').click();
+      await page.getByTestId('me-tools').click();
+      await expect(page.getByTestId('me-tools-panel')).toBeVisible();
+      await noOverflow(page);
+      await page.screenshot({ path: `e2e/__shots/me-${name}-tools.png` });
+      expect(errors).toEqual([]);
+    });
+  });
+}

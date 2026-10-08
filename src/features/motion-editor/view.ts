@@ -11,6 +11,8 @@ export function frameAll(end: number): void {
 export const dopeProbe: {
   /** Pixels per frame of the dope sheet (the graph editor matches it so frames line up). */
   ppf?: number;
+  /** Duration of the last dope-sheet draw (ms), for performance checks. */
+  drawMs?: number;
   keyPoint?: (track: string, f: number) => { x: number; y: number } | null;
 } = {};
 

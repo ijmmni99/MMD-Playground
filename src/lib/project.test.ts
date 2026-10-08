@@ -94,3 +94,30 @@ describe('project serialization', () => {
     await expect(exportProjectZip(sampleDoc(), async () => undefined)).rejects.toThrow(/Missing asset/);
   });
 });
+
+describe('motion editor state in projects', () => {
+  it('survives .mmdstudio.zip export / import with its blobs', async () => {
+    const doc = sampleDoc();
+    doc.motionEditor = {
+      models: {
+        m1: {
+          base: { blobId: 'me-base', path: 'dance_edited_base.vmd' },
+          original: { blobId: 'me-orig', path: 'dance_original.vmd' },
+          pins: [{ id: 'p1', bone: '左足ＩＫ', start: 10, end: 30, blendIn: 3, blendOut: 3, anchor: { p: [1, 0, 2], r: [0, 0, 0, 1] } }],
+          name: 'dance.vmd',
+        },
+      },
+      camera: { base: { blobId: 'cam-base', path: 'cam_base.vmd' }, original: { blobId: 'cam-orig', path: 'cam_orig.vmd' }, name: 'cam.vmd' },
+      markers: [{ id: 'k1', f: 60, name: 'Chorus' }],
+      grid: { bpm: 128, offset: 4, beatsPerBar: 4 },
+      shots: [{ id: 's1', name: 'A', start: 0, end: 59, color: '#fff', transition: 'cut' }],
+    };
+    const ids = projectBlobIds(doc);
+    for (const id of ['me-base', 'me-orig', 'cam-base', 'cam-orig']) expect(ids.has(id)).toBe(true);
+    const zip = await exportProjectZip(doc, async (id) => new Blob([id]));
+    const { doc: imported, blobs } = await importProjectZip(zip);
+    expect(imported.motionEditor).toEqual(doc.motionEditor);
+    expect(await blobs.get('me-base')!.text()).toBe('me-base');
+    expect(await blobs.get('cam-orig')!.text()).toBe('cam-orig');
+  });
+});
