@@ -33,6 +33,7 @@ import {
   UniversalCamera,
   UtilityLayerRenderer,
   Vector3,
+  Viewport,
   WebGPUEngine,
   type AbstractMesh,
   type BaseTexture,
@@ -163,6 +164,13 @@ export class BabylonStudioEngine implements StudioEngine {
   private hdrTexture: BaseTexture | null = null;
   private skybox: Mesh | null = null;
   private pipeline!: DefaultRenderingPipeline;
+  private pointNode!: TransformNode;
+  private pointGizmo!: PositionGizmo;
+  private pointCb: {
+    onChange?: (p: [number, number, number]) => void;
+    onEnd?: (p: [number, number, number]) => void;
+  } | null = null;
+  private pip = false;
   private ssao: SSAO2RenderingPipeline | null = null;
   private instrumentation!: SceneInstrumentation;
   private readonly models = new Map<string, ModelEntry>();
@@ -336,6 +344,28 @@ export class BabylonStudioEngine implements StudioEngine {
       g.onDragObservable.add(() => this.onGizmoDrag());
       g.onDragEndObservable.add(() => this.onGizmoDragEnd());
     }
+    // Editor point gizmo (camera keys on the 3D path).
+    this.pointNode = new TransformNode('pointGizmo', scene);
+    this.pointGizmo = new PositionGizmo(this.utilLayer, thickness);
+    this.pointGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+    this.pointGizmo.scaleRatio = this.coarse ? 1.4 : 0.9;
+    const pointPos = (): [number, number, number] => [
+      this.pointNode.position.x,
+      this.pointNode.position.y,
+      this.pointNode.position.z,
+    ];
+    this.pointGizmo.onDragObservable.add(() => this.pointCb?.onChange?.(pointPos()));
+    this.pointGizmo.onDragEndObservable.add(() => this.pointCb?.onEnd?.(pointPos()));
+    // Picture-in-picture: clear the inset before the VMD camera renders into it.
+    scene.onBeforeCameraRenderObservable.add((cam) => {
+      if (!this.pip || cam !== this.mmdCamera || !scene.activeCameras?.length) return;
+      const w = this.engine.getRenderWidth();
+      const h = this.engine.getRenderHeight();
+      const v = this.mmdCamera.viewport;
+      this.engine.enableScissor(v.x * w, v.y * h, v.width * w, v.height * h);
+      this.engine.clear(scene.clearColor, true, true, true);
+      this.engine.disableScissor();
+    });
     // Uniform scale gizmo for the active model (on-screen "scale" mode).
     this.scaleGizmo = new ScaleGizmo(this.utilLayer, thickness);
     this.scaleGizmo.scaleRatio = this.coarse ? 1.6 : 1.1;
@@ -1093,6 +1123,7 @@ export class BabylonStudioEngine implements StudioEngine {
     if (old) this.mmdCamera.destroyRuntimeAnimation(old.handle);
     this.cameraMotion = { animation, handle };
     this.updateDuration();
+    this.applyPip();
     this.refreshPose();
     const info: CameraMotionInfo = {
       name,
@@ -1184,13 +1215,15 @@ export class BabylonStudioEngine implements StudioEngine {
     modelId: string,
     frames: number[],
     names: string[],
-    opts: { ik?: boolean } = {},
+    opts: { ik?: boolean; world?: boolean } = {},
   ): {
     r: Record<string, [number, number, number, number]>;
     pos: Record<string, [number, number, number]>;
   }[] {
     const m = this.models.get(modelId);
     if (!m) return [];
+    const world = opts.world ? m.mesh.computeWorldMatrix(true) : null;
+    const tmp = new Vector3();
     const states = m.model.ikSolverStates.slice();
     const out: ReturnType<StudioEngine['sampleModel']> = [];
     const model = m.model as MmdModel & { beforePhysics(frame: number | null): void; afterPhysics(): void };
@@ -1204,10 +1237,14 @@ export class BabylonStudioEngine implements StudioEngine {
         before(null);
       }
       model.afterPhysics();
-      out.push({
-        r: this.getSolvedLocalRotations(modelId, names),
-        pos: this.getBoneModelPositions(modelId, names),
-      });
+      const pos = this.getBoneModelPositions(modelId, names);
+      if (world) {
+        for (const k of Object.keys(pos)) {
+          Vector3.TransformCoordinatesToRef(tmp.set(...pos[k]), world, tmp);
+          pos[k] = [tmp.x, tmp.y, tmp.z];
+        }
+      }
+      out.push({ r: this.getSolvedLocalRotations(modelId, names), pos });
     }
     m.model.ikSolverStates.set(states);
     void this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
@@ -1341,6 +1378,7 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!file) {
       if (this.cameraMode === 'vmd') this.setCameraMode('orbit');
       this.updateDuration();
+      this.applyPip();
       this.events.emit('cameraMotionChanged', null);
       return null;
     }
@@ -1350,6 +1388,7 @@ export class BabylonStudioEngine implements StudioEngine {
     this.mmdCamera.setRuntimeAnimation(handle);
     this.cameraMotion = { animation, handle };
     this.updateDuration();
+    this.applyPip();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
     const info: CameraMotionInfo = {
       name: basename(file.path),
@@ -1438,8 +1477,8 @@ export class BabylonStudioEngine implements StudioEngine {
       this.events.emit('warning', 'Load a camera VMD first to use the motion camera.');
       mode = 'orbit';
     }
-    const prev = this.scene.activeCamera;
-    prev?.detachControl();
+    const prev = this.viewCamera();
+    prev.detachControl();
     if (mode === 'fly' && this.cameraMode !== 'fly') {
       const src = this.cameraMode === 'vmd' ? this.mmdCamera : this.orbit;
       this.fly.position.copyFrom(src.globalPosition);
@@ -1453,7 +1492,58 @@ export class BabylonStudioEngine implements StudioEngine {
     const cam: Camera = mode === 'orbit' ? this.orbit : mode === 'fly' ? this.fly : this.mmdCamera;
     this.scene.activeCamera = cam;
     if (mode !== 'vmd') cam.attachControl(true);
+    this.applyPip();
     this.scheduleCameraEmit();
+  }
+
+  /** Inset view through the VMD camera while the main view uses the orbit / fly camera. */
+  setPip(enabled: boolean): void {
+    this.pip = enabled;
+    this.applyPip();
+  }
+
+  private applyPip(): void {
+    const on = this.pip && this.cameraMode !== 'vmd' && !!this.cameraMotion;
+    const main = this.viewCamera();
+    const mgr = this.scene.postProcessRenderPipelineManager;
+    if (on) {
+      main.viewport = new Viewport(0, 0, 1, 1);
+      this.mmdCamera.viewport = new Viewport(0.68, 0.03, 0.3, 0.3);
+      if (!this.scene.activeCameras?.includes(this.mmdCamera)) {
+        // Post-processing on a viewport inset is unreliable; the inset renders without it.
+        mgr.detachCamerasFromRenderPipeline('post', this.mmdCamera);
+        this.scene.activeCameras = [main, this.mmdCamera];
+      } else this.scene.activeCameras = [main, this.mmdCamera];
+    } else if (this.scene.activeCameras?.length) {
+      this.scene.activeCameras = [];
+      this.mmdCamera.viewport = new Viewport(0, 0, 1, 1);
+      mgr.attachCamerasToRenderPipeline('post', this.mmdCamera);
+      this.scene.activeCamera = main;
+    }
+    // Gizmos pick and draw through the main view's camera.
+    this.utilLayer.setRenderCamera(on ? main : null);
+  }
+
+  /** The camera of the main view (not scene.activeCamera: after a PiP frame that is the inset camera). */
+  private viewCamera(): Camera {
+    return this.cameraMode === 'fly' ? this.fly : this.cameraMode === 'vmd' ? this.mmdCamera : this.orbit;
+  }
+
+  /** A draggable position gizmo at `pos` (world), for editor handles. Null hides it. */
+  setPointGizmo(
+    pos: [number, number, number] | null,
+    cb: {
+      onChange?: (p: [number, number, number]) => void;
+      onEnd?: (p: [number, number, number]) => void;
+    } = {},
+  ): void {
+    this.pointCb = pos ? cb : null;
+    if (!pos) {
+      this.pointGizmo.attachedNode = null;
+      return;
+    }
+    this.pointNode.position.set(...pos);
+    this.pointGizmo.attachedNode = this.pointNode;
   }
 
   setFov(fovDeg: number): void {
@@ -1613,7 +1703,7 @@ export class BabylonStudioEngine implements StudioEngine {
     const id = modelId ?? this.selected?.modelId ?? this.defaultModelId();
     if (!id) return null;
     const head = this.findBoneWorld(id, HEAD_BONES) ?? this.modelBounds(id).center;
-    const cam = this.scene.activeCamera;
+    const cam = this.viewCamera();
     if (!cam) return null;
     return Math.round(Vector3.Distance(cam.globalPosition, head) * 100) / 100;
   }
@@ -1652,12 +1742,11 @@ export class BabylonStudioEngine implements StudioEngine {
    * model. Coordinates are CSS pixels relative to the canvas.
    */
   pickAt(x: number, y: number, radius = 28): { modelId: string; bone: number | null } | null {
-    const cam = this.scene.activeCamera;
-    if (!cam) return null;
+    const cam = this.viewCamera();
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
     const viewport = cam.viewport.toGlobal(w, h);
-    const transform = this.scene.getTransformMatrix();
+    const transform = cam.getTransformationMatrix();
     const scaling = this.engine.getHardwareScalingLevel();
     // Taps on gizmo handles belong to the gizmo, not to selection.
     const gizmoHit = this.utilLayer.utilityLayerScene.pick(x / scaling, y / scaling);
@@ -1683,6 +1772,8 @@ export class BabylonStudioEngine implements StudioEngine {
       x / scaling,
       y / scaling,
       (mesh) => mesh.isPickable && mesh.isEnabled() && mesh.isVisible,
+      false,
+      cam,
     );
     if (pick?.hit && pick.pickedMesh) {
       for (const m of this.models.values()) {

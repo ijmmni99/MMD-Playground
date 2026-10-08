@@ -124,7 +124,7 @@ export interface StudioEngine {
     modelId: string,
     frames: number[],
     names: string[],
-    opts?: { ik?: boolean },
+    opts?: { ik?: boolean; world?: boolean },
   ): { r: Record<string, [number, number, number, number]>; pos: Record<string, [number, number, number]> }[];
   getIkChains(modelId: string): { bone: string; target: string; links: string[] }[];
   setIkEnabled(modelId: string, enabled: boolean): void;
@@ -134,6 +134,13 @@ export interface StudioEngine {
     frames: number[],
     ikBones: string[],
   ): Record<string, { f: number; p: [number, number, number]; r: [number, number, number, number] }[]>;
+  /** Picture-in-picture inset through the VMD camera (when the main view isn't the VMD camera). */
+  setPip(enabled: boolean): void;
+  /** Draggable position gizmo at a world point (editor handles). Null hides it. */
+  setPointGizmo(
+    pos: [number, number, number] | null,
+    cb?: { onChange?: (p: [number, number, number]) => void; onEnd?: (p: [number, number, number]) => void },
+  ): void;
   /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */
   setOverlayLines(
     id: string,

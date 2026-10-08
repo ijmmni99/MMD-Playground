@@ -18,7 +18,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { IconButton, NumberField, Select } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import { engineOrNull } from '@/store/engineRef';
-import { useLayout } from '@/store/layout';
+import { setSheetSnap, useLayout } from '@/store/layout';
 import { usePlaybackClock } from '@/hooks/usePlaybackClock';
 import type { PlaybackState } from '@/engine/types';
 import { pinchScale, pinchState, type Point } from '@/lib/gestures';
@@ -47,6 +47,11 @@ function toggleMotionEditor(): void {
 /** Bottom dock: the playback timeline, or the motion editor sharing the same space and transport. */
 export function Timeline() {
   const editorOpen = useMotionEditor((s) => s.open);
+  useEffect(() => {
+    // Phone: the peeking timeline sheet is too short for the editor.
+    const sheet = useLayout.getState().sheet;
+    if (editorOpen && sheet.tab === 'timeline' && sheet.snap === 'peek') setSheetSnap('half');
+  }, [editorOpen]);
   if (!editorOpen) return <PlaybackTimeline />;
   const zoom = (factor: number): void =>
     me.set((s) => {

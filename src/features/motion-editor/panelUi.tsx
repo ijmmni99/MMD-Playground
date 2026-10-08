@@ -131,8 +131,18 @@ export function RangeFields() {
   return (
     <div className="flex flex-col gap-1.5" data-testid="me-range">
       <Row>
-        <Num label="From" value={from} onChange={(v) => set(Math.round(v), Math.max(to, Math.round(v)))} min={0} />
-        <Num label="To" value={to} onChange={(v) => set(Math.min(from, Math.round(v)), Math.round(v))} min={0} />
+        <Num
+          label="From"
+          value={from}
+          onChange={(v) => set(Math.round(v), Math.max(to, Math.round(v)))}
+          min={0}
+        />
+        <Num
+          label="To"
+          value={to}
+          onChange={(v) => set(Math.min(from, Math.round(v)), Math.round(v))}
+          min={0}
+        />
       </Row>
       <div className="flex flex-wrap gap-1 text-[11px]">
         <button type="button" className="btn" onClick={() => set(playhead(), Math.max(to, playhead()))}>

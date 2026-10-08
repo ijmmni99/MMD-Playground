@@ -270,3 +270,97 @@ test('motion editor: IK drag + key, bake IK→FK, fit IK, foot pins', async ({ p
   await page.screenshot({ path: 'e2e/__shots/me-ik-panel.png' });
   expect(errors).toEqual([]);
 });
+
+interface CamProbe {
+  state(): {
+    camera: { camera: { f: number; r: number[] }[] } | null;
+    shots: { start: number; end: number }[];
+    grid: { bpm: number };
+  };
+}
+type WC = Window & { __studio?: Studio & { getCameraState(): Record<string, unknown>; setCameraState(s: unknown): void }; __motionEditor?: CamProbe };
+
+const camFrames = (page: Page): Promise<number[]> =>
+  page.evaluate(() => (window as WC).__motionEditor!.state().camera?.camera.map((k) => k.f) ?? []);
+
+test('camera director: keys from view, shots with cuts, preset on beats, look-at, PiP, export', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await boot(page);
+  await openFiles(page, [PMX, DANCE]);
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+  await page.getByTestId('open-editor').click();
+  await expect(page.getByTestId('dope-sheet')).toBeVisible();
+
+  // Tempo: 120 BPM (15 frames per beat).
+  await page.getByTestId('me-markers').click();
+  await page.getByTestId('me-markers-panel').getByLabel('BPM').fill('120');
+  await expect.poll(() => page.evaluate(() => (window as WC).__motionEditor!.state().grid.bpm)).toBe(120);
+
+  // Three camera keys captured from different viewport views.
+  await page.getByTestId('me-director').click();
+  await expect(page.getByTestId('me-director-panel')).toBeVisible();
+  for (const [f, alpha] of [
+    [0, -1.57],
+    [60, -0.6],
+    [119, 0.4],
+  ] as const) {
+    await page.evaluate(
+      ([frame, a]) => {
+        const st = (window as WC).__studio!;
+        st.seek(frame);
+        st.setCameraState({ ...st.getCameraState(), alpha: a });
+      },
+      [f, alpha],
+    );
+    await page.getByTestId('director-capture').click();
+    await expect.poll(() => camFrames(page)).toContain(f);
+  }
+
+  // Two shots, written as a hard cut at 60 (keys on 59 and 60).
+  const range = page.getByTestId('me-range');
+  const setRange = async (a: number, b: number) => {
+    await range.getByLabel('From').fill(String(a));
+    await range.getByLabel('To').fill(String(b));
+  };
+  await setRange(0, 59);
+  await page.getByTestId('shot-add').click();
+  await setRange(60, 119);
+  await page.getByTestId('shot-add').click();
+  await expect(page.getByTestId('shot-list').locator('li')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Write cuts' }).click();
+  await expect.poll(() => camFrames(page)).toContain(59);
+
+  // Orbit preset on the beat grid after the shots.
+  await setRange(120, 240);
+  await page.getByTestId('director-preset').click();
+  await expect.poll(async () => (await camFrames(page)).filter((f) => f > 120).length).toBeGreaterThan(4);
+  for (const f of (await camFrames(page)).filter((f) => f >= 120)) expect(f % 15).toBe(0);
+
+  // Look-at the head over the first shot: rebaked keys, the cut survives.
+  await page.getByRole('button', { name: /Look-at/ }).click();
+  await setRange(0, 119);
+  await page.getByTestId('director-lookat').click();
+  await expect.poll(async () => (await camFrames(page)).filter((f) => f < 120).length).toBeGreaterThan(20);
+  const fs = await camFrames(page);
+  expect(fs).toContain(59);
+  expect(fs).toContain(60);
+
+  // PiP + 3D path, then export the camera VMD.
+  await page.getByLabel('Picture-in-picture preview').check();
+  await page.getByLabel(/Show 3D path/).check();
+  await page.evaluate(() => (window as WC).__studio!.seek(30));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'e2e/__shots/me-director.png' });
+  await page.getByTestId('me-export-open').click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('me-export-camera').click();
+  const bytes = readFileSync(await (await download).path());
+  expect(bytes.subarray(0, 25).toString('ascii')).toBe('Vocaloid Motion Data 0002');
+  // Header 50 + bone count 0 + morph count 0, then camera records of 61 bytes.
+  const n = bytes.readUInt32LE(58);
+  expect(n).toBe(fs.length);
+  expect(bytes.length).toBeGreaterThanOrEqual(62 + n * 61);
+  expect(errors).toEqual([]);
+});

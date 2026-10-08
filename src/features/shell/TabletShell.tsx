@@ -7,6 +7,7 @@ import { ModelsPanel } from '@/features/models/ModelsPanel';
 import { Timeline } from '@/features/timeline/Timeline';
 import { Viewport } from '@/features/viewport/Viewport';
 import { toggleDrawer, useLayout } from '@/store/layout';
+import { useMotionEditor } from '@/store/motionEditor';
 import { useStudio } from '@/store/studio';
 import type { PanelToggles } from './DesktopShell';
 
@@ -58,6 +59,7 @@ function Drawer({
 export function TabletShell() {
   const drawers = useLayout((s) => s.drawers);
   const mode = useStudio((s) => s.mode);
+  const editorOpen = useMotionEditor((s) => s.open);
   useEffect(() => {
     if (mode !== 'studio') useLayout.setState((s) => ({ drawers: { ...s.drawers, left: true } }));
   }, [mode]);
@@ -96,7 +98,12 @@ export function TabletShell() {
           </Drawer>
         </div>
         {drawers.bottom && (
-          <div className="h-[30%] min-h-[170px] shrink-0 border-t border-line pb-[env(safe-area-inset-bottom)]">
+          <div
+            className={cn(
+              'shrink-0 border-t border-line pb-[env(safe-area-inset-bottom)]',
+              editorOpen ? 'h-[52%] min-h-[300px]' : 'h-[30%] min-h-[170px]',
+            )}
+          >
             <Timeline />
           </div>
         )}
