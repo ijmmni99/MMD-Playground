@@ -12,6 +12,7 @@ import {
   pasteClips,
   reorderClip,
   setJoin,
+  setTrackJoin,
   setLoop,
   setMirror,
   setSpeed,
@@ -413,6 +414,10 @@ export const toggleMirror = (): void => {
 };
 export const setClipLoop = (n: number): void => forSelected('Loop', (d, id) => setLoop(d, id, n));
 export const setClipJoin = (j: Partial<Join>): void => forSelected('Join', (d, id) => setJoin(d, id, j));
+export function setTrackJoinAll(j: Partial<Join>): void {
+  const c = one();
+  if (c) commit('Join for whole track', (d) => setTrackJoin(d, c.trackId, j));
+}
 export const setClipVolume = (v: number): void => forSelected('Volume', (d, id) => setVolume(d, id, v));
 export const setClipText = (id: string, patch: Partial<TextSpec>): void =>
   commit('Edit text', (d) => setText(d, id, patch), `text:${id}:${Object.keys(patch).join()}`);

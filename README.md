@@ -314,7 +314,7 @@ Open it with **Clips** in the transport bar (it is the default view on phones an
 
 - **Split** cuts on the exact pose, so the two halves meet without a jump.
 - **Crossfade:** neighbouring or overlapping clips blend (8 frames by default, adjustable per clip; rotations slerp, positions lerp, smoothstep weight).
-- **Root:** *Continue* starts a clip where the previous one left the model (センター / 全ての親 and the foot IK targets move together, so feet don't slide); *Reset to origin* keeps the source placement.
+- **Root:** *Reset to origin* (the default, also for duplicates and pastes) keeps each clip's own placement, so repeats dance in place; *Continue* starts a clip where the previous one left the model (センター / 全ての親 and the foot IK targets move together, so feet don't slide) — use it for travelling moves. **Use these settings for every clip on this track** applies a join to the whole track.
 - **Duplicate / Loop** blend the seam between passes.
 - **Camera:** a hard **cut** (written as keys on consecutive frames, as MMD expects) or a **blend**.
 - **Keyframes:** double-click a dance, face or camera clip to open it — as it plays, at its place in the timeline — in the Motion Editor. **Back to clips** stores the edit as a new source for that clip; the original file is never touched.

@@ -225,6 +225,13 @@ describe('joins', () => {
       newClip(track.id, S, 60, { join: { fade: 0, root: 'origin', cut: true } }),
     );
     expect(pose(bakeTrack(o, track.id), 'センター', 61).p[0]).toBeCloseTo(0.1, 3);
+    // Duplicates (and new clips) repeat in place: no drift copy after copy.
+    let dup = addClip(doc, newClip(track.id, S, 0));
+    const firstId = trackClips(dup, track.id)[0].id;
+    dup = duplicateClip(dup, firstId).doc;
+    dup = duplicateClip(dup, firstId).doc;
+    const rep = bakeTrack(dup, track.id);
+    for (const f of [30, 90, 150]) expect(pose(rep, 'センター', f).p[0]).toBeCloseTo(3, 3);
   });
 
   it('camera joins: hard cuts are MMD cut pairs, blends have none', () => {

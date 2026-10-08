@@ -42,6 +42,7 @@ import {
   pickAndAddMotion,
   revertTimeline,
   setClipJoin,
+  setTrackJoinAll,
   setClipLoop,
   setClipSpeed,
   setClipVolume,
@@ -318,8 +319,21 @@ export function ClipToolbar() {
                   >
                     Reset to origin
                   </button>
+                  <span className="text-[11px] text-fg-dim">
+                    Continue suits walking moves; repeats of the same move should reset, or they drift.
+                  </span>
                 </div>
               )}
+              <button
+                type="button"
+                className="btn mt-2 w-full coarse:min-h-[44px]"
+                data-testid="ct-join-all"
+                onClick={() =>
+                  setTrackJoinAll({ fade: clip.join.fade, root: clip.join.root, cut: clip.join.cut })
+                }
+              >
+                Use these settings for every clip on this track
+              </button>
             </Pop>
           )}
           {kind === 'audio' && (

@@ -38,7 +38,8 @@ export interface Join {
   cut: boolean;
 }
 
-export const DEFAULT_JOIN: Join = { fade: 8, root: 'continue', cut: true };
+/** Clips keep their own placement by default, so repeats dance in place instead of drifting. */
+export const DEFAULT_JOIN: Join = { fade: 8, root: 'origin', cut: true };
 
 // ---------------------------------------------------------------- text
 

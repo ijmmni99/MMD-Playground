@@ -207,7 +207,8 @@ export function duplicateClip(doc: TimelineDoc, id: string): { doc: TimelineDoc;
     ...c,
     id: clipId(),
     startFrame: end,
-    join: { ...c.join, fade: c.join.fade || DEFAULT_JOIN.fade },
+    // A repeat stays in place: continuing the root would add the clip's drift on every copy.
+    join: { ...c.join, fade: c.join.fade || DEFAULT_JOIN.fade, root: 'origin' },
   };
   const clips = doc.clips.map((x) =>
     x.trackId === c.trackId && x.id !== c.id && x.startFrame >= end
@@ -268,9 +269,22 @@ export function pasteClips(
   const first = Math.min(...clips.map((c) => c.startFrame));
   const copies = clips
     .filter((c) => doc.tracks.some((t) => t.id === c.trackId))
-    .map((c) => ({ ...c, id: clipId(), startFrame: Math.max(0, Math.round(frame + c.startFrame - first)) }));
+    .map((c) => ({
+      ...c,
+      id: clipId(),
+      startFrame: Math.max(0, Math.round(frame + c.startFrame - first)),
+      join: { ...c.join, root: 'origin' as const },
+    }));
   return { doc: { ...doc, clips: [...doc.clips, ...copies] }, ids: copies.map((c) => c.id) };
 }
 
 /** Total timeline length. */
 export const timelineEnd = (doc: TimelineDoc): number => Math.max(0, ...doc.clips.map(clipEnd));
+
+/** Apply join settings to every clip on a track. */
+export function setTrackJoin(doc: TimelineDoc, trackId: string, j: Partial<Clip['join']>): TimelineDoc {
+  return {
+    ...doc,
+    clips: doc.clips.map((c) => (c.trackId === trackId ? { ...c, join: { ...c.join, ...j } } : c)),
+  };
+}
