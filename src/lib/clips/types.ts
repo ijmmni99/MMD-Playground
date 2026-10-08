@@ -85,7 +85,7 @@ export interface TextSpec {
 export const DEFAULT_TEXT: TextSpec = {
   content: 'Hello / こんにちは',
   font: 'Noto Sans JP',
-  size: 1.6,
+  size: 1.2,
   letterSpacing: 0,
   lineSpacing: 1.2,
   align: 'center',

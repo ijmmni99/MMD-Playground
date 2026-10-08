@@ -122,12 +122,12 @@ with a notice).
 ## Milestones
 
 - [x] a. Clip model + bake + tests
-- [ ] b. Clip timeline UI: select / move / trim
-- [ ] c. Split / delete / duplicate / retime / mirror / loop
-- [ ] d. Joins and crossfades, root continuity
-- [ ] e. Camera, face and audio tracks
-- [ ] f. Text generation pipeline (fonts + extrude)
-- [ ] g. Text styling, placement modes, bone attach
-- [ ] h. Text animations + SRT / LRC import
+- [x] b. Clip timeline UI: select / move / trim
+- [x] c. Split / delete / duplicate / retime / mirror / loop
+- [x] d. Joins and crossfades, root continuity
+- [x] e. Camera, face and audio tracks
+- [x] f. Text generation pipeline (fonts + extrude)
+- [x] g. Text styling, placement modes, bone attach
+- [x] h. Text animations + SRT / LRC import
 - [ ] i. Advanced-view handoff to the keyframe editor
 - [ ] j. Mobile, polish, tests, docs

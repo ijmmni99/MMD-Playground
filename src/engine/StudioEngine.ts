@@ -157,7 +157,12 @@ export interface StudioEngine {
   setTextItems(items: TextItem[]): void;
   textStats(): { entries: number; meshes: number; materials: number; glow: boolean };
   /** World placement of a text clip (tests). */
-  textProbe(id: string): { visible: boolean; position: [number, number, number]; normal: [number, number, number] } | null;
+  textProbe(id: string): {
+    visible: boolean;
+    position: [number, number, number];
+    normal: [number, number, number];
+    camera: [number, number, number];
+  } | null;
   /** Minimum playback length in frames (clip timeline end). */
   setMinDuration(frames: number): void;
   /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */

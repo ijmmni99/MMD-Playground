@@ -23,6 +23,7 @@ import {
   trimTo,
 } from './actions';
 import { ClipToolbar } from './ClipToolbar';
+import { TextPanel } from './TextPanel';
 import { getPeaks, getSourceClip } from './sources';
 import { dockProbe } from './probe';
 
@@ -283,6 +284,7 @@ export default function ClipDock() {
         </div>
       </div>
       <ClipToolbar />
+      <TextPanel />
     </div>
   );
 }
@@ -457,7 +459,9 @@ const ClipBlock = memo(function ClipBlock({
       onPointerMove={onMove}
       onPointerUp={onUp}
       onPointerCancel={onUp}
-      onDoubleClick={() => void import('./advanced').then((a) => a.openAdvanced(clip.id))}
+      onDoubleClick={() =>
+        clip.text ? ct.set({ textEditing: clip.id }) : void import('./advanced').then((a) => a.openAdvanced(clip.id))
+      }
     >
       <ClipContent clip={clip} kind={track.kind} width={w} height={height - 8} modelId={track.modelId} />
       <div className="pointer-events-none absolute left-1 top-0.5 flex max-w-[calc(100%-8px)] items-center gap-1 truncate font-medium drop-shadow">

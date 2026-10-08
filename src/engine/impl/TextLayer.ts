@@ -88,14 +88,22 @@ export class TextLayer {
   }
 
   /** World placement of a clip's text (tests: bone follow, billboard facing). */
-  probe(id: string): { visible: boolean; position: [number, number, number]; normal: [number, number, number] } | null {
+  probe(
+    id: string,
+  ): { visible: boolean; position: [number, number, number]; normal: [number, number, number]; camera: [number, number, number] } | null {
     const e = this.entries.get(id);
     if (!e) return null;
     const w = e.mesh.computeWorldMatrix(true);
     const p = w.getTranslation();
     // Front faces local -z.
     const n = Vector3.TransformNormal(new Vector3(0, 0, -1), w).normalize();
-    return { visible: e.mesh.isEnabled() && e.mesh.visibility > 0, position: [p.x, p.y, p.z], normal: [n.x, n.y, n.z] };
+    const c = this.host.scene.activeCamera?.globalPosition ?? Vector3.Zero();
+    return {
+      visible: e.mesh.isEnabled() && e.mesh.visibility > 0,
+      position: [p.x, p.y, p.z],
+      normal: [n.x, n.y, n.z],
+      camera: [c.x, c.y, c.z],
+    };
   }
 
   dispose(): void {
@@ -263,7 +271,7 @@ export class TextLayer {
       const visH = 2 * d * Math.tan((cam.fov || 0.8) / 2);
       const fwd = Vector3.TransformNormal(Vector3.Forward(), w).normalize();
       const up = Vector3.TransformNormal(Vector3.Up(), w).normalize();
-      root.position.copyFrom(tmpV.add(fwd.scale(d)).add(up.scale(visH * (-0.36 + spec.position[1] * 0.01))));
+      root.position.copyFrom(tmpV.add(fwd.scale(d)).add(up.scale(visH * (-0.4 + spec.position[1] * 0.01))));
       root.rotationQuaternion.copyFrom(tmpQ);
       scale *= visH * 0.034;
     } else {

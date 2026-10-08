@@ -150,14 +150,21 @@ export async function addAudioFile(file?: VFile): Promise<void> {
   });
 }
 
+const HEAD_BONES = ['頭', 'head', 'Head'];
+
 export function addTextClip(spec: Partial<TextSpec> = {}, at = playhead(), length = 120): string {
   let id = '';
   commit('Add text', (doc) => {
     const t = ensureTrack(doc, 'text');
     const modelId = selectedModelId() ?? undefined;
+    // With a model: float above its head (bone-attached, facing the camera).
+    const head = modelId
+      ? studio.get().models.find((m) => m.id === modelId)?.info.bones.find((b) => HEAD_BONES.includes(b.name))?.name
+      : undefined;
+    const attach: Partial<TextSpec> = head ? { modelId, bone: head, placement: 'bone', position: [0, 2.8, 0] } : {};
     const clip = newClip(t.track.id, null, at, {
       length,
-      text: { ...DEFAULT_TEXT, ...(modelId ? { modelId } : {}), ...spec },
+      text: { ...DEFAULT_TEXT, ...attach, ...spec },
       join: { fade: 0, root: 'origin', cut: true },
     });
     id = clip.id;

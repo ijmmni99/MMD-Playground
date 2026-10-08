@@ -7,6 +7,7 @@ const PMX = join(fixtures, 'Mannequin/mannequin.pmx');
 const DANCE = join(fixtures, 'Mannequin/mannequin-dance.vmd');
 const DANCE2 = join(fixtures, 'dance.vmd');
 const CAMERA = join(fixtures, 'Mannequin/mannequin-camera.vmd');
+const LYRICS = join(fixtures, 'lyrics.srt');
 
 interface Studio {
   listModels(): string[];
@@ -24,7 +25,7 @@ interface ClipLite {
   text?: { content: string };
 }
 interface Doc {
-  tracks: { id: string; kind: string }[];
+  tracks: { id: string; kind: string; name: string }[];
   clips: ClipLite[];
   sources: { id: string }[];
 }
@@ -173,5 +174,92 @@ test('clip timeline: add, split, duplicate, move, trim, reorder, camera, undo, p
   await expect.poll(() => page.evaluate(() => !!(window as W).__clipTimeline)).toBe(true);
   await expect.poll(async () => (await doc(page)).clips.length).toBe(before.clips.length);
   expect((await doc(page)).clips).toEqual(before.clips);
+  expect(errors).toEqual([]);
+});
+
+interface TextStudio extends Studio {
+  textStats(): { entries: number; meshes: number; materials: number; glow: boolean };
+  textProbe(id: string): { visible: boolean; position: number[]; normal: number[]; camera: number[] } | null;
+  getBoneWorldPositions(id: string): Record<string, [number, number, number]>;
+}
+type WT = Window & { __studio?: TextStudio; __clipTimeline?: CT & { addTextClip(spec?: Record<string, unknown>, at?: number, length?: number): string } };
+
+test('3D text: Latin + Japanese, neon, bone-attached, billboard, no leaks', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await boot(page);
+  await openFiles(page, [PMX, DANCE]);
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+  await page.getByTestId('open-clips').click();
+  await page.getByTestId('ct-add').click();
+  await page.getByTestId('ct-add-text').click();
+  await expect.poll(() => page.evaluate(() => (window as WT).__studio!.textStats().entries), { timeout: 30_000 }).toBe(1);
+  const id = await page.evaluate(() => (window as WT).__clipTimeline!.get().selection[0]);
+  await page.evaluate(() => (window as WT).__studio!.seek(30));
+  await expect.poll(() => page.evaluate((i) => (window as WT).__studio!.textProbe(i)?.visible, id)).toBe(true);
+
+  // Above the head, facing the camera.
+  const probe = await page.evaluate((i) => {
+    const s = (window as WT).__studio!;
+    const model = s.listModels()[0];
+    const text = s.textProbe(i)!;
+    return { text, head: s.getBoneWorldPositions(model)['頭'], cam: text.camera };
+  }, id);
+  expect(probe.text.position[1]).toBeGreaterThan(probe.head[1] + 1);
+  expect(Math.hypot(probe.text.position[0] - probe.head[0], probe.text.position[2] - probe.head[2])).toBeLessThan(0.5);
+  const toCam = probe.cam.map((v: number, k: number) => v - probe.text.position[k]);
+  const len = Math.hypot(...toCam);
+  const facing = toCam.reduce((a: number, v: number, k: number) => a + (v / len) * probe.text.normal[k], 0);
+  expect(facing).toBeGreaterThan(0.9);
+  await page.screenshot({ path: 'e2e/__shots/text-default.png' });
+
+  // Edit through the text panel: content, neon look, typewriter entrance.
+  await page.locator(`[data-clip-id="${id}"]`).click();
+  await page.getByTestId('ct-edit-text').click();
+  await expect(page.getByTestId('text-panel')).toBeVisible();
+  await page.getByTestId('text-content').fill('Hello / こんにちは!');
+  await page.getByTestId('text-style-neon').click();
+  await page.getByTestId('text-panel').getByLabel('In', { exact: true }).selectOption('typewriter');
+  await expect
+    .poll(() => page.evaluate((i) => (window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text, id))
+    .toMatchObject({ content: 'Hello / こんにちは!', style: 'neon', animIn: 'typewriter' });
+  await expect.poll(() => page.evaluate(() => (window as WT).__studio!.textStats().glow)).toBe(true);
+  await page.evaluate(() => (window as WT).__studio!.seek(60));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__shots/text-neon.png' });
+  await page.getByTestId('text-done').click();
+  await expect(page.getByTestId('text-panel')).toBeHidden();
+
+  // Lyrics: one caption clip per SRT line on its own track.
+  await page.getByTestId('ct-add').click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('ct-add-subs').click();
+  await (await chooser).setFiles([LYRICS]);
+  await expect.poll(() => page.evaluate(() => (window as WT).__studio!.textStats().entries), { timeout: 30_000 }).toBe(4);
+  const subs = await page.evaluate(() => {
+    const d = (window as WT).__clipTimeline!.get().doc;
+    const t = d.tracks.find((x) => x.kind === 'text' && x.name.startsWith('Subtitles'))!;
+    return d.clips.filter((c) => c.trackId === t.id).map((c) => ({ start: c.startFrame, text: c.text!.content }));
+  });
+  expect(subs).toEqual([
+    { start: 15, text: 'Hello world' },
+    { start: 60, text: 'こんにちは世界' },
+    { start: 105, text: 'La la la ♪' },
+  ]);
+  await page.evaluate(() => (window as WT).__studio!.seek(75));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/__shots/text-captions.png' });
+  await page.evaluate((i) => (window as WT).__clipTimeline!.set({ selection: [i] }), id);
+  await page.getByTestId('clip-dock').hover();
+
+  // Removing the clip disposes its mesh, material and the glow layer.
+  await page.keyboard.press('Delete');
+  await expect.poll(() => page.evaluate(() => (window as WT).__studio!.textStats())).toEqual({ entries: 3, meshes: 3, materials: 3, glow: false });
+  await page.evaluate(() => {
+    const ctl = (window as WT).__clipTimeline!;
+    ctl.set({ doc: { ...ctl.get().doc, clips: [] } });
+  });
+  await expect.poll(() => page.evaluate(() => (window as WT).__studio!.textStats())).toEqual({ entries: 0, meshes: 0, materials: 0, glow: false });
   expect(errors).toEqual([]);
 });

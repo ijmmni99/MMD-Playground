@@ -117,10 +117,20 @@ function syncAudio(doc: TimelineDoc): void {
   });
 }
 
+// ---------------------------------------------------------------- text (loaded once a text clip exists)
+
+let textLoaded = false;
+function ensureText(doc: TimelineDoc): void {
+  if (textLoaded || !doc.clips.some((c) => c.text)) return;
+  textLoaded = true;
+  void import('./textRuntime').then((m) => m.syncText());
+}
+
 // React to document changes.
 useClipTimeline.subscribe((s, prev) => {
   if (s.doc !== prev.doc || s.sourcesRevision !== prev.sourcesRevision || s.editing !== prev.editing) {
     scheduleBake();
     syncAudio(s.doc);
   }
+  if (s.doc !== prev.doc) ensureText(s.doc);
 });
