@@ -15,7 +15,7 @@ describe('glTF / VRM parsing', () => {
     const lhand = m.bones.find((b) => b.name === 'mixamorig:LeftHand')!;
     expect(lhand.position[0]).toBeGreaterThan(0.5);
     expect(m.meshes).toHaveLength(2);
-    expect(m.meshes[0].morphs.map((x) => x.name)).toEqual(['eyeBlinkLeft', 'jawOpen']);
+    expect(m.meshes[0].morphs.map((x) => x.name)).toEqual(['eyesClosed', 'jawOpen', 'eyeBlinkRight']);
     expect(m.textures).toHaveLength(1);
     expect(m.materials[1].texture).toBe(0);
     // Bind-pose positions survive skinning (IBM · joint world = identity here).

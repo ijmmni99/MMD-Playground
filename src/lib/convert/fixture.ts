@@ -225,9 +225,11 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
   // Morphs on the head box: blink lowers the top, "aa" drops the bottom (face front verts only).
   const blink = new Float32Array(vertCount * 3);
   const aa = new Float32Array(vertCount * 3);
+  const blinkR = new Float32Array(vertCount * 3);
   for (let v = faceStart; v < faceStart + 24; v++) {
     const y = pos[v * 3 + 1];
     if (y > 1.64) blink[v * 3 + 1] = -0.02;
+    if (y > 1.64 && pos[v * 3] < 0) blinkR[v * 3 + 1] = -0.02;
     if (y < 1.56) aa[v * 3 + 1] = -0.015;
   }
 
@@ -237,7 +239,7 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
     pos.splice(v * 3, 3, ...p);
     nrm[v * 3] *= flip;
     nrm[v * 3 + 2] *= flip;
-    for (const m of [blink, aa]) {
+    for (const m of [blink, aa, blinkR]) {
       m[v * 3] *= scale * flip;
       m[v * 3 + 1] *= scale;
       m[v * 3 + 2] *= scale * flip;
@@ -282,6 +284,7 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
   const aHead = acc(new Uint32Array(headIdx), 'SCALAR', 5125);
   const aBlink = acc(blink, 'VEC3', 5126, true);
   const aAa = acc(aa, 'VEC3', 5126, true);
+  const aBlinkR = acc(blinkR, 'VEC3', 5126, true);
   const ibm = new Float32Array(defs.length * 16);
   defs.forEach((d, i) => {
     const p = world(d.pos);
@@ -292,7 +295,11 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
   const imgView = pushView(png);
 
   const morphNames =
-    style === 'mixamo' ? ['eyeBlinkLeft', 'jawOpen'] : style === 'vrm' ? ['Fcl_EYE_Close', 'Fcl_MTH_A'] : ['blink', 'mouth_a'];
+    style === 'mixamo'
+      ? ['eyesClosed', 'jawOpen', 'eyeBlinkRight']
+      : style === 'vrm'
+        ? ['Fcl_EYE_Close', 'Fcl_MTH_A', 'Fcl_EYE_Close_R']
+        : ['blink', 'mouth_a', 'blink_R'];
   const nodes: Record<string, unknown>[] = defs.map((d, i) => {
     const p = world(d.pos);
     const pp = d.parent ? world(defs[idx.get(d.parent)!].pos) : [0, 0, 0];
@@ -312,8 +319,8 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
       {
         name: 'Body',
         primitives: [
-          { attributes: { POSITION: aPos, NORMAL: aNrm, TEXCOORD_0: aUv, JOINTS_0: aJ, WEIGHTS_0: aW }, indices: aBody, material: 0, targets: [{ POSITION: aBlink }, { POSITION: aAa }] },
-          { attributes: { POSITION: aPos, NORMAL: aNrm, TEXCOORD_0: aUv, JOINTS_0: aJ, WEIGHTS_0: aW }, indices: aHead, material: 1, targets: [{ POSITION: aBlink }, { POSITION: aAa }] },
+          { attributes: { POSITION: aPos, NORMAL: aNrm, TEXCOORD_0: aUv, JOINTS_0: aJ, WEIGHTS_0: aW }, indices: aBody, material: 0, targets: [{ POSITION: aBlink }, { POSITION: aAa }, { POSITION: aBlinkR }] },
+          { attributes: { POSITION: aPos, NORMAL: aNrm, TEXCOORD_0: aUv, JOINTS_0: aJ, WEIGHTS_0: aW }, indices: aHead, material: 1, targets: [{ POSITION: aBlink }, { POSITION: aAa }, { POSITION: aBlinkR }] },
         ],
         extras: { targetNames: morphNames },
       },
