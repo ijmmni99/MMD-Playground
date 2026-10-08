@@ -1,7 +1,19 @@
 // Public, framework-agnostic engine contract. This module is tiny and does not import Babylon:
 // the implementation is code-split and loaded on demand via `createStudioEngine`.
 import type { MotionClip } from '@/lib/motion/types';
+import type { TextMesh } from '@/lib/clips/text/layout';
+import type { TextSpec } from '@/lib/clips/types';
 import type { Emitter } from './emitter';
+
+/** A 3D text clip for the scene. */
+export interface TextItem {
+  id: string;
+  mesh: TextMesh;
+  spec: TextSpec;
+  /** Timeline frames. */
+  start: number;
+  length: number;
+}
 import type {
   AudioInfo,
   CameraMode,
@@ -141,6 +153,13 @@ export interface StudioEngine {
     pos: [number, number, number] | null,
     cb?: { onChange?: (p: [number, number, number]) => void; onEnd?: (p: [number, number, number]) => void },
   ): void;
+  /** 3D text clips (replaces the whole set; unchanged meshes are kept). */
+  setTextItems(items: TextItem[]): void;
+  textStats(): { entries: number; meshes: number; materials: number; glow: boolean };
+  /** World placement of a text clip (tests). */
+  textProbe(id: string): { visible: boolean; position: [number, number, number]; normal: [number, number, number] } | null;
+  /** Minimum playback length in frames (clip timeline end). */
+  setMinDuration(frames: number): void;
   /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */
   setOverlayLines(
     id: string,

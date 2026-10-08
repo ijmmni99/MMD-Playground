@@ -17,6 +17,7 @@ import { initialPlayback, studio, toast, useStudio } from '@/store/studio';
 import { registerProjectImporter, restoreModel } from '@/store/actions';
 import { buildVideo2VmdDoc, restoreVideo2Vmd } from '@/features/video2vmd/actions';
 import { buildMotionEditorDoc, restoreMotionEditor } from '@/features/motion-editor/persist';
+import { buildClipTimelineDoc, restoreClipTimeline } from '@/features/clip-timeline/persist';
 
 const { get, set } = studio;
 const LAST_PROJECT = 'lastProjectId';
@@ -60,6 +61,7 @@ export function buildProjectDoc(): ProjectDoc {
     models,
     video2vmd: buildVideo2VmdDoc(),
     motionEditor: buildMotionEditorDoc(),
+    clipTimeline: buildClipTimelineDoc(),
     labels: Object.keys(useNames.getState().labels).length ? useNames.getState().labels : undefined,
   };
 }
@@ -225,6 +227,12 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
       await restoreMotionEditor(doc.motionEditor);
     } catch (e) {
       failures.push(`motion editor: ${String(e)}`);
+    }
+    try {
+      const missing = await restoreClipTimeline(doc.clipTimeline);
+      if (missing.length) failures.push(`clip sources: ${missing.join(', ')}`);
+    } catch (e) {
+      failures.push(`clip timeline: ${String(e)}`);
     }
     try {
       await restoreVideo2Vmd(doc.video2vmd);

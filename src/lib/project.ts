@@ -3,6 +3,8 @@ import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/typ
 import type { MotionEditorDoc } from '@/store/motionEditor';
 import type { LabelOverrides } from '@/lib/names/types';
 import type { Video2VmdDoc } from '@/store/video2vmd';
+import type { TimelineDoc } from '@/lib/clips/types';
+import { parseTimeline } from '@/lib/clips/serialize';
 
 export const PROJECT_VERSION = 1;
 export const PROJECT_EXT = '.mmdstudio.zip';
@@ -42,6 +44,8 @@ export interface ProjectDoc {
   motionEditor?: MotionEditorDoc;
   /** User English labels for bone / morph / material names, keyed by model label key (display only). */
   labels?: Record<string, LabelOverrides>;
+  /** Clip timeline: tracks, clips (non-destructive edits) and their sources. */
+  clipTimeline?: TimelineDoc;
 }
 
 export interface ProjectSummary {
@@ -148,6 +152,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     video2vmd: parseVideo2Vmd(json.video2vmd),
     motionEditor: parseMotionEditor(json.motionEditor),
     labels: parseLabels(json.labels),
+    clipTimeline: parseTimeline(json.clipTimeline),
   };
 }
 
@@ -171,6 +176,8 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
     ids.add(doc.motionEditor.camera.base.blobId);
     ids.add(doc.motionEditor.camera.original.blobId);
   }
+  for (const s of doc.clipTimeline?.sources ?? []) if (s.ref) ids.add(s.ref.blobId);
+  for (const f of doc.clipTimeline?.fonts ?? []) ids.add(f.ref.blobId);
   return ids;
 }
 

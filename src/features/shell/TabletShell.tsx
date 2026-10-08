@@ -8,6 +8,7 @@ import { Timeline } from '@/features/timeline/Timeline';
 import { Viewport } from '@/features/viewport/Viewport';
 import { toggleDrawer, useLayout } from '@/store/layout';
 import { useMotionEditor } from '@/store/motionEditor';
+import { useClipTimeline } from '@/store/clipTimeline';
 import { useStudio } from '@/store/studio';
 import type { PanelToggles } from './DesktopShell';
 
@@ -60,6 +61,7 @@ export function TabletShell() {
   const drawers = useLayout((s) => s.drawers);
   const mode = useStudio((s) => s.mode);
   const editorOpen = useMotionEditor((s) => s.open);
+  const clipsOpen = useClipTimeline((s) => s.open);
   useEffect(() => {
     if (mode !== 'studio') useLayout.setState((s) => ({ drawers: { ...s.drawers, left: true } }));
   }, [mode]);
@@ -101,7 +103,7 @@ export function TabletShell() {
           <div
             className={cn(
               'shrink-0 border-t border-line pb-[env(safe-area-inset-bottom)]',
-              editorOpen ? 'h-[52%] min-h-[300px]' : 'h-[30%] min-h-[170px]',
+              editorOpen ? 'h-[52%] min-h-[300px]' : clipsOpen ? 'h-[42%] min-h-[280px]' : 'h-[30%] min-h-[170px]',
             )}
           >
             <Timeline />

@@ -67,6 +67,7 @@ import type {
   RecordProgress,
   StudioEngine,
   StudioEvents,
+  TextItem,
 } from '../StudioEngine';
 import type {
   AudioInfo,
@@ -92,6 +93,7 @@ import type {
 } from '../types';
 import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
+import { TextLayer } from './TextLayer';
 import { PNG_SEQUENCE_MIME, recordDeterministic, recordPngSequence, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
 import { buildMmdAnimation } from '../motion/buildAnimation';
@@ -404,6 +406,12 @@ export class BabylonStudioEngine implements StudioEngine {
     this.vmdLoader.loggingEnabled = false;
 
     scene.onBeforeRenderObservable.add(() => this.beforeRender());
+    this.text = new TextLayer({
+      scene,
+      shadowGen: () => this.shadowGen ?? null,
+      frame: () => this.runtime.currentFrameTime,
+      bone: (modelId, bone) => this.boneWorldPosition(modelId, bone),
+    });
     this.engine.onContextLostObservable.add(() => this.events.emit('contextLost', undefined));
     this.engine.onContextRestoredObservable.add(() => this.events.emit('contextRestored', undefined));
     this.applySettings(this.settings);
@@ -445,6 +453,7 @@ export class BabylonStudioEngine implements StudioEngine {
     this.disposed = true;
     this.resizeObserver?.disconnect();
     for (const id of [...this.models.keys()]) this.removeModel(id);
+    this.text?.dispose();
     this.audio.dispose();
     this.engine.stopRenderLoop();
     this.runtime.dispose(this.scene);
@@ -1427,8 +1436,29 @@ export class BabylonStudioEngine implements StudioEngine {
     this.audio.setVolume(volume);
   }
 
+  private text!: TextLayer;
+
+  setTextItems(items: TextItem[]): void {
+    this.text.setItems(items);
+  }
+
+  textStats(): { entries: number; meshes: number; materials: number; glow: boolean } {
+    return this.text.stats();
+  }
+
+  textProbe(id: string): ReturnType<TextLayer['probe']> {
+    return this.text.probe(id);
+  }
+
+  private minDuration = 0;
+  /** Minimum playback length (the clip timeline's end, so text-only stretches play too). */
+  setMinDuration(frames: number): void {
+    this.minDuration = Math.max(0, frames);
+    this.updateDuration();
+  }
+
   private updateDuration(): void {
-    let frames = 0;
+    let frames = this.minDuration;
     for (const m of this.models.values())
       if (m.motion) frames = Math.max(frames, m.motion.animation.endFrame);
     if (this.cameraMotion) frames = Math.max(frames, this.cameraMotion.animation.endFrame);

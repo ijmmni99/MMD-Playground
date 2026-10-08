@@ -137,6 +137,13 @@ export interface TimelineDoc {
   sources: Source[];
   /** Shared style for subtitle / lyrics clips. */
   textStyle: TextSpec;
+  /** User-uploaded fonts (family name → stored file). */
+  fonts?: UserFont[];
+}
+
+export interface UserFont {
+  family: string;
+  ref: { blobId: string; path: string };
 }
 
 export const emptyTimeline = (): TimelineDoc => ({

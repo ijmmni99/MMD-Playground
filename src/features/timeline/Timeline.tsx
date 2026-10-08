@@ -13,6 +13,7 @@ import {
   ZoomOut,
   Maximize2,
   PenLine,
+  Film,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IconButton, NumberField, Select } from '@/components/ui/controls';
@@ -26,6 +27,7 @@ import { pinchScale, pinchState, type Point } from '@/lib/gestures';
 import { setLoop, setSpeed, togglePlay } from '@/store/actions';
 import { useStudio } from '@/store/studio';
 import { me, useMotionEditor } from '@/store/motionEditor';
+import { ct, useClipTimeline } from '@/store/clipTimeline';
 import {
   formatTimecode,
   frameToX,
@@ -39,22 +41,52 @@ import {
 } from '@/lib/timeline';
 
 const EditorDock = lazy(() => import('@/features/motion-editor/EditorDock'));
+const ClipDock = lazy(() => import('@/features/clip-timeline/ClipDock'));
 
 /** Open or close the motion editor (loaded on demand). */
 function toggleMotionEditor(): void {
-  void import('@/features/motion-editor/actions').then((a) =>
-    me.get().open ? a.closeEditor() : a.openEditor(),
-  );
+  void import('@/features/motion-editor/actions').then((a) => {
+    if (me.get().open) return a.closeEditor();
+    ct.set({ open: false });
+    return a.openEditor();
+  });
 }
+
+/** Open or close the clip timeline (loaded on demand). */
+function toggleClips(): void {
+  void import('@/features/clip-timeline/actions').then((a) => (ct.get().open ? a.closeClips() : a.openClips()));
+}
+
+/** Phones and tablets start in the clip timeline (once per session). */
+let clipsDefaulted = false;
 
 /** Bottom dock: the playback timeline, or the motion editor sharing the same space and transport. */
 export function Timeline() {
   const editorOpen = useMotionEditor((s) => s.open);
+  const clipsOpen = useClipTimeline((s) => s.open);
+  useEffect(() => {
+    if (clipsDefaulted) return;
+    clipsDefaulted = true;
+    if (useLayout.getState().mode !== 'desktop' && !me.get().open && !ct.get().open) toggleClips();
+  }, []);
   useEffect(() => {
     // Phone: a peek / half sheet is too short for the editor (drag it down to see the model).
     const sheet = useLayout.getState().sheet;
-    if (editorOpen && sheet.tab === 'timeline' && sheet.snap !== 'full') setSheetSnap('full');
-  }, [editorOpen]);
+    if ((editorOpen || clipsOpen) && sheet.tab === 'timeline' && sheet.snap === 'peek') setSheetSnap(editorOpen ? 'full' : 'half');
+    else if (editorOpen && sheet.tab === 'timeline' && sheet.snap !== 'full') setSheetSnap('full');
+  }, [editorOpen, clipsOpen]);
+  if (!editorOpen && clipsOpen)
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-bg-panel" aria-label="Clip timeline dock">
+        <TransportBar
+          onFit={() => ct.set({ scroll: 0 })}
+          onZoom={(f) => ct.set((s) => ({ ppf: Math.min(40, Math.max(0.2, s.ppf * f)) }))}
+        />
+        <Suspense fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading clips…</div>}>
+          <ClipDock />
+        </Suspense>
+      </div>
+    );
   if (!editorOpen) return <PlaybackTimeline />;
   const zoom = (factor: number): void =>
     me.set((s) => {
@@ -549,7 +581,32 @@ function EditorToggle() {
           : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
       )}
     >
-      <PenLine size={13} /> {open ? 'Editing' : 'Edit'}
+      <PenLine size={13} /> <span className="max-[480px]:sr-only">{open ? 'Editing' : 'Edit'}</span>
+    </button>
+  );
+}
+
+function ClipsToggle() {
+  const open = useClipTimeline((s) => s.open);
+  const editorOpen = useMotionEditor((s) => s.open);
+  const on = open && !editorOpen;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!editorOpen) return toggleClips();
+        ct.set({ open: true });
+        toggleMotionEditor();
+      }}
+      aria-pressed={on}
+      data-testid="open-clips"
+      title={on ? 'Back to the playback timeline' : 'Clip timeline (arrange motions, camera, audio and 3D text)'}
+      className={cn(
+        'mr-1 flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] coarse:h-10 coarse:px-3',
+        on ? 'border-accent bg-accent-soft text-fg' : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
+      )}
+    >
+      <Film size={13} /> <span className="max-[480px]:sr-only">Clips</span>
     </button>
   );
 }
@@ -567,7 +624,7 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
   usePlaybackClock(paint);
   return (
     <div
-      className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2"
+      className="flex h-9 min-w-0 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-line px-2 [scrollbar-width:none]"
       role="toolbar"
       aria-label="Transport"
     >
@@ -617,6 +674,7 @@ function TransportBar({ onFit, onZoom }: { onFit: () => void; onZoom: (f: number
         />
       </div>
       <div className="flex-1" />
+      <ClipsToggle />
       <EditorToggle />
       <Select
         hideLabel
