@@ -57,6 +57,7 @@ export function buildProjectDoc(): ProjectDoc {
     playback: { frame: pb.frame, speed: pb.speed, loop: pb.loop },
     audio: s.audio ? { file: s.audio.ref, offsetMs: s.audioOffsetMs, volume: s.volume } : null,
     cameraMotion: s.cameraMotion?.ref ?? null,
+    motions: s.motionLibrary.length ? s.motionLibrary : undefined,
     hdr: s.hdrRef,
     models,
     video2vmd: buildVideo2VmdDoc(),
@@ -143,6 +144,7 @@ async function clearScene(): Promise<void> {
     cameraMotion: null,
     audio: null,
     hdrRef: null,
+    motionLibrary: [],
     audioOffsetMs: 0,
     volume: 1,
     playback: initialPlayback,
@@ -157,7 +159,7 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
   set((s) => ({ tasks: { ...s.tasks, [taskId]: { label: `Opening ${doc.name}…`, progress: 0 } } }));
   try {
     await clearScene();
-    set({ settings: doc.settings, camera: doc.camera });
+    set({ settings: doc.settings, camera: doc.camera, motionLibrary: doc.motions ?? [] });
     useNames.setState({ labels: doc.labels ?? {}, renaming: null, menu: null });
     engine.applySettings(doc.settings);
     const failures: string[] = [];

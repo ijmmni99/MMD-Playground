@@ -35,6 +35,8 @@ export interface ProjectDoc {
   playback: { frame: number; speed: number; loop: boolean };
   audio: { file: FileRef; offsetMs: number; volume: number } | null;
   cameraMotion: FileRef | null;
+  /** Body motions used in this project, offered by the motion picker. */
+  motions?: FileRef[];
   hdr: FileRef | null;
   models: ProjectModel[];
   thumbnail?: string;
@@ -147,6 +149,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     audio,
     cameraMotion: isFileRef(json.cameraMotion) ? json.cameraMotion : null,
     hdr: isFileRef(json.hdr) ? json.hdr : null,
+    motions: Array.isArray(json.motions) ? json.motions.filter(isFileRef) : undefined,
     models,
     thumbnail: typeof json.thumbnail === 'string' ? json.thumbnail : undefined,
     video2vmd: parseVideo2Vmd(json.video2vmd),
@@ -165,6 +168,7 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
   }
   if (doc.audio) ids.add(doc.audio.file.blobId);
   if (doc.cameraMotion) ids.add(doc.cameraMotion.blobId);
+  for (const m of doc.motions ?? []) ids.add(m.blobId);
   if (doc.hdr) ids.add(doc.hdr.blobId);
   if (doc.video2vmd?.video) ids.add(doc.video2vmd.video.blobId);
   if (doc.video2vmd?.pose) ids.add(doc.video2vmd.pose.blobId);

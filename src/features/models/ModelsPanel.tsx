@@ -15,7 +15,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Empty, IconButton, Section, SliderRow, NumberField, Row } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import {
@@ -31,6 +31,7 @@ import {
 import { useLayout } from '@/store/layout';
 import {
   assignMotion,
+  assignStoredMotion,
   duplicateModel,
   removeModel,
   renameModel,
@@ -42,6 +43,8 @@ import {
   setVolume,
 } from '@/store/actions';
 import { useStudio, type ModelUI } from '@/store/studio';
+import { useClipTimeline } from '@/store/clipTimeline';
+import type { FileRef } from '@/lib/project';
 import { formatTimecode } from '@/lib/timeline';
 
 export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
@@ -264,17 +267,7 @@ function ModelRow({ model, selected }: { model: ModelUI; selected: boolean }) {
             </button>
           </span>
         ) : (
-          <button
-            type="button"
-            className="hover:text-accent hover:underline"
-            onClick={async (e) => {
-              e.stopPropagation();
-              const [f] = await pickFiles('.vmd');
-              if (f) await assignMotion(model.id, f);
-            }}
-          >
-            Assign motion…
-          </button>
+          <MotionPicker modelId={model.id} />
         )}
       </div>
       {model.info.missingTextures.length > 0 && (
@@ -283,6 +276,87 @@ function ModelRow({ model, selected }: { model: ModelUI; selected: boolean }) {
         </div>
       )}
     </li>
+  );
+}
+
+async function uploadMotion(modelId: string): Promise<void> {
+  const [f] = await pickFiles('.vmd');
+  if (f) await assignMotion(modelId, f);
+}
+
+/** "Assign motion…": motions already in the project first, then upload. */
+function MotionPicker({ modelId }: { modelId: string }) {
+  const [open, setOpen] = useState(false);
+  const library = useStudio((s) => s.motionLibrary);
+  const sources = useClipTimeline((s) => s.doc.sources);
+  const motions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: FileRef[] = [];
+    const add = (r: FileRef, name = r.path): void => {
+      if (seen.has(r.blobId)) return;
+      seen.add(r.blobId);
+      out.push({ blobId: r.blobId, path: name });
+    };
+    for (const r of library) add(r);
+    for (const src of sources) if (src.kind === 'motion' && src.ref) add(src.ref, src.name);
+    return out;
+  }, [library, sources]);
+  const short = (path: string): string => path.split('/').pop() ?? path;
+  if (!open)
+    return (
+      <button
+        type="button"
+        data-testid="assign-motion"
+        className="hover:text-accent hover:underline"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (motions.length) setOpen(true);
+          else void uploadMotion(modelId);
+        }}
+      >
+        Assign motion…
+      </button>
+    );
+  return (
+    <div
+      className="flex min-w-0 flex-1 flex-col gap-0.5"
+      data-testid="motion-picker"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {motions.map((m) => (
+        <button
+          key={m.blobId}
+          type="button"
+          title={m.path}
+          className="truncate rounded px-1.5 py-1 text-left text-fg hover:bg-bg-hover coarse:py-2"
+          onClick={() => {
+            setOpen(false);
+            void assignStoredMotion(modelId, m);
+          }}
+        >
+          {short(m.path)}
+        </button>
+      ))}
+      <div className="flex gap-1">
+        <button
+          type="button"
+          className="rounded px-1.5 py-1 text-accent hover:bg-bg-hover coarse:py-2"
+          onClick={() => {
+            setOpen(false);
+            void uploadMotion(modelId);
+          }}
+        >
+          Upload VMD…
+        </button>
+        <button
+          type="button"
+          className="ml-auto rounded px-1.5 py-1 hover:bg-bg-hover coarse:py-2"
+          onClick={() => setOpen(false)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 

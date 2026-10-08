@@ -85,6 +85,13 @@ test('load model + motion + audio, play, screenshot, restore after reload', asyn
   await expect(page.getByTestId('model-list')).toContainText('dance.vmd');
   await expect(page.getByTestId('timecode')).toContainText('/ 00:08.00');
 
+  // Removing the motion keeps it in the project: "Assign motion…" offers it again.
+  await page.getByRole('button', { name: 'Remove motion' }).click();
+  await expect(page.getByTestId('model-list')).not.toContainText('dance.vmd');
+  await page.getByTestId('assign-motion').click();
+  await page.getByTestId('motion-picker').getByRole('button', { name: 'dance.vmd' }).click();
+  await expect(page.getByTestId('model-list')).toContainText('dance.vmd· 00:08.00');
+
   expect(errors).toEqual([]);
 });
 

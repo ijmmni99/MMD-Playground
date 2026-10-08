@@ -250,6 +250,7 @@ export async function restoreModel(pm: ProjectModel): Promise<void> {
   if (pm.motion) {
     const motion = await engine.loadMotion(info.id, await resolveRef(pm.motion));
     updateModel(info.id, { motion, motionRef: pm.motion });
+    rememberMotion(pm.motion);
   }
 }
 
@@ -494,12 +495,28 @@ export function exportPose(id: string): Blob | null {
 
 // ---------------------------------------------------------------- motion & media
 
+/** Add a body motion to the project's motion library (de-duplicated by content). */
+export function rememberMotion(ref: FileRef): void {
+  if (get().motionLibrary.some((m) => m.blobId === ref.blobId)) return;
+  set((s) => ({ motionLibrary: [...s.motionLibrary, ref] }));
+}
+
+/** Re-assign a motion already stored in the project. */
+export async function assignStoredMotion(modelId: string, ref: FileRef): Promise<void> {
+  try {
+    await assignMotion(modelId, await resolveRef(ref));
+  } catch (e) {
+    toast('error', `Motion failed: ${errMsg(e)}`);
+  }
+}
+
 export async function assignMotion(modelId: string, file: VFile | null): Promise<void> {
   const engine = await whenEngine();
   try {
     const ref = file ? await registerFile(file) : null;
     const motion = await engine.loadMotion(modelId, file);
     updateModel(modelId, { motion, motionRef: ref });
+    if (ref) rememberMotion(ref);
     motionHooks.motionReplaced?.(modelId);
     if (file)
       toast(

@@ -68,6 +68,8 @@ export interface StudioState {
   audioOffsetMs: number;
   volume: number;
   hdrRef: FileRef | null;
+  /** Body motions used in this project (kept after removal so they can be re-assigned). */
+  motionLibrary: FileRef[];
 
   playback: PlaybackState;
   stats: Stats | null;
@@ -113,6 +115,7 @@ export const useStudio = create<StudioState>(() => ({
   audioOffsetMs: 0,
   volume: 1,
   hdrRef: null,
+  motionLibrary: [],
   playback: initialPlayback,
   stats: null,
   mode: 'studio',
