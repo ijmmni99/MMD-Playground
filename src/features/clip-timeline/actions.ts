@@ -166,6 +166,16 @@ export async function addAudioFile(file?: VFile): Promise<void> {
 
 const HEAD_BONES = ['頭', 'head', 'Head'];
 
+/** Offset from the head bone that clears the top of the head (bones stop below the skull). */
+function aboveHead(modelId: string, head: string): number {
+  const pos = engineOrNull()?.getBoneWorldPositions(modelId);
+  const h = pos?.[head];
+  if (!pos || !h) return 3.5;
+  const ys = Object.values(pos).map((p) => p[1]);
+  const height = Math.max(...ys) - Math.min(...ys);
+  return Math.round(Math.max(3, Math.max(...ys) - h[1] + height * 0.12 + DEFAULT_TEXT.size * 0.6) * 10) / 10;
+}
+
 export function addTextClip(spec: Partial<TextSpec> = {}, at = playhead(), length = 120): string {
   let id = '';
   commit('Add text', (doc) => {
@@ -179,7 +189,7 @@ export function addTextClip(spec: Partial<TextSpec> = {}, at = playhead(), lengt
           ?.info.bones.find((b) => HEAD_BONES.includes(b.name))?.name
       : undefined;
     const attach: Partial<TextSpec> = head
-      ? { modelId, bone: head, placement: 'bone', position: [0, 2.8, 0] }
+      ? { modelId, bone: head, placement: 'bone', position: [0, aboveHead(modelId!, head), 0] }
       : {};
     const clip = newClip(t.track.id, null, at, {
       length,

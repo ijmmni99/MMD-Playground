@@ -93,7 +93,7 @@ import type {
 } from '../types';
 import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
-import { TextLayer } from './TextLayer';
+import { TextLayer, type TextPointerHandlers } from './TextLayer';
 import { PNG_SEQUENCE_MIME, recordDeterministic, recordPngSequence, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
 import { buildMmdAnimation } from '../motion/buildAnimation';
@@ -411,6 +411,7 @@ export class BabylonStudioEngine implements StudioEngine {
       shadowGen: () => this.shadowGen ?? null,
       frame: () => this.runtime.currentFrameTime,
       bone: (modelId, bone) => this.boneWorldPosition(modelId, bone),
+      scaling: () => this.engine.getHardwareScalingLevel(),
     });
     this.engine.onContextLostObservable.add(() => this.events.emit('contextLost', undefined));
     this.engine.onContextRestoredObservable.add(() => this.events.emit('contextRestored', undefined));
@@ -1440,6 +1441,10 @@ export class BabylonStudioEngine implements StudioEngine {
 
   setTextItems(items: TextItem[]): void {
     this.text.setItems(items);
+  }
+
+  setTextHandlers(h: TextPointerHandlers): void {
+    this.text.setHandlers(h);
   }
 
   textStats(): { entries: number; meshes: number; materials: number; glow: boolean } {

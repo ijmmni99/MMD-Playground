@@ -246,6 +246,7 @@ export function TextPanel() {
         />
 
         <div className="mt-2 text-[11px] font-medium uppercase tracking-wide text-fg-dim">Placement</div>
+        <p className="text-[11px] text-fg-dim">Tip: drag the text in the viewport to move it.</p>
         <Select
           label="Placement"
           value={t.placement}

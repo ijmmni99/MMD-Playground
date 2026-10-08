@@ -22,7 +22,7 @@ interface ClipLite {
   sourceOut: number;
   speed: number;
   loopCount: number;
-  text?: { content: string };
+  text?: { content: string; position: number[] };
 }
 interface Doc {
   tracks: { id: string; kind: string; name: string }[];
@@ -223,7 +223,9 @@ test('clip timeline: add, split, duplicate, move, trim, reorder, camera, undo, p
 
 interface TextStudio extends Studio {
   textStats(): { entries: number; meshes: number; materials: number; glow: boolean };
-  textProbe(id: string): { visible: boolean; position: number[]; normal: number[]; camera: number[] } | null;
+  textProbe(
+    id: string,
+  ): { visible: boolean; position: number[]; normal: number[]; camera: number[]; screen: number[] } | null;
   getBoneWorldPositions(id: string): Record<string, [number, number, number]>;
 }
 type WT = Window & {
@@ -266,6 +268,29 @@ test('3D text: Latin + Japanese, neon, bone-attached, billboard, no leaks', asyn
   const facing = toCam.reduce((a: number, v: number, k: number) => a + (v / len) * probe.text.normal[k], 0);
   expect(facing).toBeGreaterThan(0.9);
   await page.screenshot({ path: 'e2e/__shots/text-default.png' });
+
+  // Drag the text down in the viewport: its offset above the head shrinks, and the camera doesn't orbit.
+  const yBefore = await page.evaluate(
+    (i) => (window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text!,
+    id,
+  );
+  const sp = (await page.evaluate((i) => (window as WT).__studio!.textProbe(i)!.screen, id)) as [number, number];
+  const camBefore = probe.cam;
+  await page.mouse.move(sp[0], sp[1]);
+  await page.mouse.down();
+  await page.mouse.move(sp[0], sp[1] + 30, { steps: 4 });
+  await page.mouse.move(sp[0], sp[1] + 60, { steps: 4 });
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (i) => ((window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text!).position[1],
+        id,
+      ),
+    )
+    .toBeLessThan(yBefore.position[1] - 0.5);
+  const camAfter = await page.evaluate((i) => (window as WT).__studio!.textProbe(i)!.camera, id);
+  expect(camAfter.map((v, k) => Math.abs(v - camBefore[k])).every((d) => d < 1e-3)).toBe(true);
 
   // Edit through the text panel: content, neon look, typewriter entrance.
   await page.locator(`[data-clip-id="${id}"]`).click();

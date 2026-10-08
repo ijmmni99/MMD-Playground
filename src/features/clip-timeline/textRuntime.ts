@@ -57,10 +57,20 @@ function schedule(): void {
   }, 30);
 }
 
+let handlersSet = false;
+
 /** Push every text clip to the engine. */
 export function syncText(): void {
   const engine = engineOrNull();
   if (!engine) return;
+  if (!handlersSet) {
+    handlersSet = true;
+    // Drag text in the viewport to move it; tap it to select its clip.
+    engine.setTextHandlers({
+      onMove: (id, position) => void import('./actions').then((a) => a.setClipText(id, { position })),
+      onTap: (id) => ct.set({ selection: [id] }),
+    });
+  }
   const { doc } = ct.get();
   const q = textQuality();
   const items: TextItem[] = [];

@@ -323,7 +323,7 @@ Open it with **Clips** in the transport bar (it is the default view on phones an
 - Real extruded geometry (opentype.js + earcut) with a rounded bevel: Latin, kana, kanji, digits and symbols. Glyph meshes are cached and each clip is one merged mesh.
 - **Fonts:** Noto Sans JP plus Bungee, Pacifico and Press Start 2P (all SIL OFL, in `public/fonts` with their licences). Upload your own `.ttf` / `.otf` / `.woff`; it is stored with the project. Characters a font lacks fall back to Noto Sans JP; anything no font has is listed in the panel.
 - **Looks:** Solid, Glossy, Neon (emissive + glow), Gradient, Outline, Glass; color, size, letter / line spacing, alignment, depth and bevel; cast-shadow and always-on-top switches.
-- **Placement:** fixed in the scene (with a move gizmo), billboard, attached to a bone with an offset (new text floats above the selected model's head), or a screen caption.
+- **Placement:** fixed in the scene, billboard, attached to a bone with an offset (new text floats above the selected model's head), or a screen caption. **Drag the text in the viewport** (finger or mouse) to move it — captions move up and down the screen; tapping text selects its clip. The panel's Position / Offset fields set exact values.
 - **Animation:** in / out — fade, pop, slide, typewriter, wave, spin, drop & bounce, each with its length — and an idle float, pulse or wobble.
 - **Subtitles:** import `.srt` or `.lrc`; each line becomes a caption clip on its own track with one shared style (*Use this style for every subtitle line*).
 - Text shows in the viewport, screenshots and video export. Detail follows the render quality and steps down by itself if the frame rate drops.

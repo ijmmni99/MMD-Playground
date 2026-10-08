@@ -155,6 +155,11 @@ export interface StudioEngine {
   ): void;
   /** 3D text clips (replaces the whole set; unchanged meshes are kept). */
   setTextItems(items: TextItem[]): void;
+  /** Dragging 3D text in the viewport (new `position` for the clip) and tapping it. */
+  setTextHandlers(h: {
+    onMove?: (id: string, position: [number, number, number]) => void;
+    onTap?: (id: string) => void;
+  }): void;
   textStats(): { entries: number; meshes: number; materials: number; glow: boolean };
   /** World placement of a text clip (tests). */
   textProbe(id: string): {
@@ -162,6 +167,7 @@ export interface StudioEngine {
     position: [number, number, number];
     normal: [number, number, number];
     camera: [number, number, number];
+    screen: [number, number];
   } | null;
   /** Minimum playback length in frames (clip timeline end). */
   setMinDuration(frames: number): void;
