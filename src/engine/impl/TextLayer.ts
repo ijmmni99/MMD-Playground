@@ -131,7 +131,16 @@ export class TextLayer {
     e.preventDefault();
     this.canvas?.setPointerCapture(e.pointerId);
     const normal = cam.getDirection(Vector3.Forward()).normalize();
-    this.drag = { id, pointer: e.pointerId, start: point, normal, delta: Vector3.Zero(), x0: e.clientX, y0: e.clientY, moved: false };
+    this.drag = {
+      id,
+      pointer: e.pointerId,
+      start: point,
+      normal,
+      delta: Vector3.Zero(),
+      x0: e.clientX,
+      y0: e.clientY,
+      moved: false,
+    };
   }
 
   /** Topmost (nearest) text whose projected bounding box contains the render-space point. */
@@ -241,9 +250,7 @@ export class TextLayer {
   }
 
   /** World placement of a clip's text (tests: bone follow, billboard facing). */
-  probe(
-    id: string,
-  ): {
+  probe(id: string): {
     visible: boolean;
     position: [number, number, number];
     normal: [number, number, number];
@@ -280,7 +287,8 @@ export class TextLayer {
 
   dispose(): void {
     this.obs.remove();
-    for (const [type, fn] of this.listeners) this.canvas?.removeEventListener(type, fn as EventListener, { capture: true });
+    for (const [type, fn] of this.listeners)
+      this.canvas?.removeEventListener(type, fn as EventListener, { capture: true });
     for (const [id, e] of this.entries) this.remove(id, e);
     this.glow?.dispose();
     this.glow = null;
@@ -309,7 +317,18 @@ export class TextLayer {
     mesh.material = mat;
     mesh.isPickable = false;
     mesh.receiveShadows = false;
-    const e: Entry = { item, root, mesh, mat, base: pos, lettersActive: false, caster: false, styleKey: '', visH: 1, pending: null };
+    const e: Entry = {
+      item,
+      root,
+      mesh,
+      mat,
+      base: pos,
+      lettersActive: false,
+      caster: false,
+      styleKey: '',
+      visH: 1,
+      pending: null,
+    };
     this.applyStyle(e);
     return e;
   }

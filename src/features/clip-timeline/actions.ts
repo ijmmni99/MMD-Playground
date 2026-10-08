@@ -35,7 +35,7 @@ import { setAudio } from '@/store/actions';
 import { ct } from '@/store/clipTimeline';
 import { engineOrNull } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
-import { markDirty, studio, toast } from '@/store/studio';
+import { markDirty, studio, toast, useStudio } from '@/store/studio';
 import './runtime';
 import {
   addAudioSource,
@@ -76,7 +76,9 @@ export function commit(
 }
 
 export function openClips(): void {
-  ct.set((s) => ({ open: true, sessionStart: s.sessionStart ?? s.doc }));
+  ct.set({ open: true });
+  // What's already loaded (dances, camera, music) shows up as clips, so the timeline starts from it.
+  void importLoaded().then(() => ct.set((s) => ({ sessionStart: s.sessionStart ?? s.doc })));
   // The keyframe editor and the clip view share the dock.
   void import('@/features/motion-editor/actions').then((a) => a.closeEditor());
 }
@@ -91,6 +93,81 @@ export function revertTimeline(): void {
   if (start) commit('Revert timeline', () => ({ doc: start, selection: [] }));
 }
 
+/**
+ * Put motions loaded outside the timeline onto it: each model's dance (when it has no dance track yet),
+ * the camera motion and the music. Not an undo step: it mirrors what is already playing.
+ */
+let importing: Promise<void> | null = null;
+export function importLoaded(): Promise<void> {
+  importing ??= (async () => {
+    const st = studio.get();
+    const { resolveRef } = await import('@/lib/assets');
+    let doc = ct.get().doc;
+    const has = (kind: string, modelId?: string): boolean =>
+      doc.tracks.some((t) => t.kind === kind && (modelId === undefined || t.modelId === modelId));
+    for (const m of st.models) {
+      if (m.stage || !m.motionRef || has('dance', m.id)) continue;
+      try {
+        const src = await addVmdSource(await resolveRef(m.motionRef));
+        if (src.kind !== 'motion') continue;
+        const t = ensureTrack(addSource(doc, src), 'dance', m.id, trackName('dance', m.id));
+        doc = addClip(t.doc, newClip(t.track.id, src, 0));
+      } catch {
+        /* unreadable: leave it off the timeline */
+      }
+    }
+    if (st.cameraMotion && !has('camera')) {
+      try {
+        const src = await addVmdSource(await resolveRef(st.cameraMotion.ref));
+        const t = ensureTrack(addSource(doc, src), 'camera');
+        doc = addClip(t.doc, newClip(t.track.id, src, 0));
+      } catch {
+        /* ignore */
+      }
+    }
+    if (st.audio && !has('audio')) {
+      try {
+        const src = await addAudioSource(await resolveRef(st.audio.ref), st.audio.info.duration);
+        const t = ensureTrack(addSource(doc, src), 'audio');
+        doc = addClip(
+          t.doc,
+          newClip(t.track.id, src, Math.round((st.audioOffsetMs / 1000) * 30), { volume: 1 }),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+    if (doc !== ct.get().doc) {
+      // Keep edits made meanwhile: only add tracks / clips / sources that aren't there yet.
+      const cur = ct.get().doc;
+      const ids = (xs: { id: string }[]) => new Set(xs.map((x) => x.id));
+      const [tIds, cIds, sIds] = [ids(cur.tracks), ids(cur.clips), ids(cur.sources)];
+      putDoc({
+        ...cur,
+        tracks: [...cur.tracks, ...doc.tracks.filter((x) => !tIds.has(x.id))],
+        clips: [...cur.clips, ...doc.clips.filter((x) => !cIds.has(x.id))],
+        sources: [...cur.sources, ...doc.sources.filter((x) => !sIds.has(x.id))],
+      });
+    }
+  })().finally(() => {
+    importing = null;
+  });
+  return importing;
+}
+
+/** Face clips drive standard MMD morphs; warn when the model has none of them. */
+function warnNoFaceMorphs(modelId: string, names: string[]): void {
+  const model = studio.get().models.find((m) => m.id === modelId);
+  if (!model) return;
+  const have = new Set(model.info.morphs.map((x) => x.name));
+  if (!names.some((n) => have.has(n)))
+    toast(
+      'warning',
+      `${model.name} has no matching facial morphs (${names.slice(0, 3).join(', ')}…), so face clips won't change it.`,
+      8000,
+    );
+}
+
 const selectedModelId = (): string | null => {
   const st = studio.get();
   const m = st.models.find((x) => x.id === st.selectedModelId && !x.stage) ?? st.models.find((x) => !x.stage);
@@ -101,6 +178,7 @@ const selectedModelId = (): string | null => {
 
 /** Add VMD files: body motions → the model's dance track, camera → camera track, face → face track. */
 export async function addMotionFiles(files: VFile[], modelId = selectedModelId()): Promise<void> {
+  await importLoaded();
   for (const file of files) {
     try {
       const src = await addVmdSource(file);
@@ -138,8 +216,14 @@ export async function addFacePreset(preset: FacePreset, modelId = selectedModelI
     toast('warning', 'Load a model first.');
     return;
   }
+  await importLoaded();
   const label = FACE_PRESETS.find((p) => p.id === preset)!.label;
-  const src = await addClipSource(facePresetClip(preset), `${label}.vmd`, 'face');
+  const faceClip = facePresetClip(preset);
+  warnNoFaceMorphs(
+    modelId,
+    faceClip.morphs.map((m) => m.name),
+  );
+  const src = await addClipSource(faceClip, `${label}.vmd`, 'face');
   commit(`Add face: ${label}`, (doc) => {
     const t = ensureTrack(addSource(doc, src), 'face', modelId, trackName('face', modelId));
     const clip = newClip(t.track.id, src, playhead(), { join: { fade: 4, root: 'origin', cut: true } });
@@ -414,3 +498,28 @@ export async function exportTimelineVmd(): Promise<number> {
     );
   return n;
 }
+
+// A motion loaded onto a model from outside the timeline (Models panel, drag & drop) joins the
+// timeline: a model without a dance track gets one; otherwise it is appended to the model's track.
+useStudio.subscribe((s, prev) => {
+  if (s.models === prev.models || s.project.restoring) return;
+  for (const m of s.models) {
+    const before = prev.models.find((x) => x.id === m.id);
+    if (!m.motionRef || m.stage || before?.motionRef?.blobId === m.motionRef.blobId) continue;
+    const doc = ct.get().doc;
+    if (!doc.tracks.length) continue; // No timeline in use: nothing to keep in step.
+    const known = doc.sources.some((x) => x.ref?.blobId === m.motionRef!.blobId);
+    if (known) continue;
+    const track = doc.tracks.find((t) => t.kind === 'dance' && t.modelId === m.id);
+    if (!track) {
+      void importLoaded();
+      continue;
+    }
+    const ref = m.motionRef;
+    void import('@/lib/assets')
+      .then((a) => a.resolveRef(ref))
+      .then((f) => addMotionFiles([f], m.id))
+      .then(() => toast('info', `Added ${ref.path.split('/').pop()} to the end of the timeline.`))
+      .catch(() => undefined);
+  }
+});

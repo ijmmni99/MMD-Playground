@@ -241,6 +241,12 @@ test('3D text: Latin + Japanese, neon, bone-attached, billboard, no leaks', asyn
   await openFiles(page, [PMX, DANCE]);
   await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
   await page.getByTestId('open-clips').click();
+  // The dance loaded outside the timeline shows up as a clip (and keeps playing).
+  await expect.poll(() => page.evaluate(() => !!(window as WT).__clipTimeline)).toBe(true);
+  await expect.poll(async () => (await kindClips(page, 'dance')).length).toBe(1);
+  // A motion loaded from the Models panel joins the timeline instead of being overridden by it.
+  await openFiles(page, [DANCE2]);
+  await expect.poll(async () => (await kindClips(page, 'dance')).length).toBe(2);
   await page.getByTestId('ct-add').click();
   await page.getByTestId('ct-add-text').click();
   await expect
@@ -274,7 +280,10 @@ test('3D text: Latin + Japanese, neon, bone-attached, billboard, no leaks', asyn
     (i) => (window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text!,
     id,
   );
-  const sp = (await page.evaluate((i) => (window as WT).__studio!.textProbe(i)!.screen, id)) as [number, number];
+  const sp = (await page.evaluate((i) => (window as WT).__studio!.textProbe(i)!.screen, id)) as [
+    number,
+    number,
+  ];
   const camBefore = probe.cam;
   await page.mouse.move(sp[0], sp[1]);
   await page.mouse.down();
@@ -284,7 +293,7 @@ test('3D text: Latin + Japanese, neon, bone-attached, billboard, no leaks', asyn
   await expect
     .poll(() =>
       page.evaluate(
-        (i) => ((window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text!).position[1],
+        (i) => (window as WT).__clipTimeline!.get().doc.clips.find((c) => c.id === i)!.text!.position[1],
         id,
       ),
     )

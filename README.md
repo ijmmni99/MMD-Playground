@@ -304,6 +304,7 @@ Open it with **Clips** in the transport bar (it is the default view on phones an
 
 ### Clips
 
+- **What's loaded comes along:** opening Clips puts each model's current dance, the camera motion and the music on the timeline, and a motion loaded later from the Models panel is added to the model's dance track.
 - **Tracks:** one dance and one face track per model, a camera track, an audio track and any number of text tracks. Dance clips show stick-figure pose thumbnails, audio clips a waveform.
 - **Gestures:** tap selects, drag moves (also onto another track of the same kind), the edge handles trim, long-press then drag reorders (later clips ripple), pinch / Ctrl-wheel zooms. Clips snap to the playhead, clip edges, markers and the BPM grid (magnet button). **Center** keeps the playhead fixed in the middle and scrolls the clips under it.
 - **Toolbar:** Undo / Redo, **+** (dance or camera VMD, face presets, music, 3D text, subtitles), Split, Delete, Duplicate, Copy / Paste, Speed (0.25–4×), Mirror, Loop, Join, Volume, Edit text, Keyframes, Export VMD and Revert (back to how the timeline was when you opened it).
@@ -467,7 +468,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
   - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)
-- Clip timeline: one audio file plays at a time (adding music replaces the audio clip); text doesn't cast shadows from captions, and per-letter animations update vertex positions on the CPU while they run.
+- Clip timeline: face clips use standard MMD morph names (まばたき, あいうえお, 笑い…); models without them show no change (you're warned when adding one). One audio file plays at a time (adding music replaces the audio clip); text doesn't cast shadows from captions, and per-letter animations update vertex positions on the CPU while they run.
 - Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks (no dedicated hand-pose tools); BPM is set by hand or tap tempo (no audio beat detection); depth of field is a preview only and isn't stored in the VMD.
 - Model scaling combined with physics can behave oddly because rigid-body sizes don't scale. Use scale 1 for physics-heavy models.
 - Very large PMX files (50 MB+) parse asynchronously with a progress bar. They're stored once in IndexedDB, deduplicated by content hash, so watch the browser's storage quota.
