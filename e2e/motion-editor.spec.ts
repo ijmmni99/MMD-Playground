@@ -443,15 +443,34 @@ for (const [name, device] of [
       await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
       if (name === 'phone') await page.getByTestId('tab-bar').locator('[data-tab="timeline"]').click();
       await page.getByTestId('open-editor').click();
+      // Phone: the editor grows the sheet to full height; take coordinates only once it has settled.
+      if (name === 'phone') await expect(page.getByTestId('bottom-sheet')).toHaveAttribute('data-snap', 'full');
       await expect(page.getByTestId('dope-sheet')).toBeVisible();
       await expect.poll(() => boneFrames(page, '頭')).not.toEqual([]);
+      await expect
+        .poll(async () => (await page.getByTestId('dope-sheet').boundingBox())?.y ?? -1, { intervals: [100, 100, 200] })
+        .toBeGreaterThan(0);
+      const settle = async () => {
+        let prev = -1;
+        for (let i = 0; i < 20; i++) {
+          const y = (await page.getByTestId('dope-sheet').boundingBox())!.y;
+          if (Math.abs(y - prev) < 0.5) return;
+          prev = y;
+          await page.waitForTimeout(100);
+        }
+      };
+      await settle();
       // Touch targets: toolbar buttons are at least 40px tall on coarse pointers.
       const key = await page.getByTestId('me-key').boundingBox();
       expect(key!.height).toBeGreaterThanOrEqual(40);
       // Tap a key to select it.
-      const p = await keyPoint(page, '頭', (await boneFrames(page, '頭'))[1]);
-      await page.touchscreen.tap(p.x, p.y);
-      await expect(page.getByTestId('me-selected')).toContainText('1 selected');
+      // Re-read the key's position on each attempt: the sheet / rows may still be settling.
+      const f1 = (await boneFrames(page, '頭'))[1];
+      await expect(async () => {
+        const p = await keyPoint(page, '頭', f1);
+        await page.touchscreen.tap(p.x, p.y);
+        await expect(page.getByTestId('me-selected')).toContainText('1 selected', { timeout: 1500 });
+      }).toPass({ timeout: 20_000 });
       await noOverflow(page);
       await page.screenshot({ path: `e2e/__shots/me-${name}.png` });
       // Graph editor (full-height on phone) and a side panel.
