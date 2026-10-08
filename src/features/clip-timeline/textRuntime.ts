@@ -96,7 +96,8 @@ useStudio.subscribe((s, p) => {
 void whenEngine().then((engine) => {
   let slow = 0;
   setInterval(() => {
-    if (ct.get().textQuality !== 'auto' || !engine.textStats().entries || !engine.getPlayback().playing) return;
+    if (ct.get().textQuality !== 'auto' || !engine.textStats().entries || !engine.getPlayback().playing)
+      return;
     slow = engine.getFps() < 26 ? slow + 1 : 0;
     if (slow >= 4 && degrade < 2 && textQuality() !== 'low') {
       degrade++;

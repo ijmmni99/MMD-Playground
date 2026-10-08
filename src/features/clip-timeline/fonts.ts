@@ -45,7 +45,10 @@ export function loadFont(family: string): Promise<NamedFont | null> {
   if (!p) {
     p = fetchFont(family)
       .catch((e: unknown) => {
-        toast('warning', `Font “${family}” could not be loaded (${(e as Error).message}); using ${FALLBACK_FONT}.`);
+        toast(
+          'warning',
+          `Font “${family}” could not be loaded (${(e as Error).message}); using ${FALLBACK_FONT}.`,
+        );
         return null;
       })
       .then((f) => {

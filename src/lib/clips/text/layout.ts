@@ -104,7 +104,14 @@ export function layoutText(content: string, resolve: GlyphResolver, o: LayoutOpt
         x += (ch === '\t' ? 1.2 : 0.3) + o.letterSpacing;
         continue;
       }
-      if (!isSpace(ch)) placed.push({ ch, mesh: cachedGlyph(g, depthEm, bevelEm, o.quality), x, line: li, advance: g.advance });
+      if (!isSpace(ch))
+        placed.push({
+          ch,
+          mesh: cachedGlyph(g, depthEm, bevelEm, o.quality),
+          x,
+          line: li,
+          advance: g.advance,
+        });
       x += g.advance + o.letterSpacing;
     }
     widths.push(Math.max(0, x - (line.length ? o.letterSpacing : 0)));

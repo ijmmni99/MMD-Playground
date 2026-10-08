@@ -26,7 +26,13 @@ export function PhoneShell() {
   return (
     <div className="flex h-full flex-col bg-bg pt-[env(safe-area-inset-top)]" data-testid="phone-shell">
       <PhoneTopBar />
-      <main className="relative min-h-0 flex-1 overflow-hidden">
+      <main
+        className="relative min-h-0 flex-1 overflow-hidden"
+        // The sheet extends below the fold; focusing / scrolling into view must not shift the layout.
+        onScroll={(e) => {
+          if (e.currentTarget.scrollTop) e.currentTarget.scrollTop = 0;
+        }}
+      >
         <Viewport compact />
         <BottomSheet id={SHEET_ID} title={sheet.tab ? tabLabel(sheet.tab) : ''} snap={sheet.snap}>
           {sheet.tab && <TabContent tab={sheet.tab} />}

@@ -90,7 +90,12 @@ export class TextLayer {
   /** World placement of a clip's text (tests: bone follow, billboard facing). */
   probe(
     id: string,
-  ): { visible: boolean; position: [number, number, number]; normal: [number, number, number]; camera: [number, number, number] } | null {
+  ): {
+    visible: boolean;
+    position: [number, number, number];
+    normal: [number, number, number];
+    camera: [number, number, number];
+  } | null {
     const e = this.entries.get(id);
     if (!e) return null;
     const w = e.mesh.computeWorldMatrix(true);
@@ -282,7 +287,12 @@ export class TextLayer {
       }
       root.position.copyFrom(p);
       if (spec.placement === 'fixed') {
-        Quaternion.FromEulerAnglesToRef(spec.rotation[0] * DEG, spec.rotation[1] * DEG, spec.rotation[2] * DEG, root.rotationQuaternion);
+        Quaternion.FromEulerAnglesToRef(
+          spec.rotation[0] * DEG,
+          spec.rotation[1] * DEG,
+          spec.rotation[2] * DEG,
+          root.rotationQuaternion,
+        );
       } else if (cam) {
         // Billboard (also for bone-attached text): face the camera, screen-aligned.
         cam.getWorldMatrix().decompose(undefined, tmpQ, undefined);
@@ -302,7 +312,12 @@ export class TextLayer {
     const sub = e.mesh.subMeshes?.[0];
     if (sub) {
       const n = Math.min(data.glyphs.length, st.reveal);
-      const count = n >= data.glyphs.length ? data.indices.length : n > 0 ? data.glyphs[n - 1].indexStart + data.glyphs[n - 1].indexCount : 0;
+      const count =
+        n >= data.glyphs.length
+          ? data.indices.length
+          : n > 0
+            ? data.glyphs[n - 1].indexStart + data.glyphs[n - 1].indexCount
+            : 0;
       if (sub.indexCount !== count) sub.indexCount = count;
     }
 
@@ -327,4 +342,3 @@ export class TextLayer {
     }
   }
 }
-

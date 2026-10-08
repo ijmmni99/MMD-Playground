@@ -113,7 +113,8 @@ export function textAnimState(
   const inF = Math.min(Math.max(0, spec.animInFrames), length / 2);
   const outF = Math.min(Math.max(0, spec.animOutFrames), length / 2);
   if (spec.animIn !== 'none' && inF > 0) applyAnim(spec.animIn, clamp01(local / inF), s, glyphs, false);
-  if (spec.animOut !== 'none' && outF > 0) applyAnim(spec.animOut, clamp01((length - local) / outF), s, glyphs, true);
+  if (spec.animOut !== 'none' && outF > 0)
+    applyAnim(spec.animOut, clamp01((length - local) / outF), s, glyphs, true);
   applyIdle(spec.idle, local, s);
   return s;
 }

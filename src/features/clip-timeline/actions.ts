@@ -23,14 +23,28 @@ import {
   trimClip,
 } from '@/lib/clips/ops';
 import { cueFrames, parseLrc, parseSrt } from '@/lib/clips/subtitles';
-import { clipEnd, DEFAULT_TEXT, type Clip, type Join, type TextSpec, type TimelineDoc } from '@/lib/clips/types';
+import {
+  clipEnd,
+  DEFAULT_TEXT,
+  type Clip,
+  type Join,
+  type TextSpec,
+  type TimelineDoc,
+} from '@/lib/clips/types';
 import { setAudio } from '@/store/actions';
 import { ct } from '@/store/clipTimeline';
 import { engineOrNull } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
 import { markDirty, studio, toast } from '@/store/studio';
 import './runtime';
-import { addAudioSource, addClipSource, addVmdSource, facePresetClip, FACE_PRESETS, type FacePreset } from './sources';
+import {
+  addAudioSource,
+  addClipSource,
+  addVmdSource,
+  facePresetClip,
+  FACE_PRESETS,
+  type FacePreset,
+} from './sources';
 
 export const playhead = (): number => Math.round(engineOrNull()?.getPlayback().frame ?? 0);
 
@@ -159,9 +173,14 @@ export function addTextClip(spec: Partial<TextSpec> = {}, at = playhead(), lengt
     const modelId = selectedModelId() ?? undefined;
     // With a model: float above its head (bone-attached, facing the camera).
     const head = modelId
-      ? studio.get().models.find((m) => m.id === modelId)?.info.bones.find((b) => HEAD_BONES.includes(b.name))?.name
+      ? studio
+          .get()
+          .models.find((m) => m.id === modelId)
+          ?.info.bones.find((b) => HEAD_BONES.includes(b.name))?.name
       : undefined;
-    const attach: Partial<TextSpec> = head ? { modelId, bone: head, placement: 'bone', position: [0, 2.8, 0] } : {};
+    const attach: Partial<TextSpec> = head
+      ? { modelId, bone: head, placement: 'bone', position: [0, 2.8, 0] }
+      : {};
     const clip = newClip(t.track.id, null, at, {
       length,
       text: { ...DEFAULT_TEXT, ...attach, ...spec },
@@ -186,7 +205,11 @@ export async function importSubtitles(file?: VFile): Promise<number> {
   commit(`Import ${cues.length} subtitles`, (doc) => {
     let d = doc;
     // Subtitles get their own text track.
-    const track = { id: `t${Date.now().toString(36)}`, kind: 'text' as const, name: `Subtitles · ${f.path.split('/').pop()}` };
+    const track = {
+      id: `t${Date.now().toString(36)}`,
+      kind: 'text' as const,
+      name: `Subtitles · ${f.path.split('/').pop()}`,
+    };
     d = { ...d, tracks: [...d.tracks, track] };
     const ids: string[] = [];
     for (const c of cues) {
@@ -212,7 +235,9 @@ export function setSubtitleStyle(patch: Partial<TextSpec>): void {
     return {
       ...doc,
       textStyle: { ...doc.textStyle, ...patch },
-      clips: doc.clips.map((c) => (c.text && subTracks.has(c.trackId) ? { ...c, text: { ...c.text, ...patch } } : c)),
+      clips: doc.clips.map((c) =>
+        c.text && subTracks.has(c.trackId) ? { ...c, text: { ...c.text, ...patch } } : c,
+      ),
     };
   });
 }
@@ -231,7 +256,9 @@ export function splitAtPlayhead(): void {
   const doc = ct.get().doc;
   const under = (c: Clip): boolean => f > c.startFrame && f < clipEnd(c);
   // Selected clips under the playhead; with none of those, every clip under it.
-  const picked = sel().map((id) => findClip(doc, id)).filter((c): c is Clip => !!c && under(c));
+  const picked = sel()
+    .map((id) => findClip(doc, id))
+    .filter((c): c is Clip => !!c && under(c));
   const targets = (picked.length ? picked : doc.clips.filter(under)).map((c) => c.id);
   if (!targets.length) return toast('info', 'Put the playhead over a clip to split it.');
   commit('Split', (d) => {
@@ -268,7 +295,11 @@ export function duplicateSelected(): void {
 
 export function copySelected(): void {
   const doc = ct.get().doc;
-  ct.set({ clipboard: sel().map((id) => findClip(doc, id)).filter((c): c is Clip => !!c) });
+  ct.set({
+    clipboard: sel()
+      .map((id) => findClip(doc, id))
+      .filter((c): c is Clip => !!c),
+  });
 }
 
 export function pasteAtPlayhead(): void {
@@ -322,3 +353,54 @@ export const clipsOfTrack = (trackId: string): Clip[] => trackClips(ct.get().doc
   reorderTo,
   select,
 };
+
+// ---------------------------------------------------------------- export
+
+/** Download the baked timeline: one VMD per model with dance / face clips, and the camera. */
+export async function exportTimelineVmd(): Promise<number> {
+  const [{ baked, bakeNow }, { writeVmd }, { downloadBlob }, { emptyClip }] = await Promise.all([
+    import('./runtime'),
+    import('@/lib/motion/vmd'),
+    import('@/features/app/filePickers'),
+    import('@/lib/motion/types'),
+  ]);
+  bakeNow();
+  const doc = ct.get().doc;
+  let n = 0;
+  for (const [modelId, clip] of baked.models) {
+    const model = studio.get().models.find((m) => m.id === modelId);
+    // The model file's name (display names are often Japanese, which some download paths mangle).
+    const name =
+      model?.mainPath
+        .split('/')
+        .pop()
+        ?.replace(/\.[^.]+$/, '') ||
+      model?.name ||
+      'model';
+    downloadBlob(new Blob([writeVmd({ ...clip, camera: [] })]), `${name}-timeline.vmd`);
+    n++;
+  }
+  if (baked.camera?.camera.length) {
+    // Browsers drop / rename back-to-back downloads.
+    if (n) await new Promise((r) => setTimeout(r, 400));
+    const cam = {
+      ...emptyClip('カメラ・照明'),
+      camera: baked.camera.camera,
+      lights: baked.camera.lights,
+      shadows: baked.camera.shadows,
+    };
+    downloadBlob(new Blob([writeVmd(cam)]), 'camera-timeline.vmd');
+    n++;
+  }
+  if (!n) toast('info', 'Add dance, face or camera clips to export a VMD.');
+  else if (
+    doc.clips.some((c) => c.text) ||
+    doc.clips.some((c) => doc.tracks.find((t) => t.id === c.trackId)?.kind === 'audio')
+  )
+    toast(
+      'info',
+      'VMD files hold motion only — 3D text and audio are left out. Export a video to keep them.',
+      8000,
+    );
+  return n;
+}

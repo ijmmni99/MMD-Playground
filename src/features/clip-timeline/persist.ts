@@ -17,7 +17,15 @@ export async function restoreClipTimeline(doc: TimelineDoc | undefined): Promise
   engineOrNull()?.setMinDuration(0);
   const next = doc ?? emptyTimeline();
   const missing = await loadSources(next.sources);
-  ct.set({ doc: next, selection: [], clipboard: [], editing: null, textEditing: null, sessionStart: next, scroll: 0 });
+  ct.set({
+    doc: next,
+    selection: [],
+    clipboard: [],
+    editing: null,
+    textEditing: null,
+    sessionStart: next,
+    scroll: 0,
+  });
   bakeNow();
   return missing;
 }

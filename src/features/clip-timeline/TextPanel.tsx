@@ -1,6 +1,7 @@
 // Text clip properties: a floating panel (desktop / tablet) or a bottom sheet (phone).
 
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Upload, X } from 'lucide-react';
 import { ColorRow, NumberField, Row, Select, SliderRow, ToggleRow } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
@@ -46,9 +47,29 @@ const IDLES: { value: TextIdleAnim; label: string }[] = [
 ];
 /** Fields the subtitle style shares (not the words or timing). */
 const STYLE_KEYS: (keyof TextSpec)[] = [
-  'font', 'size', 'letterSpacing', 'lineSpacing', 'align', 'depth', 'bevel', 'color', 'color2', 'style',
-  'placement', 'position', 'rotation', 'scale', 'modelId', 'bone', 'animIn', 'animInFrames', 'animOut',
-  'animOutFrames', 'idle', 'castShadow', 'onTop',
+  'font',
+  'size',
+  'letterSpacing',
+  'lineSpacing',
+  'align',
+  'depth',
+  'bevel',
+  'color',
+  'color2',
+  'style',
+  'placement',
+  'position',
+  'rotation',
+  'scale',
+  'modelId',
+  'bone',
+  'animIn',
+  'animInFrames',
+  'animOut',
+  'animOutFrames',
+  'idle',
+  'castShadow',
+  'onTop',
 ];
 
 export function TextPanel() {
@@ -83,7 +104,8 @@ export function TextPanel() {
   void fontsRev;
   const isSubtitle = track?.name.startsWith('Subtitles');
 
-  return (
+  // Portal: a fixed panel inside the (transformed) phone sheet would be positioned against the sheet.
+  return createPortal(
     <div
       role="dialog"
       aria-label="Text clip"
@@ -152,7 +174,12 @@ export function TextPanel() {
               role="radio"
               aria-checked={t.style === s.value}
               data-testid={`text-style-${s.value}`}
-              onClick={() => set({ style: s.value, ...(s.value === 'neon' && t.color.toLowerCase() === '#ffffff' ? { color: '#38e8ff' } : {}) })}
+              onClick={() =>
+                set({
+                  style: s.value,
+                  ...(s.value === 'neon' && t.color.toLowerCase() === '#ffffff' ? { color: '#38e8ff' } : {}),
+                })
+              }
               className={cn('btn coarse:min-h-[44px]', t.style === s.value && 'border-accent bg-accent-soft')}
             >
               {s.label}
@@ -161,11 +188,36 @@ export function TextPanel() {
         </div>
         <ColorRow label="Color" value={t.color} onChange={(v) => set({ color: v })} />
         {(t.style === 'gradient' || t.style === 'outline') && (
-          <ColorRow label={t.style === 'gradient' ? 'Bottom color' : 'Outline color'} value={t.color2} onChange={(v) => set({ color2: v })} />
+          <ColorRow
+            label={t.style === 'gradient' ? 'Bottom color' : 'Outline color'}
+            value={t.color2}
+            onChange={(v) => set({ color2: v })}
+          />
         )}
-        <SliderRow label="Size" value={t.size} min={0.2} max={6} step={0.05} onChange={(v) => set({ size: v })} />
-        <SliderRow label="Letter spacing" value={t.letterSpacing} min={-0.2} max={1} step={0.01} onChange={(v) => set({ letterSpacing: v })} />
-        <SliderRow label="Line spacing" value={t.lineSpacing} min={0.8} max={2.5} step={0.05} onChange={(v) => set({ lineSpacing: v })} />
+        <SliderRow
+          label="Size"
+          value={t.size}
+          min={0.2}
+          max={6}
+          step={0.05}
+          onChange={(v) => set({ size: v })}
+        />
+        <SliderRow
+          label="Letter spacing"
+          value={t.letterSpacing}
+          min={-0.2}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ letterSpacing: v })}
+        />
+        <SliderRow
+          label="Line spacing"
+          value={t.lineSpacing}
+          min={0.8}
+          max={2.5}
+          step={0.05}
+          onChange={(v) => set({ lineSpacing: v })}
+        />
         <Select
           label="Align"
           value={t.align}
@@ -176,11 +228,30 @@ export function TextPanel() {
           ]}
           onChange={(v) => set({ align: v })}
         />
-        <SliderRow label="Depth" value={t.depth} min={0} max={2} step={0.01} onChange={(v) => set({ depth: v })} />
-        <SliderRow label="Bevel" value={t.bevel} min={0} max={0.1} step={0.005} onChange={(v) => set({ bevel: v })} />
+        <SliderRow
+          label="Depth"
+          value={t.depth}
+          min={0}
+          max={2}
+          step={0.01}
+          onChange={(v) => set({ depth: v })}
+        />
+        <SliderRow
+          label="Bevel"
+          value={t.bevel}
+          min={0}
+          max={0.1}
+          step={0.005}
+          onChange={(v) => set({ bevel: v })}
+        />
 
         <div className="mt-2 text-[11px] font-medium uppercase tracking-wide text-fg-dim">Placement</div>
-        <Select label="Placement" value={t.placement} options={PLACEMENTS} onChange={(v) => set({ placement: v })} />
+        <Select
+          label="Placement"
+          value={t.placement}
+          options={PLACEMENTS}
+          onChange={(v) => set({ placement: v })}
+        />
         {t.placement === 'bone' && model && (
           <Row label="Bone">
             <select
@@ -233,30 +304,54 @@ export function TextPanel() {
             ))}
           </Row>
         )}
-        <SliderRow label="Scale" value={t.scale} min={0.1} max={5} step={0.05} onChange={(v) => set({ scale: v })} />
+        <SliderRow
+          label="Scale"
+          value={t.scale}
+          min={0.1}
+          max={5}
+          step={0.05}
+          onChange={(v) => set({ scale: v })}
+        />
         <ToggleRow label="Cast shadow" checked={t.castShadow} onChange={(v) => set({ castShadow: v })} />
         <ToggleRow label="Always on top" checked={t.onTop} onChange={(v) => set({ onTop: v })} />
 
         <div className="mt-2 text-[11px] font-medium uppercase tracking-wide text-fg-dim">Animation</div>
         <Select label="In" value={t.animIn} options={ANIMS} onChange={(v) => set({ animIn: v })} />
         {t.animIn !== 'none' && (
-          <SliderRow label="In frames" value={t.animInFrames} min={1} max={120} step={1} onChange={(v) => set({ animInFrames: v })} />
+          <SliderRow
+            label="In frames"
+            value={t.animInFrames}
+            min={1}
+            max={120}
+            step={1}
+            onChange={(v) => set({ animInFrames: v })}
+          />
         )}
         <Select label="Out" value={t.animOut} options={ANIMS} onChange={(v) => set({ animOut: v })} />
         {t.animOut !== 'none' && (
-          <SliderRow label="Out frames" value={t.animOutFrames} min={1} max={120} step={1} onChange={(v) => set({ animOutFrames: v })} />
+          <SliderRow
+            label="Out frames"
+            value={t.animOutFrames}
+            min={1}
+            max={120}
+            step={1}
+            onChange={(v) => set({ animOutFrames: v })}
+          />
         )}
         <Select label="Idle" value={t.idle} options={IDLES} onChange={(v) => set({ idle: v })} />
         {isSubtitle && (
           <button
             type="button"
             className="btn mt-2 coarse:min-h-[44px]"
-            onClick={() => setSubtitleStyle(Object.fromEntries(STYLE_KEYS.map((k) => [k, t[k]])) as Partial<TextSpec>)}
+            onClick={() =>
+              setSubtitleStyle(Object.fromEntries(STYLE_KEYS.map((k) => [k, t[k]])) as Partial<TextSpec>)
+            }
           >
             Use this style for every subtitle line
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

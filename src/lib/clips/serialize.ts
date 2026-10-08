@@ -99,7 +99,11 @@ export function parseTimeline(json: unknown): TimelineDoc | undefined {
     .filter((c) => c.sourceId !== undefined || c.text !== undefined);
   const fonts: UserFont[] = (Array.isArray(json.fonts) ? json.fonts : []).filter(
     (f): f is UserFont =>
-      isObj(f) && typeof f.family === 'string' && isObj(f.ref) && typeof f.ref.blobId === 'string' && typeof f.ref.path === 'string',
+      isObj(f) &&
+      typeof f.family === 'string' &&
+      isObj(f.ref) &&
+      typeof f.ref.blobId === 'string' &&
+      typeof f.ref.path === 'string',
   );
   return {
     version: 1,
@@ -107,6 +111,8 @@ export function parseTimeline(json: unknown): TimelineDoc | undefined {
     clips,
     sources,
     textStyle: parseTextSpec(json.textStyle, base.textStyle),
-    ...(fonts.length ? { fonts: fonts.map((f) => ({ family: f.family, ref: { blobId: f.ref.blobId, path: f.ref.path } })) } : {}),
+    ...(fonts.length
+      ? { fonts: fonts.map((f) => ({ family: f.family, ref: { blobId: f.ref.blobId, path: f.ref.path } })) }
+      : {}),
   };
 }

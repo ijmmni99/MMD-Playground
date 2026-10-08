@@ -129,5 +129,5 @@ with a notice).
 - [x] f. Text generation pipeline (fonts + extrude)
 - [x] g. Text styling, placement modes, bone attach
 - [x] h. Text animations + SRT / LRC import
-- [ ] i. Advanced-view handoff to the keyframe editor
-- [ ] j. Mobile, polish, tests, docs
+- [x] i. Advanced-view handoff to the keyframe editor
+- [x] j. Mobile, polish, tests, docs

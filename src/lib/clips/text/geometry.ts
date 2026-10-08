@@ -41,7 +41,8 @@ export function flatten(commands: readonly PathCommand[], curveSegments: number,
   const n = Math.max(1, Math.round(curveSegments));
   const push = (px: number, py: number): void => {
     const last = cur[cur.length - 1];
-    if (!last || Math.abs(last[0] - px * scale) > 1e-9 || Math.abs(last[1] - py * scale) > 1e-9) cur.push([px * scale, py * scale]);
+    if (!last || Math.abs(last[0] - px * scale) > 1e-9 || Math.abs(last[1] - py * scale) > 1e-9)
+      cur.push([px * scale, py * scale]);
   };
   const close = (): void => {
     if (cur.length > 1) {
@@ -169,7 +170,11 @@ class Builder {
     this.i.push(a, b, c);
   }
   build(): MeshData {
-    return { positions: new Float32Array(this.p), normals: new Float32Array(this.n), indices: new Uint32Array(this.i) };
+    return {
+      positions: new Float32Array(this.p),
+      normals: new Float32Array(this.n),
+      indices: new Uint32Array(this.i),
+    };
   }
 }
 
@@ -288,7 +293,14 @@ export function extrudeShapes(shapes: readonly Shape[], o: ExtrudeOptions): Mesh
           const nx = v.n[0] * r.s;
           const ny = v.n[1] * r.s;
           const l = Math.hypot(nx, ny, r.nz) || 1;
-          return b.vertex(v.p[0] + v.miter[0] * r.off, v.p[1] + v.miter[1] * r.off, r.z, nx / l, ny / l, r.nz / l);
+          return b.vertex(
+            v.p[0] + v.miter[0] * r.off,
+            v.p[1] + v.miter[1] * r.off,
+            r.z,
+            nx / l,
+            ny / l,
+            r.nz / l,
+          );
         }),
       );
       for (let k = 0; k < rings.length - 1; k++) {
@@ -319,7 +331,9 @@ export function glyphMesh(commands: readonly PathCommand[], unitsPerEm: number, 
 }
 
 /** Append scaled + offset copies of meshes into one buffer set. */
-export function mergeMeshes(parts: readonly { mesh: MeshData; scale: number; dx: number; dy: number }[]): MeshData {
+export function mergeMeshes(
+  parts: readonly { mesh: MeshData; scale: number; dx: number; dy: number }[],
+): MeshData {
   let nv = 0;
   let ni = 0;
   for (const p of parts) {

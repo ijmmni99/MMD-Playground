@@ -46,8 +46,16 @@ export async function addVmdSource(file: VFile): Promise<Source> {
 }
 
 /** Register an in-memory clip (generated face preset, edited copy) as a stored source. */
-export async function addClipSource(clip: MotionClip, name: string, kind: Source['kind'], id = sourceId()): Promise<Source> {
-  const ref = await registerFile({ path: name, blob: new Blob([writeVmd(clip)], { type: 'application/octet-stream' }) });
+export async function addClipSource(
+  clip: MotionClip,
+  name: string,
+  kind: Source['kind'],
+  id = sourceId(),
+): Promise<Source> {
+  const ref = await registerFile({
+    path: name,
+    blob: new Blob([writeVmd(clip)], { type: 'application/octet-stream' }),
+  });
   clips.set(id, clip);
   bump();
   return { id, kind, name, ref, length: Math.max(1, clipEndFrame(clip)) };
@@ -74,7 +82,9 @@ export async function addAudioSource(file: VFile, durationSeconds: number): Prom
 
 async function computePeaks(id: string, blob: Blob): Promise<void> {
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const Ctx =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new Ctx();
     const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
     void ctx.close();

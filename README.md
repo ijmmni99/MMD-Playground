@@ -296,6 +296,43 @@ Work on the tool range and either all or only the selected tracks:
 - Every edit autosaves into the project (IndexedDB) and survives `.mmdstudio.zip` export / import; the original motion is kept, so **Revert** and **Compare** (A/B) always work.
 - **Export:** the motion `.vmd` with a choice of bone / morph / IK-state tracks, the camera `.vmd` separately (61-byte camera records), and an optional JSON sidecar with markers, BPM, shots and pins. Light and self-shadow tracks in a loaded VMD are preserved.
 
+## Clip Timeline & 3D text
+
+Arrange motions like a video editor: drop VMDs on tracks, cut, repeat and reorder them, add camera cuts, music, face presets and 3D text. Nothing is destructive — clips point into their source files and the timeline is baked into ordinary motions for playback and export.
+
+Open it with **Clips** in the transport bar (it is the default view on phones and tablets). **Edit** opens the keyframe editor.
+
+### Clips
+
+- **Tracks:** one dance and one face track per model, a camera track, an audio track and any number of text tracks. Dance clips show stick-figure pose thumbnails, audio clips a waveform.
+- **Gestures:** tap selects, drag moves (also onto another track of the same kind), the edge handles trim, long-press then drag reorders (later clips ripple), pinch / Ctrl-wheel zooms. Clips snap to the playhead, clip edges, markers and the BPM grid (magnet button). **Center** keeps the playhead fixed in the middle and scrolls the clips under it.
+- **Toolbar:** Undo / Redo, **+** (dance or camera VMD, face presets, music, 3D text, subtitles), Split, Delete, Duplicate, Copy / Paste, Speed (0.25–4×), Mirror, Loop, Join, Volume, Edit text, Keyframes, Export VMD and Revert (back to how the timeline was when you opened it).
+- **Shortcuts:** S split, Delete, Ctrl+D duplicate, Ctrl+C / Ctrl+V (paste at the playhead), + / − zoom, arrows step frames, Ctrl+Z / Ctrl+Shift+Z (200 steps; a drag is one step).
+
+### Smooth joins
+
+- **Split** cuts on the exact pose, so the two halves meet without a jump.
+- **Crossfade:** neighbouring or overlapping clips blend (8 frames by default, adjustable per clip; rotations slerp, positions lerp, smoothstep weight).
+- **Root:** *Continue* starts a clip where the previous one left the model (センター / 全ての親 and the foot IK targets move together, so feet don't slide); *Reset to origin* keeps the source placement.
+- **Duplicate / Loop** blend the seam between passes.
+- **Camera:** a hard **cut** (written as keys on consecutive frames, as MMD expects) or a **blend**.
+- **Keyframes:** double-click a dance, face or camera clip to open it — as it plays, at its place in the timeline — in the Motion Editor. **Back to clips** stores the edit as a new source for that clip; the original file is never touched.
+
+### 3D text
+
+- Real extruded geometry (opentype.js + earcut) with a rounded bevel: Latin, kana, kanji, digits and symbols. Glyph meshes are cached and each clip is one merged mesh.
+- **Fonts:** Noto Sans JP plus Bungee, Pacifico and Press Start 2P (all SIL OFL, in `public/fonts` with their licences). Upload your own `.ttf` / `.otf` / `.woff`; it is stored with the project. Characters a font lacks fall back to Noto Sans JP; anything no font has is listed in the panel.
+- **Looks:** Solid, Glossy, Neon (emissive + glow), Gradient, Outline, Glass; color, size, letter / line spacing, alignment, depth and bevel; cast-shadow and always-on-top switches.
+- **Placement:** fixed in the scene (with a move gizmo), billboard, attached to a bone with an offset (new text floats above the selected model's head), or a screen caption.
+- **Animation:** in / out — fade, pop, slide, typewriter, wave, spin, drop & bounce, each with its length — and an idle float, pulse or wobble.
+- **Subtitles:** import `.srt` or `.lrc`; each line becomes a caption clip on its own track with one shared style (*Use this style for every subtitle line*).
+- Text shows in the viewport, screenshots and video export. Detail follows the render quality and steps down by itself if the frame rate drops.
+
+### Saving and export
+
+- The timeline, its sources and uploaded fonts autosave into the project and travel in `.mmdstudio.zip`.
+- **Export VMD** writes the baked motion per model and the camera. VMD has no place for text or audio, so they are left out (you are told) — export a video to keep them.
+
 ## English names
 
 Bones, morphs and materials show English labels next to their Japanese names, e.g. **Left Arm (左腕)**. It's display only: the Japanese names stay the identifiers in the engine, IK, physics, VMD import / export and project files, so motions keep working.
@@ -399,10 +436,12 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
     - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
     - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
+  - **Clip timeline:** clip segments match the motion tools, split continuity at any speed and inside loops, ops (move / trim / split / duplicate / reorder / paste), overlap and adjacent crossfades, root continuity, camera cut / blend, face overrides, snapping, timeline serialisation, SRT and LRC parsing. 3D text: closed, outward-facing meshes (signed volume and normal checks) for Latin, kana, kanji, digits and symbols with real fonts, holes with either winding, font fallback and missing-glyph reports, multi-line layout and alignment, glyph caching, and every in / out / idle animation.
   - **English names:** dictionary integrity, resolution order, left / right and full-width pattern rules, bilingual search, per-model name tables, label overrides and their `.mmdstudio.zip` round-trip.
 - **E2E (Playwright):**
   - **English names:** a generated PMX with Japanese bones, morphs and materials (`e2e/fixtures/NameTest`): labels in every panel, EN / 日本語 / Both, search in both languages, renaming and resetting labels, reload persistence while the motion still plays, and a phone variant with long-press rename.
   - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.
+  - **Clip timeline:** two dances back to back, split with S, select and Ctrl+D, undo / redo, drag-move and trim, retime, a camera clip and a face preset, playback through the baked timeline, the keyframe-editor round trip, VMD export and a reload restoring every clip. A text test checks bone-attached text above the head facing the camera, editing in the text panel (neon, typewriter), neon pixels in a screenshot, a recorded video, SRT import as timed captions and that removed text frees its meshes, materials and glow layer. Phone and tablet variants check the default view, 44 px targets, touch selection and the text sheet.
   - **Desktop:** uploads the generated fixtures through the real file chooser, checks the model, motion, camera and audio, plays and pauses, steps frames, downloads a PNG, reloads and checks the project is restored. A second test runs a playground example. A third checks that a first visit does not load the engine until it's needed.
   - **Video to VMD:**
     - Runs the converter on a generated stick-figure video (`e2e/fixtures/stick-dance.webm`) with the synthetic pose estimator.
@@ -428,6 +467,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
   - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)
+- Clip timeline: one audio file plays at a time (adding music replaces the audio clip); text doesn't cast shadows from captions, and per-letter animations update vertex positions on the CPU while they run.
 - Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks (no dedicated hand-pose tools); BPM is set by hand or tap tempo (no audio beat detection); depth of field is a preview only and isn't stored in the VMD.
 - Model scaling combined with physics can behave oddly because rigid-body sizes don't scale. Use scale 1 for physics-heavy models.
 - Very large PMX files (50 MB+) parse asynchronously with a progress bar. They're stored once in IndexedDB, deduplicated by content hash, so watch the browser's storage quota.

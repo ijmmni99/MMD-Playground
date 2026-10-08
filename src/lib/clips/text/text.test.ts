@@ -59,7 +59,12 @@ const square = (x: number, y: number, s: number, ccw = true): Pt[] => {
 
 describe('extrusion', () => {
   it('extrudes a square into a closed, outward-facing box', () => {
-    const m = extrudeShapes(toShapes([square(0, 0, 1)]), { depth: 0.5, bevel: 0, bevelSegments: 0, curveSegments: 1 });
+    const m = extrudeShapes(toShapes([square(0, 0, 1)]), {
+      depth: 0.5,
+      bevel: 0,
+      bevelSegments: 0,
+      curveSegments: 1,
+    });
     expect(volume(m)).toBeCloseTo(0.5, 6);
     expect(normalAgreement(m)).toBe(1);
   });
@@ -78,20 +83,18 @@ describe('extrusion', () => {
   });
 
   it('bevels outward and stays closed', () => {
-    const m = extrudeShapes(toShapes([square(0, 0, 1)]), { depth: 0.5, bevel: 0.05, bevelSegments: 3, curveSegments: 1 });
+    const m = extrudeShapes(toShapes([square(0, 0, 1)]), {
+      depth: 0.5,
+      bevel: 0.05,
+      bevelSegments: 3,
+      curveSegments: 1,
+    });
     expect(volume(m)).toBeGreaterThan(0.5);
     expect(normalAgreement(m)).toBeGreaterThan(0.99);
   });
 
   it('flattens curves', () => {
-    const c = flatten(
-      [
-        { type: 'M', x: 0, y: 0 },
-        { type: 'Q', x1: 1, y1: 2, x: 2, y: 0 },
-        { type: 'Z' },
-      ],
-      8,
-    );
+    const c = flatten([{ type: 'M', x: 0, y: 0 }, { type: 'Q', x1: 1, y1: 2, x: 2, y: 0 }, { type: 'Z' }], 8);
     expect(c).toHaveLength(1);
     expect(c[0].length).toBe(9);
   });
@@ -104,7 +107,15 @@ describe('text layout with real fonts', () => {
     noto = load('NotoSansJP-Bold.otf', 'noto');
     bungee = load('Bungee-Regular.ttf', 'bungee');
   });
-  const opts: LayoutOptions = { size: 1, letterSpacing: 0, lineSpacing: 1.2, align: 'center', depth: 0.2, bevel: 0.02, quality: 'medium' };
+  const opts: LayoutOptions = {
+    size: 1,
+    letterSpacing: 0,
+    lineSpacing: 1.2,
+    align: 'center',
+    depth: 0.2,
+    bevel: 0.02,
+    quality: 'medium',
+  };
 
   it('builds non-empty, closed geometry for Latin, kana, kanji, digits and symbols', () => {
     for (const s of ['Hello', 'こんにちは', 'カタカナ', '漢字', '0123456789', '!?&@#%']) {
@@ -156,7 +167,13 @@ describe('text layout with real fonts', () => {
 });
 
 describe('text animation timing', () => {
-  const base = { animIn: 'none', animInFrames: 10, animOut: 'none', animOutFrames: 10, idle: 'none' } as const;
+  const base = {
+    animIn: 'none',
+    animInFrames: 10,
+    animOut: 'none',
+    animOutFrames: 10,
+    idle: 'none',
+  } as const;
   it('is invisible outside the clip and at rest in the middle', () => {
     expect(textAnimState(base, -1, 100, 5).visible).toBe(false);
     expect(textAnimState(base, 100, 100, 5).visible).toBe(false);
@@ -189,7 +206,12 @@ describe('text animation timing', () => {
     expect(Math.abs(fl[2])).toBeLessThan(0.01);
   });
   it('shares a short clip between in and out', () => {
-    const s = textAnimState({ ...base, animIn: 'fade', animInFrames: 30, animOut: 'fade', animOutFrames: 30 }, 5, 10, 1);
+    const s = textAnimState(
+      { ...base, animIn: 'fade', animInFrames: 30, animOut: 'fade', animOutFrames: 30 },
+      5,
+      10,
+      1,
+    );
     expect(s.opacity).toBeCloseTo(1);
   });
 });

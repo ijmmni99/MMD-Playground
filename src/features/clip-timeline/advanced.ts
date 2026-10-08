@@ -56,7 +56,12 @@ export async function openAdvanced(clipId: string): Promise<void> {
 }
 
 function sourceName(clip: Clip): string {
-  return ct.get().doc.sources.find((s) => s.id === clip.sourceId)?.name.replace(/\.vmd$/i, '') ?? 'clip';
+  return (
+    ct
+      .get()
+      .doc.sources.find((s) => s.id === clip.sourceId)
+      ?.name.replace(/\.vmd$/i, '') ?? 'clip'
+  );
 }
 
 /** Leave the keyframe editor: the edited range becomes the clip's new source. */
@@ -74,14 +79,26 @@ export async function backToClips(): Promise<void> {
     const end = Math.max(start + clipLength(clip), clipEndFrame(edited));
     const local = trim(edited, start, end);
     const name = `${sourceName(clip)} (edited).vmd`;
-    const src = await addClipSource(local, name, ct.get().doc.sources.find((x) => x.id === clip.sourceId)?.kind ?? 'motion');
+    const src = await addClipSource(
+      local,
+      name,
+      ct.get().doc.sources.find((x) => x.id === clip.sourceId)?.kind ?? 'motion',
+    );
     commit('Edit clip keyframes', (doc) => ({
       doc: {
         ...doc,
         sources: [...doc.sources, src],
         clips: doc.clips.map((c) =>
           c.id === clip.id
-            ? { ...c, sourceId: src.id, sourceIn: 0, sourceOut: Math.max(1, end - start), speed: 1, mirror: false, loopCount: 1 }
+            ? {
+                ...c,
+                sourceId: src.id,
+                sourceIn: 0,
+                sourceOut: Math.max(1, end - start),
+                speed: 1,
+                mirror: false,
+                loopCount: 1,
+              }
             : c,
         ),
       },

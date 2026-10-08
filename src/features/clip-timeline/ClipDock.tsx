@@ -99,8 +99,10 @@ export default function ClipDock() {
         if (engine?.getPlayback().playing && (x < 0 || x > w - 20)) scrollRef.current = frame - 40 / s.ppf;
         scrollRef.current = Math.max(-20 / s.ppf, scrollRef.current);
       }
-      if (contentRef.current) contentRef.current.style.transform = `translateX(${-scrollRef.current * s.ppf}px)`;
-      if (headRef.current) headRef.current.style.transform = `translateX(${(frame - scrollRef.current) * s.ppf}px)`;
+      if (contentRef.current)
+        contentRef.current.style.transform = `translateX(${-scrollRef.current * s.ppf}px)`;
+      if (headRef.current)
+        headRef.current.style.transform = `translateX(${(frame - scrollRef.current) * s.ppf}px)`;
       drawRuler(rulerRef.current, scrollRef.current, s.ppf, w);
     };
     raf = requestAnimationFrame(tick);
@@ -120,7 +122,11 @@ export default function ClipDock() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (
+        t &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+      )
+        return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       const handled = (fn: () => void): void => {
@@ -134,8 +140,10 @@ export default function ClipDock() {
       if (mod || e.altKey) return;
       if (k === 's') return handled(splitAtPlayhead);
       if (e.key === 'Delete' || e.key === 'Backspace') return handled(deleteSelected);
-      if (e.key === '+' || e.key === '=') return handled(() => ct.set((s) => ({ ppf: Math.min(40, s.ppf * 1.5) })));
-      if (e.key === '-' || e.key === '_') return handled(() => ct.set((s) => ({ ppf: Math.max(0.2, s.ppf / 1.5) })));
+      if (e.key === '+' || e.key === '=')
+        return handled(() => ct.set((s) => ({ ppf: Math.min(40, s.ppf * 1.5) })));
+      if (e.key === '-' || e.key === '_')
+        return handled(() => ct.set((s) => ({ ppf: Math.max(0.2, s.ppf / 1.5) })));
       if (e.key === 'Escape' && ct.get().selection.length) return handled(() => select([]));
     };
     window.addEventListener('keydown', onKey, true);
@@ -162,14 +170,26 @@ export default function ClipDock() {
 
   // Empty-area gestures: tap seeks / clears selection; drag pans (free) or scrubs (center); pinch zooms.
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ x0: number; scroll0: number; frame0: number; moved: boolean; pinch?: { d: number; ppf: number } } | null>(null);
+  const gesture = useRef<{
+    x0: number;
+    scroll0: number;
+    frame0: number;
+    moved: boolean;
+    pinch?: { d: number; ppf: number };
+  } | null>(null);
   const onAreaDown = (e: React.PointerEvent): void => {
     if ((e.target as HTMLElement).closest('[data-clip-id]')) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
-      gesture.current = { x0: (a.x + b.x) / 2, scroll0: scrollRef.current, frame0: 0, moved: true, pinch: { d: Math.abs(a.x - b.x) || 1, ppf: ct.get().ppf } };
+      gesture.current = {
+        x0: (a.x + b.x) / 2,
+        scroll0: scrollRef.current,
+        frame0: 0,
+        moved: true,
+        pinch: { d: Math.abs(a.x - b.x) || 1, ppf: ct.get().ppf },
+      };
       return;
     }
     const onRuler = e.clientY - areaRef.current!.getBoundingClientRect().top < RULER_H;
@@ -178,7 +198,12 @@ export default function ClipDock() {
       gesture.current = { x0: e.clientX, scroll0: scrollRef.current, frame0: -1, moved: true };
       return;
     }
-    gesture.current = { x0: e.clientX, scroll0: scrollRef.current, frame0: engineOrNull()?.getPlayback().frame ?? 0, moved: false };
+    gesture.current = {
+      x0: e.clientX,
+      scroll0: scrollRef.current,
+      frame0: engineOrNull()?.getPlayback().frame ?? 0,
+      moved: false,
+    };
   };
   const onAreaMove = (e: React.PointerEvent): void => {
     if (!pointers.current.has(e.pointerId)) return;
@@ -255,7 +280,12 @@ export default function ClipDock() {
           <canvas ref={rulerRef} className="absolute inset-x-0 top-0" style={{ height: RULER_H }} />
           <div ref={contentRef} className="absolute left-0 top-0" style={{ width: end * ppf, top: RULER_H }}>
             {tracks.map((t, i) => (
-              <div key={t.id} className="absolute inset-x-0 border-b border-line/60" style={{ top: i * rowH, height: rowH }} data-track-id={t.id}>
+              <div
+                key={t.id}
+                className="absolute inset-x-0 border-b border-line/60"
+                style={{ top: i * rowH, height: rowH }}
+                data-track-id={t.id}
+              >
                 {trackClips(doc, t.id).map((c) => (
                   <ClipBlock
                     key={c.id}
@@ -272,13 +302,20 @@ export default function ClipDock() {
             ))}
           </div>
           {!tracks.length && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-[12px] text-fg-dim" style={{ top: RULER_H }}>
-              Add dances, a camera, face presets, music or 3D text with the + button. Clips never change the motions they come from.
+            <div
+              className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-[12px] text-fg-dim"
+              style={{ top: RULER_H }}
+            >
+              Add dances, a camera, face presets, music or 3D text with the + button. Clips never change the
+              motions they come from.
             </div>
           )}
           <div
             ref={headRef}
-            className={cn('pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent', center && 'shadow-[0_0_0_1px_rgba(109,139,255,0.4)]')}
+            className={cn(
+              'pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent',
+              center && 'shadow-[0_0_0_1px_rgba(109,139,255,0.4)]',
+            )}
             aria-hidden
           />
         </div>
@@ -311,7 +348,11 @@ function drawRuler(canvas: HTMLCanvasElement | null, scroll: number, ppf: number
     const beat = (60 / m.grid.bpm) * 30;
     if (beat * ppf > 6) {
       ctx.fillStyle = 'rgba(109,139,255,0.35)';
-      for (let f = m.grid.offset + Math.ceil((scroll - m.grid.offset) / beat) * beat; f < scroll + width / ppf; f += beat)
+      for (
+        let f = m.grid.offset + Math.ceil((scroll - m.grid.offset) / beat) * beat;
+        f < scroll + width / ppf;
+        f += beat
+      )
         ctx.fillRect(Math.round((f - scroll) * ppf), RULER_H - 5, 1, 5);
     }
   }
@@ -320,7 +361,11 @@ function drawRuler(canvas: HTMLCanvasElement | null, scroll: number, ppf: number
     const x = Math.round((f - scroll) * ppf);
     ctx.fillRect(x, RULER_H - 8, 1, 8);
     const sec = f / 30;
-    ctx.fillText(step >= 30 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : String(f), x + 3, 11);
+    ctx.fillText(
+      step >= 30 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : String(f),
+      x + 3,
+      11,
+    );
   }
   ctx.fillStyle = '#ffd54f';
   for (const mk of m.markers) {
@@ -365,7 +410,9 @@ const ClipBlock = memo(function ClipBlock({
   const left = clip.startFrame * ppf;
   const w = Math.max(6, len * ppf);
   const color = TRACK_COLOR[track.kind];
-  const src = useClipTimeline((s) => (clip.sourceId ? s.doc.sources.find((x) => x.id === clip.sourceId) : undefined));
+  const src = useClipTimeline((s) =>
+    clip.sourceId ? s.doc.sources.find((x) => x.id === clip.sourceId) : undefined,
+  );
   const [lifted, setLifted] = useState(false);
   const [dropX, setDropX] = useState<number | null>(null);
   const coarse = useLayout((s) => s.coarse);
@@ -386,9 +433,17 @@ const ClipBlock = memo(function ClipBlock({
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const sel = ct.get().selection;
-    if (e.shiftKey || e.ctrlKey || e.metaKey) select(sel.includes(clip.id) ? sel.filter((x) => x !== clip.id) : [...sel, clip.id]);
+    if (e.shiftKey || e.ctrlKey || e.metaKey)
+      select(sel.includes(clip.id) ? sel.filter((x) => x !== clip.id) : [...sel, clip.id]);
     else if (!sel.includes(clip.id)) select([clip.id]);
-    const d = { mode, x0: e.clientX, y0: e.clientY, start0: clip.startFrame, moved: false, key: `drag-${++dragSeq}` } as NonNullable<typeof drag.current>;
+    const d = {
+      mode,
+      x0: e.clientX,
+      y0: e.clientY,
+      start0: clip.startFrame,
+      moved: false,
+      key: `drag-${++dragSeq}`,
+    } as NonNullable<typeof drag.current>;
     if (mode === 'move') {
       // Long-press, then drag: reorder (ripple) within the track.
       d.timer = setTimeout(() => {
@@ -415,7 +470,9 @@ const ClipBlock = memo(function ClipBlock({
     }
     if (d.mode === 'move') {
       // Track under the pointer (same kind only).
-      const rowEl = (document.elementsFromPoint(e.clientX, e.clientY).find((el) => (el as HTMLElement).dataset?.trackId) as HTMLElement | undefined);
+      const rowEl = document
+        .elementsFromPoint(e.clientX, e.clientY)
+        .find((el) => (el as HTMLElement).dataset?.trackId) as HTMLElement | undefined;
       const target = rowEl?.dataset.trackId;
       const targetTrack = tracks.find((t) => t.id === target && t.kind === track.kind);
       const s = snapMove(d.start0 + dx / p, len, snapCtx([clip]), clip.id);
@@ -460,7 +517,9 @@ const ClipBlock = memo(function ClipBlock({
       onPointerUp={onUp}
       onPointerCancel={onUp}
       onDoubleClick={() =>
-        clip.text ? ct.set({ textEditing: clip.id }) : void import('./advanced').then((a) => a.openAdvanced(clip.id))
+        clip.text
+          ? ct.set({ textEditing: clip.id })
+          : void import('./advanced').then((a) => a.openAdvanced(clip.id))
       }
     >
       <ClipContent clip={clip} kind={track.kind} width={w} height={height - 8} modelId={track.modelId} />
@@ -490,16 +549,33 @@ const ClipBlock = memo(function ClipBlock({
           />
         </>
       )}
-      {dropX !== null && <div className="pointer-events-none fixed inset-y-0 w-0.5 bg-white" style={{ left: dropX }} />}
+      {dropX !== null && (
+        <div className="pointer-events-none fixed inset-y-0 w-0.5 bg-white" style={{ left: dropX }} />
+      )}
     </div>
   );
 });
 
 /** Pose thumbnails (dance), waveform (audio), or nothing (label only). */
-function ClipContent({ clip, kind, width, height, modelId }: { clip: Clip; kind: TrackKind; width: number; height: number; modelId?: string }) {
+function ClipContent({
+  clip,
+  kind,
+  width,
+  height,
+  modelId,
+}: {
+  clip: Clip;
+  kind: TrackKind;
+  width: number;
+  height: number;
+  modelId?: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const rev = useClipTimeline((s) => s.sourcesRevision);
-  const skel = useMemo<SkeletonInfo | null>(() => (modelId ? (engineOrNull()?.getSkeleton(modelId) ?? null) : null), [modelId]);
+  const skel = useMemo<SkeletonInfo | null>(
+    () => (modelId ? (engineOrNull()?.getSkeleton(modelId) ?? null) : null),
+    [modelId],
+  );
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || width < 8) return;
@@ -555,5 +631,11 @@ function ClipContent({ clip, kind, width, height, modelId }: { clip: Clip; kind:
     }
   }, [clip, kind, width, height, skel, rev]);
   if (kind === 'camera' || kind === 'text') return null;
-  return <canvas ref={ref} className="pointer-events-none absolute left-0 top-0" style={{ width: Math.min(width, 4000), height }} />;
+  return (
+    <canvas
+      ref={ref}
+      className="pointer-events-none absolute left-0 top-0"
+      style={{ width: Math.min(width, 4000), height }}
+    />
+  );
 }

@@ -16,7 +16,10 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 /** Per-target signature of what was last baked (skip unchanged tracks). */
 const lastSig = new Map<string, string>();
 /** Last baked clips (VMD export, Advanced view). */
-export const baked: { models: Map<string, MotionClip>; camera: MotionClip | null } = { models: new Map(), camera: null };
+export const baked: { models: Map<string, MotionClip>; camera: MotionClip | null } = {
+  models: new Map(),
+  camera: null,
+};
 
 const sig = (clips: Clip[], rev: number): string => JSON.stringify(clips) + '|' + rev;
 
@@ -54,7 +57,11 @@ export function bakeNow(): void {
     let clip = bakeDance(dance, get);
     if (face.length) {
       const faceClip = bakeDance(face, get, 'face');
-      clip = applyFace(clip, faceClip, face.map((c) => [c.startFrame, clipEnd(c)] as [number, number]));
+      clip = applyFace(
+        clip,
+        faceClip,
+        face.map((c) => [c.startFrame, clipEnd(c)] as [number, number]),
+      );
     }
     baked.models.set(modelId, clip);
     const info = engine.setMotionClip(modelId, clip, 'Clip timeline');
@@ -111,7 +118,8 @@ function syncAudio(doc: TimelineDoc): void {
     const base = studio.get().volume;
     const offsetMs = active ? ((active.startFrame - active.sourceIn) / 30) * 1000 : lastAudio.offsetMs;
     const volume = active ? base * (active.volume ?? 1) : 0;
-    if (Number.isFinite(offsetMs) && Math.abs(offsetMs - lastAudio.offsetMs) > 0.5) engine.setAudioOffset(offsetMs);
+    if (Number.isFinite(offsetMs) && Math.abs(offsetMs - lastAudio.offsetMs) > 0.5)
+      engine.setAudioOffset(offsetMs);
     if (Math.abs(volume - lastAudio.volume) > 1e-3) engine.setVolume(volume);
     lastAudio = { offsetMs, volume };
   });
