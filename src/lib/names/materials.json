@@ -1,0 +1,217 @@
+{
+  "$comment": "Common PMX material names.",
+  "entries": [
+    {
+      "ja": "顔",
+      "en": "Face"
+    },
+    {
+      "ja": "肌",
+      "en": "Skin"
+    },
+    {
+      "ja": "体",
+      "en": "Body"
+    },
+    {
+      "ja": "髪",
+      "en": "Hair"
+    },
+    {
+      "ja": "前髪",
+      "en": "Bangs"
+    },
+    {
+      "ja": "後髪",
+      "en": "Back Hair"
+    },
+    {
+      "ja": "横髪",
+      "en": "Side Hair"
+    },
+    {
+      "ja": "服",
+      "en": "Clothes"
+    },
+    {
+      "ja": "上着",
+      "en": "Jacket"
+    },
+    {
+      "ja": "シャツ",
+      "en": "Shirt"
+    },
+    {
+      "ja": "スカート",
+      "en": "Skirt"
+    },
+    {
+      "ja": "ズボン",
+      "en": "Pants"
+    },
+    {
+      "ja": "靴",
+      "en": "Shoes"
+    },
+    {
+      "ja": "靴下",
+      "en": "Socks"
+    },
+    {
+      "ja": "目",
+      "en": "Eyes"
+    },
+    {
+      "ja": "白目",
+      "en": "Eye Whites"
+    },
+    {
+      "ja": "瞳",
+      "en": "Pupils"
+    },
+    {
+      "ja": "眉",
+      "en": "Eyebrows"
+    },
+    {
+      "ja": "まつ毛",
+      "en": "Eyelashes"
+    },
+    {
+      "ja": "まつげ",
+      "en": "Eyelashes"
+    },
+    {
+      "ja": "口",
+      "en": "Mouth"
+    },
+    {
+      "ja": "口内",
+      "en": "Inner Mouth"
+    },
+    {
+      "ja": "歯",
+      "en": "Teeth"
+    },
+    {
+      "ja": "舌",
+      "en": "Tongue"
+    },
+    {
+      "ja": "リボン",
+      "en": "Ribbon"
+    },
+    {
+      "ja": "袖",
+      "en": "Sleeves"
+    },
+    {
+      "ja": "手",
+      "en": "Hands"
+    },
+    {
+      "ja": "腕",
+      "en": "Arms"
+    },
+    {
+      "ja": "足",
+      "en": "Legs"
+    },
+    {
+      "ja": "帽子",
+      "en": "Hat"
+    },
+    {
+      "ja": "髪飾り",
+      "en": "Hair Ornament"
+    },
+    {
+      "ja": "アクセサリ",
+      "en": "Accessory"
+    },
+    {
+      "ja": "ネクタイ",
+      "en": "Necktie"
+    },
+    {
+      "ja": "表情",
+      "en": "Expression"
+    },
+    {
+      "ja": "頬",
+      "en": "Cheeks"
+    },
+    {
+      "ja": "影",
+      "en": "Shadow"
+    },
+    {
+      "ja": "ハイライト",
+      "en": "Highlight"
+    },
+    {
+      "ja": "眼鏡",
+      "en": "Glasses"
+    },
+    {
+      "ja": "メガネ",
+      "en": "Glasses"
+    },
+    {
+      "ja": "首",
+      "en": "Neck"
+    },
+    {
+      "ja": "胸",
+      "en": "Chest"
+    },
+    {
+      "ja": "下着",
+      "en": "Underwear"
+    },
+    {
+      "ja": "手袋",
+      "en": "Gloves"
+    },
+    {
+      "ja": "ベルト",
+      "en": "Belt"
+    },
+    {
+      "ja": "ブーツ",
+      "en": "Boots"
+    },
+    {
+      "ja": "インナー",
+      "en": "Inner"
+    },
+    {
+      "ja": "ヘッドホン",
+      "en": "Headphones"
+    },
+    {
+      "ja": "ヘッドセット",
+      "en": "Headset"
+    },
+    {
+      "ja": "爪",
+      "en": "Nails"
+    },
+    {
+      "ja": "耳",
+      "en": "Ears"
+    },
+    {
+      "ja": "鼻",
+      "en": "Nose"
+    },
+    {
+      "ja": "涙",
+      "en": "Tears"
+    },
+    {
+      "ja": "赤面",
+      "en": "Blush"
+    }
+  ]
+}

@@ -1,0 +1,319 @@
+{
+  "$comment": "Standard MMD bone names. 'sided' entries also define 左 (Left) and 右 (Right) variants.",
+  "entries": [
+    {
+      "ja": "全ての親",
+      "en": "Master"
+    },
+    {
+      "ja": "操作中心",
+      "en": "View Center"
+    },
+    {
+      "ja": "センター",
+      "en": "Center"
+    },
+    {
+      "ja": "センター2",
+      "en": "Center 2"
+    },
+    {
+      "ja": "グルーブ",
+      "en": "Groove"
+    },
+    {
+      "ja": "グルーブ2",
+      "en": "Groove 2"
+    },
+    {
+      "ja": "腰",
+      "en": "Waist"
+    },
+    {
+      "ja": "上半身",
+      "en": "Upper Body"
+    },
+    {
+      "ja": "上半身2",
+      "en": "Upper Body 2"
+    },
+    {
+      "ja": "上半身3",
+      "en": "Upper Body 3"
+    },
+    {
+      "ja": "下半身",
+      "en": "Lower Body"
+    },
+    {
+      "ja": "首",
+      "en": "Neck"
+    },
+    {
+      "ja": "頭",
+      "en": "Head"
+    },
+    {
+      "ja": "両目",
+      "en": "Both Eyes"
+    },
+    {
+      "ja": "舌",
+      "en": "Tongue"
+    },
+    {
+      "ja": "顎",
+      "en": "Jaw"
+    },
+    {
+      "ja": "目",
+      "en": "Eye",
+      "sided": true
+    },
+    {
+      "ja": "腰キャンセル",
+      "en": "Waist Cancel",
+      "sided": true
+    },
+    {
+      "ja": "肩P",
+      "en": "Shoulder P",
+      "sided": true
+    },
+    {
+      "ja": "肩",
+      "en": "Shoulder",
+      "sided": true
+    },
+    {
+      "ja": "肩C",
+      "en": "Shoulder C",
+      "sided": true
+    },
+    {
+      "ja": "腕",
+      "en": "Arm",
+      "sided": true
+    },
+    {
+      "ja": "腕捩",
+      "en": "Arm Twist",
+      "sided": true
+    },
+    {
+      "ja": "腕捩1",
+      "en": "Arm Twist 1",
+      "sided": true
+    },
+    {
+      "ja": "腕捩2",
+      "en": "Arm Twist 2",
+      "sided": true
+    },
+    {
+      "ja": "腕捩3",
+      "en": "Arm Twist 3",
+      "sided": true
+    },
+    {
+      "ja": "ひじ",
+      "en": "Elbow",
+      "sided": true
+    },
+    {
+      "ja": "手捩",
+      "en": "Wrist Twist",
+      "sided": true
+    },
+    {
+      "ja": "手捩1",
+      "en": "Wrist Twist 1",
+      "sided": true
+    },
+    {
+      "ja": "手捩2",
+      "en": "Wrist Twist 2",
+      "sided": true
+    },
+    {
+      "ja": "手捩3",
+      "en": "Wrist Twist 3",
+      "sided": true
+    },
+    {
+      "ja": "手首",
+      "en": "Wrist",
+      "sided": true
+    },
+    {
+      "ja": "手先",
+      "en": "Hand Tip",
+      "sided": true
+    },
+    {
+      "ja": "ダミー",
+      "en": "Dummy",
+      "sided": true
+    },
+    {
+      "ja": "親指０",
+      "en": "Thumb 0",
+      "sided": true
+    },
+    {
+      "ja": "親指１",
+      "en": "Thumb 1",
+      "sided": true
+    },
+    {
+      "ja": "親指２",
+      "en": "Thumb 2",
+      "sided": true
+    },
+    {
+      "ja": "親指先",
+      "en": "Thumb Tip",
+      "sided": true
+    },
+    {
+      "ja": "人指１",
+      "en": "Index 1",
+      "sided": true
+    },
+    {
+      "ja": "人指２",
+      "en": "Index 2",
+      "sided": true
+    },
+    {
+      "ja": "人指３",
+      "en": "Index 3",
+      "sided": true
+    },
+    {
+      "ja": "人指先",
+      "en": "Index Tip",
+      "sided": true
+    },
+    {
+      "ja": "中指１",
+      "en": "Middle 1",
+      "sided": true
+    },
+    {
+      "ja": "中指２",
+      "en": "Middle 2",
+      "sided": true
+    },
+    {
+      "ja": "中指３",
+      "en": "Middle 3",
+      "sided": true
+    },
+    {
+      "ja": "中指先",
+      "en": "Middle Tip",
+      "sided": true
+    },
+    {
+      "ja": "薬指１",
+      "en": "Ring 1",
+      "sided": true
+    },
+    {
+      "ja": "薬指２",
+      "en": "Ring 2",
+      "sided": true
+    },
+    {
+      "ja": "薬指３",
+      "en": "Ring 3",
+      "sided": true
+    },
+    {
+      "ja": "薬指先",
+      "en": "Ring Tip",
+      "sided": true
+    },
+    {
+      "ja": "小指１",
+      "en": "Little 1",
+      "sided": true
+    },
+    {
+      "ja": "小指２",
+      "en": "Little 2",
+      "sided": true
+    },
+    {
+      "ja": "小指３",
+      "en": "Little 3",
+      "sided": true
+    },
+    {
+      "ja": "小指先",
+      "en": "Little Tip",
+      "sided": true
+    },
+    {
+      "ja": "足",
+      "en": "Leg",
+      "sided": true
+    },
+    {
+      "ja": "ひざ",
+      "en": "Knee",
+      "sided": true
+    },
+    {
+      "ja": "足首",
+      "en": "Ankle",
+      "sided": true
+    },
+    {
+      "ja": "つま先",
+      "en": "Toe",
+      "sided": true
+    },
+    {
+      "ja": "足ＩＫ",
+      "en": "Leg IK",
+      "sided": true
+    },
+    {
+      "ja": "つま先ＩＫ",
+      "en": "Toe IK",
+      "sided": true
+    },
+    {
+      "ja": "足IK親",
+      "en": "Leg IK Parent",
+      "sided": true
+    },
+    {
+      "ja": "足先EX",
+      "en": "Toe EX",
+      "sided": true
+    },
+    {
+      "ja": "足D",
+      "en": "Leg D",
+      "sided": true
+    },
+    {
+      "ja": "ひざD",
+      "en": "Knee D",
+      "sided": true
+    },
+    {
+      "ja": "足首D",
+      "en": "Ankle D",
+      "sided": true
+    },
+    {
+      "ja": "胸",
+      "en": "Chest",
+      "sided": true
+    }
+  ]
+}

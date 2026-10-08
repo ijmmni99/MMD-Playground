@@ -1,0 +1,395 @@
+{
+  "$comment": "Standard MMD morph names with panel categories (eyebrow, eye, mouth, other).",
+  "entries": [
+    {
+      "ja": "まばたき",
+      "en": "Blink",
+      "category": "eye"
+    },
+    {
+      "ja": "笑い",
+      "en": "Smile (eyes)",
+      "category": "eye"
+    },
+    {
+      "ja": "ウィンク",
+      "en": "Wink",
+      "category": "eye"
+    },
+    {
+      "ja": "ウィンク右",
+      "en": "Wink Right",
+      "category": "eye"
+    },
+    {
+      "ja": "ウィンク２",
+      "en": "Wink 2",
+      "category": "eye"
+    },
+    {
+      "ja": "ウィンク２右",
+      "en": "Wink 2 Right",
+      "category": "eye"
+    },
+    {
+      "ja": "なごみ",
+      "en": "Calm Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "はぅ",
+      "en": "> < Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "びっくり",
+      "en": "Surprised",
+      "category": "eye"
+    },
+    {
+      "ja": "じと目",
+      "en": "Half-closed Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "ジト目",
+      "en": "Half-closed Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "キリッ",
+      "en": "Sharp Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "はちゅ目",
+      "en": "Hachu Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "はちゅ目縦潰れ",
+      "en": "Hachu Eyes Squashed",
+      "category": "eye"
+    },
+    {
+      "ja": "はちゅ目横潰れ",
+      "en": "Hachu Eyes Narrow",
+      "category": "eye"
+    },
+    {
+      "ja": "瞳小",
+      "en": "Small Pupils",
+      "category": "eye"
+    },
+    {
+      "ja": "瞳大",
+      "en": "Large Pupils",
+      "category": "eye"
+    },
+    {
+      "ja": "ハイライト消し",
+      "en": "Highlight Off",
+      "category": "eye"
+    },
+    {
+      "ja": "星目",
+      "en": "Star Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "はぁと",
+      "en": "Heart Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "恐ろしい子！",
+      "en": "Scary Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "目を細める",
+      "en": "Narrow Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "下瞼上げ",
+      "en": "Lower Lids Up",
+      "category": "eye"
+    },
+    {
+      "ja": "瞳縮小",
+      "en": "Pupils Shrink",
+      "category": "eye"
+    },
+    {
+      "ja": "白目",
+      "en": "White Eyes",
+      "category": "eye"
+    },
+    {
+      "ja": "目尻下げ",
+      "en": "Eye Corners Down",
+      "category": "eye"
+    },
+    {
+      "ja": "真面目",
+      "en": "Serious",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "困る",
+      "en": "Troubled",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "にこり",
+      "en": "Cheerful",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "怒り",
+      "en": "Angry",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "上",
+      "en": "Brows Up",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "下",
+      "en": "Brows Down",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "前",
+      "en": "Brows Forward",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "眉頭上",
+      "en": "Inner Brows Up",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "眉頭下",
+      "en": "Inner Brows Down",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "眉上",
+      "en": "Brows Up (alt)",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "眉下",
+      "en": "Brows Down (alt)",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "左眉上",
+      "en": "Left Brow Up",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "右眉上",
+      "en": "Right Brow Up",
+      "category": "eyebrow"
+    },
+    {
+      "ja": "あ",
+      "en": "A",
+      "category": "mouth"
+    },
+    {
+      "ja": "い",
+      "en": "I",
+      "category": "mouth"
+    },
+    {
+      "ja": "う",
+      "en": "U",
+      "category": "mouth"
+    },
+    {
+      "ja": "え",
+      "en": "E",
+      "category": "mouth"
+    },
+    {
+      "ja": "お",
+      "en": "O",
+      "category": "mouth"
+    },
+    {
+      "ja": "ん",
+      "en": "N",
+      "category": "mouth"
+    },
+    {
+      "ja": "あ２",
+      "en": "A 2",
+      "category": "mouth"
+    },
+    {
+      "ja": "▲",
+      "en": "Triangle Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "∧",
+      "en": "∧ Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "□",
+      "en": "Square Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "ワ",
+      "en": "Wa Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "ω",
+      "en": "Omega Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "ω□",
+      "en": "Omega Square Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "にやり",
+      "en": "Grin",
+      "category": "mouth"
+    },
+    {
+      "ja": "にやり２",
+      "en": "Grin 2",
+      "category": "mouth"
+    },
+    {
+      "ja": "にっこり",
+      "en": "Smile (mouth)",
+      "category": "mouth"
+    },
+    {
+      "ja": "ぺろっ",
+      "en": "Tongue Out",
+      "category": "mouth"
+    },
+    {
+      "ja": "てへぺろ",
+      "en": "Tehepero",
+      "category": "mouth"
+    },
+    {
+      "ja": "てへぺろ２",
+      "en": "Tehepero 2",
+      "category": "mouth"
+    },
+    {
+      "ja": "口角上げ",
+      "en": "Mouth Corners Up",
+      "category": "mouth"
+    },
+    {
+      "ja": "口角下げ",
+      "en": "Mouth Corners Down",
+      "category": "mouth"
+    },
+    {
+      "ja": "口横広げ",
+      "en": "Mouth Wide",
+      "category": "mouth"
+    },
+    {
+      "ja": "歯無し上",
+      "en": "No Upper Teeth",
+      "category": "mouth"
+    },
+    {
+      "ja": "歯無し下",
+      "en": "No Lower Teeth",
+      "category": "mouth"
+    },
+    {
+      "ja": "はんっ！",
+      "en": "Hmph",
+      "category": "mouth"
+    },
+    {
+      "ja": "えー",
+      "en": "Eh Mouth",
+      "category": "mouth"
+    },
+    {
+      "ja": "ギザ歯",
+      "en": "Jagged Teeth",
+      "category": "mouth"
+    },
+    {
+      "ja": "口すぼめ",
+      "en": "Pursed Lips",
+      "category": "mouth"
+    },
+    {
+      "ja": "照れ",
+      "en": "Blush",
+      "category": "other"
+    },
+    {
+      "ja": "頬染め",
+      "en": "Cheek Blush",
+      "category": "other"
+    },
+    {
+      "ja": "青ざめ",
+      "en": "Pale",
+      "category": "other"
+    },
+    {
+      "ja": "涙",
+      "en": "Tears",
+      "category": "other"
+    },
+    {
+      "ja": "汗",
+      "en": "Sweat",
+      "category": "other"
+    },
+    {
+      "ja": "がーん",
+      "en": "Shock Lines",
+      "category": "other"
+    },
+    {
+      "ja": "メガネ",
+      "en": "Glasses",
+      "category": "other"
+    },
+    {
+      "ja": "怒",
+      "en": "Anger Mark",
+      "category": "other"
+    },
+    {
+      "ja": "髪影消",
+      "en": "Hair Shadow Off",
+      "category": "other"
+    },
+    {
+      "ja": "輪郭",
+      "en": "Outline",
+      "category": "other"
+    },
+    {
+      "ja": "ほほ染め",
+      "en": "Cheek Blush (alt)",
+      "category": "other"
+    }
+  ]
+}
