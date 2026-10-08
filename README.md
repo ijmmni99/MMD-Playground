@@ -465,6 +465,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
 
 - Manual morph and bone edits apply on top of the motion. While playing, or after a seek, tracks that the VMD keys override your edits. This matches MMD.
 - Some features are not supported:
+  - FBX, glTF / GLB, VRM and OBJ models (only PMX / PMD; convert with Blender + MMD Tools — the app says so when one is dropped)
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
   - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)

@@ -139,6 +139,18 @@ export async function importFiles(raw: VFile[], opts: { asStage?: boolean } = {}
       !plan.hdr.length &&
       !plan.poses.length
     ) {
+      // Other 3D formats are a common mix-up: say what to do instead of a generic miss.
+      const other = files.find((f) => /\.(fbx|glb|gltf|vrm|obj|blend|dae|3ds|max|ma|mb|x)$/i.test(f.path));
+      if (other) {
+        const ext = other.path.split('.').pop()!.toUpperCase();
+        toast(
+          'warning',
+          `${basename(other.path)}: ${ext} models aren't supported — MMD Studio plays PMX / PMD models (MMD rigs). ` +
+            'Convert it to PMX first (for example Blender + the "MMD Tools" add-on), then load the .pmx with its textures.',
+          14000,
+        );
+        return;
+      }
       const seen = files
         .slice(0, 5)
         .map((f) => basename(f.path))
