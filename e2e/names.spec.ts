@@ -82,3 +82,71 @@ test('english labels: panels, display modes, bilingual search', async ({ page })
   await page.getByTestId('name-display').getByRole('radio', { name: 'Both' }).click();
   expect(errors).toEqual([]);
 });
+
+test('rename a label, reset, and keep it across reloads (motion still plays)', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await load(page, [PMX, DANCE]);
+  const insp = page.getByTestId('model-inspector');
+  await insp.getByRole('button', { name: /^Bones/ }).click();
+  await insp.getByLabel(/Search bones/).fill('左腕');
+  const arm = insp.locator('[data-ja="左腕"]');
+  await expect(arm).toContainText('Left Arm (左腕)');
+
+  // Right-click → Rename label.
+  await arm.click({ button: 'right' });
+  await page.getByTestId('name-menu').getByRole('menuitem', { name: 'Rename label…' }).click();
+  const dialog = page.getByTestId('rename-label');
+  await dialog.getByLabel('English label').fill('Port Arm');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(arm).toContainText('Port Arm (左腕)');
+  await expect(arm).toHaveAttribute('data-name-source', 'override');
+  // Search finds the custom label too.
+  await insp.getByLabel(/Search bones/).fill('port');
+  await expect(arm).toBeVisible();
+
+  // A morph label and its reset.
+  const blink = insp.locator('[data-ja="まばたき"]');
+  await blink.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Rename label…' }).click();
+  await page.getByTestId('rename-label').getByLabel('English label').fill('Close Eyes');
+  await page.getByTestId('rename-label').getByRole('button', { name: 'Save' }).click();
+  await expect(blink).toContainText('Close Eyes');
+  await blink.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Reset label' }).click();
+  await expect(blink).toContainText('Blink (まばたき)');
+
+  // Reload: the label is restored with the project; the motion still drives the Japanese-named bones.
+  await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 30_000 });
+  await page.reload();
+  await page.waitForFunction(() => (window as W).__studio !== undefined, null, { timeout: 90_000 });
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
+  const insp2 = page.getByTestId('model-inspector');
+  await insp2.getByRole('button', { name: /^Bones/ }).click();
+  await insp2.getByLabel(/Search bones/).fill('arm');
+  await expect(insp2.locator('[data-ja="左腕"]')).toContainText('Port Arm (左腕)');
+  await expect(insp2.locator('[data-ja="まばたき"]')).toContainText('Blink (まばたき)');
+  const moves = await page.evaluate(async () => {
+    const st = (
+      window as unknown as {
+        __studio: {
+          listModels(): string[];
+          seek(f: number): void;
+          getBoneWorldPositions(id: string): Record<string, number[]>;
+        };
+      }
+    ).__studio;
+    const id = st.listModels()[0];
+    st.seek(0);
+    await new Promise((r) => setTimeout(r, 300));
+    const a = st.getBoneWorldPositions(id)['左ひじ'];
+    st.seek(15);
+    await new Promise((r) => setTimeout(r, 300));
+    const b = st.getBoneWorldPositions(id)['左ひじ'];
+    return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  });
+  expect(moves).toBeGreaterThan(0.05);
+  await page.screenshot({ path: 'e2e/__shots/names-renamed.png' });
+  expect(errors).toEqual([]);
+});

@@ -71,6 +71,6 @@ names come from the loader's serialization metadata (`preserveSerializationData`
 - [x] a. Dictionary JSON + normalise + patterns + resolver + search + tests
 - [x] b. `NameLabel` / name table wired into every place listed above
 - [x] c. Display setting + bilingual search
-- [ ] d. Overrides: rename / reset / reset all, project + zip persistence, JSON import/export
-- [ ] e. Materials dictionary + PMX material English names
+- [x] d. Overrides: rename / reset / reset all, project + zip persistence, JSON import/export
+- [x] e. Materials dictionary + PMX material English names
 - [ ] f. Mobile polish (long-press, 44 px, truncation), Playwright desktop + phone, README

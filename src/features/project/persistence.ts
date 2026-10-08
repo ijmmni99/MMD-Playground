@@ -1,4 +1,5 @@
 import { DEFAULT_CAMERA, deviceDefaultSettings } from '@/engine/defaults';
+import { useNames } from '@/store/names';
 import { isCoarsePointer } from '@/lib/device';
 import { cacheBlob, getAsset, resolveRef } from '@/lib/assets';
 import * as store from '@/lib/db';
@@ -59,6 +60,7 @@ export function buildProjectDoc(): ProjectDoc {
     models,
     video2vmd: buildVideo2VmdDoc(),
     motionEditor: buildMotionEditorDoc(),
+    labels: Object.keys(useNames.getState().labels).length ? useNames.getState().labels : undefined,
   };
 }
 
@@ -154,6 +156,7 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
   try {
     await clearScene();
     set({ settings: doc.settings, camera: doc.camera });
+    useNames.setState({ labels: doc.labels ?? {}, renaming: null, menu: null });
     engine.applySettings(doc.settings);
     const failures: string[] = [];
     for (const [i, m] of doc.models.entries()) {

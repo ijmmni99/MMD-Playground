@@ -1,6 +1,7 @@
 import { DEFAULT_CAMERA, DEFAULT_SETTINGS, DEFAULT_TRANSFORM } from '@/engine/defaults';
 import type { CameraState, ModelRuntimeState, SceneSettings } from '@/engine/types';
 import type { MotionEditorDoc } from '@/store/motionEditor';
+import type { LabelOverrides } from '@/lib/names/types';
 import type { Video2VmdDoc } from '@/store/video2vmd';
 
 export const PROJECT_VERSION = 1;
@@ -39,6 +40,8 @@ export interface ProjectDoc {
   video2vmd?: Video2VmdDoc;
   /** Motion editor: edited clips (base + original), pins, markers, BPM, shots. */
   motionEditor?: MotionEditorDoc;
+  /** User English labels for bone / morph / material names, keyed by model label key (display only). */
+  labels?: Record<string, LabelOverrides>;
 }
 
 export interface ProjectSummary {
@@ -144,6 +147,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     thumbnail: typeof json.thumbnail === 'string' ? json.thumbnail : undefined,
     video2vmd: parseVideo2Vmd(json.video2vmd),
     motionEditor: parseMotionEditor(json.motionEditor),
+    labels: parseLabels(json.labels),
   };
 }
 
@@ -226,6 +230,28 @@ function parseVideo2Vmd(v: unknown): Video2VmdDoc | undefined {
   };
 }
 
+/** Keep only well-formed string labels (kind → Japanese name → English label). */
+export function parseLabels(v: unknown): Record<string, LabelOverrides> | undefined {
+  if (!isObj(v)) return undefined;
+  const out: Record<string, LabelOverrides> = {};
+  for (const [key, model] of Object.entries(v)) {
+    if (!isObj(model)) continue;
+    const entry: LabelOverrides = {};
+    for (const kind of ['bone', 'morph', 'material'] as const) {
+      const m = model[kind];
+      if (!isObj(m)) continue;
+      const clean = Object.fromEntries(
+        Object.entries(m).filter(
+          (e): e is [string, string] => typeof e[1] === 'string' && e[1].trim() !== '',
+        ),
+      );
+      if (Object.keys(clean).length) entry[kind] = clean;
+    }
+    if (Object.keys(entry).length) out[key] = entry;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function parseMotionEditor(v: unknown): MotionEditorDoc | undefined {
   if (!isObj(v)) return undefined;
   const models: MotionEditorDoc['models'] = {};
@@ -245,10 +271,16 @@ function parseMotionEditor(v: unknown): MotionEditorDoc | undefined {
   return {
     models,
     camera: cam
-      ? { base: cam.base as FileRef, original: cam.original as FileRef, name: typeof cam.name === 'string' ? cam.name : 'camera.vmd' }
+      ? {
+          base: cam.base as FileRef,
+          original: cam.original as FileRef,
+          name: typeof cam.name === 'string' ? cam.name : 'camera.vmd',
+        }
       : null,
     markers: Array.isArray(v.markers) ? (v.markers as MotionEditorDoc['markers']) : [],
-    grid: isObj(v.grid) ? (v.grid as unknown as MotionEditorDoc['grid']) : { bpm: 0, offset: 0, beatsPerBar: 4 },
+    grid: isObj(v.grid)
+      ? (v.grid as unknown as MotionEditorDoc['grid'])
+      : { bpm: 0, offset: 0, beatsPerBar: 4 },
     shots: Array.isArray(v.shots) ? (v.shots as MotionEditorDoc['shots']) : [],
   };
 }

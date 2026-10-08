@@ -103,11 +103,25 @@ describe('motion editor state in projects', () => {
         m1: {
           base: { blobId: 'me-base', path: 'dance_edited_base.vmd' },
           original: { blobId: 'me-orig', path: 'dance_original.vmd' },
-          pins: [{ id: 'p1', bone: '左足ＩＫ', start: 10, end: 30, blendIn: 3, blendOut: 3, anchor: { p: [1, 0, 2], r: [0, 0, 0, 1] } }],
+          pins: [
+            {
+              id: 'p1',
+              bone: '左足ＩＫ',
+              start: 10,
+              end: 30,
+              blendIn: 3,
+              blendOut: 3,
+              anchor: { p: [1, 0, 2], r: [0, 0, 0, 1] },
+            },
+          ],
           name: 'dance.vmd',
         },
       },
-      camera: { base: { blobId: 'cam-base', path: 'cam_base.vmd' }, original: { blobId: 'cam-orig', path: 'cam_orig.vmd' }, name: 'cam.vmd' },
+      camera: {
+        base: { blobId: 'cam-base', path: 'cam_base.vmd' },
+        original: { blobId: 'cam-orig', path: 'cam_orig.vmd' },
+        name: 'cam.vmd',
+      },
       markers: [{ id: 'k1', f: 60, name: 'Chorus' }],
       grid: { bpm: 128, offset: 4, beatsPerBar: 4 },
       shots: [{ id: 's1', name: 'A', start: 0, end: 59, color: '#fff', transition: 'cut' }],
@@ -119,5 +133,27 @@ describe('motion editor state in projects', () => {
     expect(imported.motionEditor).toEqual(doc.motionEditor);
     expect(await blobs.get('me-base')!.text()).toBe('me-base');
     expect(await blobs.get('cam-orig')!.text()).toBe('cam-orig');
+  });
+});
+
+describe('name labels in projects', () => {
+  it('survive .mmdstudio.zip export / import and drop malformed entries', async () => {
+    const doc = sampleDoc();
+    doc.labels = {
+      'Blocky#0badf00d': {
+        bone: { 左腕: 'Port Arm' },
+        morph: { まばたき: 'Close Eyes' },
+        material: { 顔: 'Mug' },
+      },
+    };
+    const zip = await exportProjectZip(doc, async (id) => new Blob([id]));
+    const { doc: imported } = await importProjectZip(zip);
+    expect(imported.labels).toEqual(doc.labels);
+    const parsed = parseProjectDoc({
+      ...JSON.parse(JSON.stringify(doc)),
+      labels: { a: { bone: { 左腕: 'X', 右腕: 3, 頭: '  ' }, morph: 'nope' }, b: null, c: { bone: {} } },
+    });
+    expect(parsed.labels).toEqual({ a: { bone: { 左腕: 'X' } } });
+    expect(parseProjectDoc({ ...JSON.parse(JSON.stringify(doc)), labels: undefined }).labels).toBeUndefined();
   });
 });
