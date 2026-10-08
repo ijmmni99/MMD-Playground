@@ -161,7 +161,7 @@ export function convertModel(src: SourceModel, options: Partial<ConvertOptions> 
     const count = indices.length - start;
     if (!count) return;
     let tex = -1;
-    if (mat.texture >= 0) {
+    if (mat.texture >= 0 && m.textures[mat.texture]?.data.length) {
       if (!usedTex.has(mat.texture)) {
         usedTex.set(mat.texture, textures.length);
         textures.push({ path: allPaths[mat.texture], source: mat.texture });

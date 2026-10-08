@@ -238,7 +238,7 @@ function keepExtras(
   for (const i of order) {
     if (remap[i] >= 0) continue;
     if (!used.has(i) && !hasKids.has(i) && !springBones.has(i) && /end|nub|top|tip/i.test(m.bones[i].name)) continue;
-    let name = m.bones[i].name.replace(/^mixamorig\d*:/, '');
+    let name = m.bones[i].name.replace(/^mixamorig\d*:?/, '');
     if (index.has(name)) name = `${name}_${i}`;
     bones.push({ name, nameEn: m.bones[i].name, position: [...m.bones[i].position] as V3, parent: parentFor(i), layer: 0, flags: ROT, tail: [0, 0, 0] });
     index.set(name, bones.length - 1);

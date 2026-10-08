@@ -40,7 +40,7 @@ export const FINGER_SLOTS = (side: 'left' | 'right', f: (typeof FINGERS)[number]
 
 // ---------------------------------------------------------------- name analysis
 
-const PREFIXES = /^(mixamorig\d*[:_]|armature[|_:]|bip ?0*1[ _]|def[-_]|org[-_]|mch[-_]|j_bip_|j_adj_|j_sec_|cc_base_|rig[:_|]|character\d*[:_])/;
+const PREFIXES = /^(mixamorig\d*[:_ ]?|armature[|_:]|bip ?0*1[ _]|def[-_]|org[-_]|mch[-_]|j_bip_|j_adj_|j_sec_|cc_base_|rig[:_|]|character\d*[:_])/;
 
 export interface NameInfo {
   side: 'left' | 'right' | null;
@@ -51,7 +51,7 @@ export interface NameInfo {
 }
 
 export function analyzeName(raw: string): NameInfo {
-  let s = raw.replace(/^.*[:|]/, (m) => (/mixamorig|armature|rig|character/i.test(m) ? '' : m));
+  let s = raw.replace(/^.*[:|]/, (m) => (/mixamorig|armature|rig|character/i.test(m) ? '' : m)).replace(/^mixamorig\d*(?=[A-Z])/, '');
   s = s.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
   let low = s.toLowerCase().trim();
   for (let i = 0; i < 3; i++) low = low.replace(PREFIXES, '');
@@ -116,7 +116,7 @@ export function partOf(info: NameInfo, raw: string): { part: Part; strong: boole
 }
 
 /** Known rig naming conventions (exact match after prefix stripping ⇒ dictionary confidence). */
-const KNOWN_RIG = /^(mixamorig\d*:|J_Bip_|Bip0*1 |DEF-|CC_Base_)|\.(L|R)(\.\d+)?$|^(Hips|Spine\d?|Chest|UpperChest|Neck|Head|(Left|Right)(Shoulder|UpperArm|LowerArm|Hand|UpperLeg|LowerLeg|Foot|Toes|Eye))$/;
+const KNOWN_RIG = /^(mixamorig\d*:?|J_Bip_|Bip0*1 |DEF-|CC_Base_)|\.(L|R)(\.\d+)?$|^(Hips|Spine\d?|Chest|UpperChest|Neck|Head|(Left|Right)(Shoulder|UpperArm|LowerArm|Hand|UpperLeg|LowerLeg|Foot|Toes|Eye))$/;
 
 // ---------------------------------------------------------------- mapping
 

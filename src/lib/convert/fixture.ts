@@ -143,7 +143,25 @@ export interface FixtureResult {
   names: string[];
 }
 
-export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
+export interface HumanoidData {
+  defs: { key: string; parent: string | null; pos: Vec3 }[];
+  idx: Map<string, number>;
+  names: string[];
+  style: FixtureStyle;
+  world: (p: Vec3) => Vec3;
+  pos: number[];
+  nrm: number[];
+  uv: number[];
+  joints: number[];
+  weights: number[];
+  bodyIdx: number[];
+  headIdx: number[];
+  morphs: { name: string; deltas: Float32Array }[];
+  png: Uint8Array;
+}
+
+/** Skeleton, skinned geometry and morphs of the test humanoid (world space, scaled). */
+export function humanoidData(opts: FixtureOptions = {}): HumanoidData {
   const style = opts.style ?? 'mixamo';
   const scale = opts.scale ?? 1;
   const defs = skeleton(opts.armDown ?? 0, opts.secondary ?? true);
@@ -246,6 +264,34 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
     }
   }
 
+  const morphNames =
+    style === 'mixamo'
+      ? ['eyesClosed', 'jawOpen', 'eyeBlinkRight']
+      : style === 'vrm'
+        ? ['Fcl_EYE_Close', 'Fcl_MTH_A', 'Fcl_EYE_Close_R']
+        : ['blink', 'mouth_a', 'blink_R'];
+  return {
+    defs,
+    idx,
+    names,
+    style,
+    world,
+    pos,
+    nrm,
+    uv,
+    joints,
+    weights,
+    bodyIdx,
+    headIdx,
+    morphs: [blink, aa, blinkR].map((deltas, k) => ({ name: morphNames[k], deltas })),
+    png: b64(PNG_2x2),
+  };
+}
+
+export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
+  const { defs, idx, names, style, world, pos, nrm, uv, joints, weights, bodyIdx, headIdx, morphs, png } = humanoidData(opts);
+  const [blink, aa, blinkR] = morphs.map((m) => m.deltas);
+  const morphNames = morphs.map((m) => m.name);
   // ---------------------------------------------------------------- glTF assembly
   const chunks: Uint8Array[] = [];
   let offset = 0;
@@ -291,15 +337,8 @@ export function makeHumanoid(opts: FixtureOptions = {}): FixtureResult {
     ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -p[0], -p[1], -p[2], 1], i * 16);
   });
   const aIbm = acc(ibm, 'MAT4', 5126);
-  const png = b64(PNG_2x2);
   const imgView = pushView(png);
 
-  const morphNames =
-    style === 'mixamo'
-      ? ['eyesClosed', 'jawOpen', 'eyeBlinkRight']
-      : style === 'vrm'
-        ? ['Fcl_EYE_Close', 'Fcl_MTH_A', 'Fcl_EYE_Close_R']
-        : ['blink', 'mouth_a', 'blink_R'];
   const nodes: Record<string, unknown>[] = defs.map((d, i) => {
     const p = world(d.pos);
     const pp = d.parent ? world(defs[idx.get(d.parent)!].pos) : [0, 0, 0];
