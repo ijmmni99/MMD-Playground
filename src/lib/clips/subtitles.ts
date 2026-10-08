@@ -6,6 +6,9 @@ export interface Cue {
   text: string;
 }
 
+/** A leading byte-order mark. */
+const BOM = /^\uFEFF/;
+
 const time = (h: string, m: string, s: string, ms: string): number =>
   Number(h) * 3600 + Number(m) * 60 + Number(s) + Number(ms.padEnd(3, '0').slice(0, 3)) / 1000;
 
@@ -14,7 +17,7 @@ export function parseSrt(text: string): Cue[] {
   const out: Cue[] = [];
   const blocks = text
     .replace(/\r\n?/g, '\n')
-    .replace(/^﻿/, '')
+    .replace(BOM, '')
     .split(/\n\s*\n/);
   const re = /(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})\s*-->\s*(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})/;
   for (const b of blocks) {
@@ -40,7 +43,7 @@ export function parseSrt(text: string): Cue[] {
 export function parseLrc(text: string, lastDuration = 4): Cue[] {
   let offset = 0;
   const timed: { t: number; text: string }[] = [];
-  for (const raw of text.replace(/\r\n?/g, '\n').replace(/^﻿/, '').split('\n')) {
+  for (const raw of text.replace(/\r\n?/g, '\n').replace(BOM, '').split('\n')) {
     const off = /^\[offset:\s*([+-]?\d+)\]/i.exec(raw.trim());
     if (off) {
       offset = Number(off[1]) / 1000;
