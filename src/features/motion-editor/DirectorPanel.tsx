@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNameText } from '@/features/names/text';
 import { ArrowDown, ArrowUp, Combine, Scissors, Trash2 } from 'lucide-react';
 import { validateCamera, type CameraPreset } from '@/lib/motion/camera';
 import { useMotionEditor, me } from '@/store/motionEditor';
@@ -40,6 +41,7 @@ export default function DirectorPanel() {
   const path = useMotionEditor((s) => s.cameraPath);
   const bpm = useMotionEditor((s) => s.grid.bpm);
   const modelId = useMotionEditor((s) => s.modelId);
+  const nameText = useNameText(modelId);
   const dof = useStudio((s) => s.settings.postfx.dof);
   const [bone, setBone] = useState('頭');
   const [step, setStep] = useState(2);
@@ -221,7 +223,9 @@ export default function DirectorPanel() {
               onChange={(e) => setBone(e.target.value)}
             >
               {(bones.length ? bones : ['頭']).map((b) => (
-                <option key={b}>{b}</option>
+                <option key={b} value={b}>
+                  {nameText('bone', b)}
+                </option>
               ))}
             </select>
           </label>

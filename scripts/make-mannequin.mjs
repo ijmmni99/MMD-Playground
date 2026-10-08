@@ -2,6 +2,8 @@
 // bone set (上半身2, shoulders, wrists, knees, ankles, toes) and real leg IK (足ＩＫ / つま先ＩＫ).
 // Used to validate Video→VMD retargeting and foot IK against babylon-mmd's IK solver.
 // Output: e2e/fixtures/Mannequin/mannequin.pmx
+// With --names: e2e/fixtures/NameTest/nametest.pmx — the same rig plus non-standard bones, Japanese
+// morphs (PMX panel categories, some with English names) for the English-label feature.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -63,6 +65,8 @@ class Writer {
   }
 }
 
+const NAMES = process.argv.includes('--names');
+
 // ---------- bones ----------
 const bones = [];
 const idx = new Map();
@@ -113,6 +117,12 @@ for (const s of ['左', '右']) {
     flags: 0x003e,
     ik: { target: `${s}つま先`, loop: 3, limit: 4.0, links: [{ bone: `${s}足首` }] },
   });
+}
+
+if (NAMES) {
+  bone('左髪先', '頭', [0.6, 16.8, 0.6]); // pattern rule: Left Hair Tip
+  bone('右スカート前２', '下半身', [-0.6, 10.0, -0.6]); // pattern rule: Right Skirt Front 2
+  bone('謎ボーン', '頭', [0, 17.5, 0], { en: 'Mystery Bone' }); // PMX English name only
 }
 
 // ---------- geometry: oriented boxes per segment ----------
@@ -203,8 +213,8 @@ w.bytes(Buffer.from('PMX ', 'ascii'));
 w.f32(2.0);
 w.u8(8);
 w.bytes([0, 0, 4, 1, 1, 2, 1, 2]);
-w.text('マネキン');
-w.text('Mannequin');
+w.text(NAMES ? 'ネームテスト' : 'マネキン');
+w.text(NAMES ? 'Name Test' : 'Mannequin');
 w.text('MMD Studio procedural test model with standard bones and leg IK. Public domain.');
 w.text('MMD Studio procedural test model with standard bones and leg IK. Public domain.');
 w.i32(verts.length);
@@ -242,7 +252,7 @@ for (const m of materials) {
 w.i32(bones.length);
 for (const b of bones) {
   w.text(b.name);
-  w.text(b.name);
+  w.text(b.en ?? b.name);
   w.vec(b.pos);
   w.i16(b.parent);
   w.i32(0);
@@ -263,7 +273,28 @@ for (const b of bones) {
     }
   }
 }
-w.i32(0); // morphs
+// Morphs (vertex morphs with one zero offset): name, English name, PMX panel (1 brow, 2 eye, 3 mouth, 4 other).
+const morphs = NAMES
+  ? [
+      ['まばたき', '', 2],
+      ['ウィンク右', '', 4], // PMX says "other"; the dictionary files it under eyes
+      ['あ', '', 3],
+      ['困る', '', 1],
+      ['照れ', '', 4],
+      ['謎モーフ', 'Odd Morph', 4], // PMX English name only
+      ['ほげ', '', 4], // nothing known: stays Japanese
+    ]
+  : [];
+w.i32(morphs.length);
+for (const [name, en, panel] of morphs) {
+  w.text(name);
+  w.text(en);
+  w.u8(panel);
+  w.u8(1);
+  w.i32(1);
+  w.i32(0);
+  w.vec([0, 0, 0]);
+}
 w.i32(1); // display frames: Root
 w.text('Root');
 w.text('Root');
@@ -274,7 +305,7 @@ w.i16(0);
 w.i32(0); // rigid bodies
 w.i32(0); // joints
 
-const out = 'e2e/fixtures/Mannequin/mannequin.pmx';
+const out = NAMES ? 'e2e/fixtures/NameTest/nametest.pmx' : 'e2e/fixtures/Mannequin/mannequin.pmx';
 mkdirSync(dirname(join(process.cwd(), out)), { recursive: true });
 writeFileSync(out, w.result());
 console.log(`wrote ${out} (${verts.length} verts, ${bones.length} bones)`);

@@ -1,4 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
+import { useNameText } from '@/features/names/text';
 import {
   ArrowLeftRight,
   ChevronsLeft,
@@ -108,6 +109,7 @@ function ExportPanel() {
 /** Motion editor: toolbar, dope sheet (+ graph), side panels and a status bar. Shares the timeline dock. */
 export default function EditorDock() {
   const s = useMotionEditor();
+  const nameText = useNameText(s.modelId);
   const models = useStudio(useShallow((st) => st.models.filter((m) => !m.stage)));
   const dirty = useStudio((st) => st.project.dirty);
   const undoDepth = useHistory((h) => h.past.length);
@@ -336,7 +338,7 @@ export default function EditorDock() {
         </span>
         <span className="truncate">
           {s.channel
-            ? `${s.channel.track}${s.channel.kind === 'bone' ? ` · ch ${s.channel.channel}` : ''}`
+            ? `${s.channel.kind === 'camera' ? 'Camera' : nameText(s.channel.kind, s.channel.track)}${s.channel.kind === 'bone' ? ` · ch ${s.channel.channel}` : ''}`
             : '—'}
         </span>
         <span>undo {undoDepth}</span>

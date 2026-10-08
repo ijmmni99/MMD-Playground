@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NameLabel } from '@/features/names/NameLabel';
 import { bezierWeight, CURVE_PRESETS, presetOf, type CurvePreset } from '@/lib/motion/bezier';
 import {
   channelDefs,
@@ -54,6 +55,7 @@ export default function GraphEditor() {
   useMotionEditor((s) => s.selection);
   const coarse = useLayout((s) => s.coarse);
   const narrow = useLayout((s) => s.mode === 'phone' || s.mode === 'phone-landscape');
+  const modelId = useMotionEditor((s) => s.modelId);
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [allChannels, setAllChannels] = useState(false);
 
@@ -118,8 +120,12 @@ export default function GraphEditor() {
       )}
       style={narrow ? undefined : { width: coarse ? 132 : 172 }}
     >
-      <div className="truncate font-medium text-fg" title={channel.track}>
-        {channel.kind === 'camera' ? 'Camera' : channel.track}
+      <div className="flex min-w-0 items-baseline font-medium text-fg">
+        {channel.kind === 'camera' ? (
+          'Camera'
+        ) : (
+          <NameLabel modelId={modelId} kind={channel.kind} ja={channel.track} />
+        )}
         {activeF !== null && <span className="ml-1 font-mono text-fg-dim">@{activeF}</span>}
       </div>
       <div className={cn('gap-1', narrow ? 'grid grid-cols-2' : 'flex flex-col')}>

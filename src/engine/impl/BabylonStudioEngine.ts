@@ -743,7 +743,8 @@ export class BabylonStudioEngine implements StudioEngine {
       const container = await LoadAssetContainerAsync(prepared.main, this.scene, {
         rootUrl: prepared.rootUrl,
         pluginOptions: {
-          mmdmodel: { referenceFiles: prepared.referenceFiles, loggingEnabled: false },
+          // Serialization data keeps the PMX's English material names (display labels).
+          mmdmodel: { referenceFiles: prepared.referenceFiles, loggingEnabled: false, preserveSerializationData: true },
         },
         onProgress: (ev) => {
           if (ev.lengthComputable && ev.total > 0) {
@@ -773,9 +774,12 @@ export class BabylonStudioEngine implements StudioEngine {
       const baseOutline = materials.map((mat) => (mat instanceof MmdStandardMaterial ? mat.outlineWidth : 0));
       const name = options.name ?? (metadata.header.modelName || stripExt(fileName));
       const boneIndex = new Map(model.runtimeBones.map((b, i) => [b, i]));
+      const boneEn = new Map(metadata.bones.map((b) => [b.name, b.englishName]));
+      const matMeta = (metadata as { materialsMetadata?: { englishName?: string }[] }).materialsMetadata;
       const bones: BoneInfo[] = model.runtimeBones.map((b, i) => ({
         index: i,
         name: b.name,
+        en: boneEn.get(b.name) || undefined,
         parent: b.parentBone ? (boneIndex.get(b.parentBone) ?? -1) : -1,
         physics:
           b.rigidBodyIndices.length > 0 &&
@@ -784,11 +788,13 @@ export class BabylonStudioEngine implements StudioEngine {
       const morphs: MorphInfo[] = metadata.morphs.map((m, i) => ({
         index: i,
         name: m.name,
+        en: m.englishName || undefined,
         category: CATEGORY[m.category] ?? 'other',
       }));
       const matInfos: MaterialInfo[] = materials.map((mat, i) => ({
         index: i,
         name: mat.name,
+        en: matMeta?.[i]?.englishName || undefined,
         visible: true,
         outline: mat instanceof MmdStandardMaterial ? mat.renderOutline : false,
         alpha: mat.alpha,

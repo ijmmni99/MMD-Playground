@@ -1,15 +1,18 @@
 import { create } from 'zustand';
+import type { NameDisplay } from '@/lib/names/types';
 
 /** Per-device preferences (not part of projects). */
 export interface Prefs {
   adaptiveQuality: boolean;
+  /** How bone / morph / material names are shown: English, Japanese or both ("Left Arm (左腕)"). */
+  nameDisplay: NameDisplay;
 }
 
 const KEY = 'mmd-prefs';
 const isTouch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
 function load(): Prefs {
-  const defaults: Prefs = { adaptiveQuality: !!isTouch };
+  const defaults: Prefs = { adaptiveQuality: !!isTouch, nameDisplay: 'both' };
   try {
     return { ...defaults, ...(JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Prefs>) };
   } catch {

@@ -7,6 +7,10 @@ import { me, useMotionEditor } from '@/store/motionEditor';
 import { beginKeyDrag, endKeyDrag, selectGroup, setSelection, updateKeyDrag } from './actions';
 import { buildRows, GROUP_COLOR, type Row } from './rows';
 import { dopeProbe } from './view';
+import { formatName } from '@/lib/names';
+import { getNameTable, openNameMenu, useNames } from '@/store/names';
+import { nameTooltip } from '@/features/names/text';
+import { usePrefs } from '@/store/prefs';
 
 const RULER_H = 22;
 const SHOT_H = 14;
@@ -23,6 +27,19 @@ interface Geometry {
   start: number;
   ppf: number;
   scrollY: number;
+}
+
+/** Truncate text with an ellipsis to fit a pixel width (by measurement, so CJK and Latin both fit). */
+function fitText(ctx: CanvasRenderingContext2D, text: string, max: number): string {
+  if (ctx.measureText(text).width <= max) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (ctx.measureText(`${text.slice(0, mid)}…`).width <= max) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${text.slice(0, lo)}…`;
 }
 
 const frameToX = (g: Geometry, f: number): number => g.labelW + (f - g.start) * g.ppf;
@@ -93,6 +110,8 @@ export function DopeSheet() {
     g.ppf = Math.max(0.05, (g.width - g.labelW) / Math.max(1, s.view.span));
     dopeProbe.ppf = g.ppf;
     const rows = (rowsRef.current = computeRows());
+    const names = getNameTable(s.modelId);
+    const nameMode = usePrefs.getState().nameDisplay;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (canvas.width !== Math.round(g.width * dpr) || canvas.height !== Math.round(g.height * dpr)) {
       canvas.width = Math.round(g.width * dpr);
@@ -187,8 +206,8 @@ export function DopeSheet() {
         ctx.arc(18, y + g.rowH / 2, 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = dim;
-        const label = r.label.length > 16 ? `${r.label.slice(0, 15)}…` : r.label;
-        ctx.fillText(label, 26, y + g.rowH / 2);
+        const text = r.kind === 'camera' ? r.label : formatName(names.get(r.kind, r.track), nameMode);
+        ctx.fillText(fitText(ctx, text, g.labelW - 30), 26, y + g.rowH / 2);
       }
     }
 
@@ -279,10 +298,15 @@ export function DopeSheet() {
     });
     ro.observe(wrap);
     const unsub = useMotionEditor.subscribe(requestDraw);
+    // Labels follow the name language setting and user labels.
+    const unsubPrefs = usePrefs.subscribe(requestDraw);
+    const unsubNames = useNames.subscribe(requestDraw);
     requestDraw();
     return () => {
       ro.disconnect();
       unsub();
+      unsubPrefs();
+      unsubNames();
     };
   }, [requestDraw]);
 
@@ -447,8 +471,22 @@ export function DopeSheet() {
     };
     if (p.x < g.labelW) {
       // Touch: drag the labels to scroll rows; a tap does the label action.
-      if (touch) pan(labelAction);
-      else labelAction();
+      if (touch) {
+        pan(labelAction);
+        // Long-press a bone / morph label: the name menu (rename label).
+        const hit = labelAt(p.x, p.y);
+        const modelId = me.get().modelId;
+        if (hit && modelId) {
+          const at = { x: e.clientX, y: e.clientY };
+          if (longPress.current) clearTimeout(longPress.current);
+          longPress.current = setTimeout(() => {
+            const gst = gesture.current;
+            if (gst?.type !== 'pan' || gst.moved) return;
+            gesture.current = null;
+            openNameMenu(modelId, hit.kind, hit.track, at.x, at.y);
+          }, 500);
+        }
+      } else labelAction();
       return;
     }
     const hit = hitKey(p.x, p.y);
@@ -491,8 +529,22 @@ export function DopeSheet() {
     requestDraw();
   };
 
+  /** The bone / morph track whose label is under a point (label column only). */
+  const labelAt = (x: number, y: number): { kind: 'bone' | 'morph'; track: string } | null => {
+    if (x >= geo.current.labelW || y < HEADER_H) return null;
+    const r = rowsRef.current[hitRow(y)];
+    return r?.type === 'track' && r.kind !== 'camera' ? { kind: r.kind, track: r.track } : null;
+  };
+
   const onPointerMove = (e: React.PointerEvent): void => {
-    if (!pointers.current.has(e.pointerId)) return;
+    if (!pointers.current.has(e.pointerId)) {
+      // Hover: tooltip with the Japanese name and where the label came from.
+      const p = local(e);
+      const hit = labelAt(p.x, p.y);
+      const title = hit ? nameTooltip(getNameTable(me.get().modelId).get(hit.kind, hit.track)) : '';
+      if (e.currentTarget.getAttribute('title') !== title) e.currentTarget.setAttribute('title', title);
+      return;
+    }
     const p = local(e);
     pointers.current.set(e.pointerId, p);
     const gst = gesture.current;
@@ -632,7 +684,13 @@ export function DopeSheet() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onWheel={onWheel}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          const hit = labelAt(e.clientX - r.left, e.clientY - r.top);
+          const modelId = me.get().modelId;
+          if (hit && modelId) openNameMenu(modelId, hit.kind, hit.track, e.clientX, e.clientY);
+        }}
       />
       <div
         ref={headRef}

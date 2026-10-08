@@ -19,6 +19,7 @@ import { IconButton, NumberField, Select } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
 import { engineOrNull } from '@/store/engineRef';
 import { setSheetSnap, useLayout } from '@/store/layout';
+import { NameLabel } from '@/features/names/NameLabel';
 import { usePlaybackClock } from '@/hooks/usePlaybackClock';
 import type { PlaybackState } from '@/engine/types';
 import { pinchScale, pinchState, type Point } from '@/lib/gestures';
@@ -41,7 +42,9 @@ const EditorDock = lazy(() => import('@/features/motion-editor/EditorDock'));
 
 /** Open or close the motion editor (loaded on demand). */
 function toggleMotionEditor(): void {
-  void import('@/features/motion-editor/actions').then((a) => (me.get().open ? a.closeEditor() : a.openEditor()));
+  void import('@/features/motion-editor/actions').then((a) =>
+    me.get().open ? a.closeEditor() : a.openEditor(),
+  );
 }
 
 /** Bottom dock: the playback timeline, or the motion editor sharing the same space and transport. */
@@ -61,8 +64,17 @@ export function Timeline() {
     });
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-panel" aria-label="Motion editor dock">
-      <TransportBar onFit={() => me.set({ view: { start: -2, span: Math.max(60, (engineOrNull()?.getPlayback().duration ?? 300) + 12) } })} onZoom={zoom} />
-      <Suspense fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading editor…</div>}>
+      <TransportBar
+        onFit={() =>
+          me.set({
+            view: { start: -2, span: Math.max(60, (engineOrNull()?.getPlayback().duration ?? 300) + 12) },
+          })
+        }
+        onZoom={zoom}
+      />
+      <Suspense
+        fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading editor…</div>}
+      >
         <EditorDock />
       </Suspense>
     </div>
@@ -81,6 +93,8 @@ interface Row {
   color: string;
   depth: number;
   expandable?: boolean;
+  /** Bone / morph track: shown with its English label. */
+  name?: { modelId: string; kind: 'bone' | 'morph'; ja: string };
 }
 
 function mergeFrames(lists: number[][]): number[] {
@@ -151,6 +165,7 @@ function PlaybackTimeline() {
           out.push({
             key: `${bk}:${g.name}`,
             label: g.name,
+            name: { modelId: m.id, kind: 'bone', ja: g.name },
             kind: 'track',
             frames: g.frames,
             color: '#a3b5ff',
@@ -171,6 +186,7 @@ function PlaybackTimeline() {
           out.push({
             key: `${mk}:${g.name}`,
             label: g.name,
+            name: { modelId: m.id, kind: 'morph', ja: g.name },
             kind: 'track',
             frames: g.frames,
             color: '#f0aee6',
@@ -478,12 +494,21 @@ function PlaybackTimeline() {
                     <span className="inline-block w-3" />
                   )}
                   <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: row.color }} />
-                  <span
-                    className={cn('truncate', row.kind === 'track' ? 'text-fg-dim' : 'text-fg-muted')}
-                    title={row.label}
-                  >
-                    {row.label}
-                  </span>
+                  {row.name ? (
+                    <NameLabel
+                      modelId={row.name.modelId}
+                      kind={row.name.kind}
+                      ja={row.name.ja}
+                      className="text-fg-dim"
+                    />
+                  ) : (
+                    <span
+                      className={cn('truncate', row.kind === 'track' ? 'text-fg-dim' : 'text-fg-muted')}
+                      title={row.label}
+                    >
+                      {row.label}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -519,7 +544,9 @@ function EditorToggle() {
       title={open ? 'Back to the playback timeline' : 'Edit keyframes (Motion Editor & Camera Director)'}
       className={cn(
         'mr-1 flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] coarse:h-10 coarse:px-3',
-        open ? 'border-accent bg-accent-soft text-fg' : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
+        open
+          ? 'border-accent bg-accent-soft text-fg'
+          : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
       )}
     >
       <PenLine size={13} /> {open ? 'Editing' : 'Edit'}

@@ -1,3 +1,4 @@
+import { useNameText } from '@/features/names/text';
 import { Button, Row, Section, Select, SliderRow } from '@/components/ui/controls';
 import type { CameraMode, CameraPreset } from '@/engine/types';
 import { cameraPreset, focusSelected, setCameraMode, setFollow, setFov } from '@/store/actions';
@@ -18,6 +19,7 @@ export function CameraPanel() {
   const camera = useStudio((s) => s.camera);
   const hasCamMotion = useStudio((s) => s.cameraMotion !== null);
   const model = useStudio((s) => s.models.find((m) => m.id === s.selectedModelId) ?? null);
+  const nameText = useNameText(model?.id);
   const followBones = model
     ? model.info.bones.filter((b) => FOLLOW_BONES.includes(b.name)).map((b) => b.name)
     : [];
@@ -81,7 +83,7 @@ export function CameraPanel() {
                 {(followBones.length ? followBones : model.info.bones.slice(0, 50).map((b) => b.name)).map(
                   (n) => (
                     <option key={n} value={n}>
-                      {n}
+                      {nameText('bone', n)}
                     </option>
                   ),
                 )}

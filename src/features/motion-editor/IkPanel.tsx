@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNameText } from '@/features/names/text';
 import { Lock, RefreshCw, Trash2 } from 'lucide-react';
 import { useMotionEditor, me } from '@/store/motionEditor';
 import { toast } from '@/store/studio';
@@ -20,6 +21,7 @@ const isLeg = (name: string): boolean => name.includes('足');
 
 export default function IkPanel() {
   const modelId = useMotionEditor((s) => s.modelId);
+  const nameText = useNameText(modelId);
   const revision = useMotionEditor((s) => s.revision);
   const overlay = useMotionEditor((s) => s.ikOverlay);
   const bakeFk = useMotionEditor((s) => s.bakeFk);
@@ -74,7 +76,7 @@ export default function IkPanel() {
           {chains.map((c) => (
             <Check
               key={c.bone}
-              label={`${c.bone} → ${c.target} (${c.links.length})`}
+              label={`${nameText('bone', c.bone)} → ${nameText('bone', c.target)} (${c.links.length})`}
               checked={isPicked(c.bone)}
               onChange={(v) => setPicked((p) => ({ ...p, [c.bone]: v }))}
             />
@@ -134,7 +136,9 @@ export default function IkPanel() {
               aria-label="Pin bone"
             >
               {chains.map((c) => (
-                <option key={c.bone}>{c.bone}</option>
+                <option key={c.bone} value={c.bone}>
+                  {nameText('bone', c.bone)}
+                </option>
               ))}
             </select>
           </label>
@@ -158,7 +162,7 @@ export default function IkPanel() {
             >
               <Lock size={12} className="text-[#4dd0e1]" />
               <span className="flex-1 truncate">
-                {p.bone} {p.start}–{p.end}
+                {nameText('bone', p.bone)} {p.start}–{p.end}
                 <span className="text-fg-dim">
                   {' '}
                   ±{p.blendIn}/{p.blendOut}

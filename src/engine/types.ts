@@ -18,12 +18,16 @@ export interface VFile {
 export interface MorphInfo {
   index: number;
   name: string;
+  /** English name from the PMX, if any (display only). */
+  en?: string;
   category: MorphCategory;
 }
 
 export interface BoneInfo {
   index: number;
   name: string;
+  /** English name from the PMX, if any (display only). */
+  en?: string;
   parent: number;
   /** Has a rigid body driven by physics. */
   physics: boolean;
@@ -32,6 +36,8 @@ export interface BoneInfo {
 export interface MaterialInfo {
   index: number;
   name: string;
+  /** English name from the PMX, if any (display only). */
+  en?: string;
   visible: boolean;
   outline: boolean;
   alpha: number;

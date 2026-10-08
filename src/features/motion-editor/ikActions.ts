@@ -8,6 +8,9 @@ import type { PinRange, Vec3 } from '@/lib/motion/types';
 import { engineOrNull } from '@/store/engineRef';
 import { me } from '@/store/motionEditor';
 import { toast } from '@/store/studio';
+import { formatName } from '@/lib/names';
+import { getNameTable } from '@/store/names';
+import { usePrefs } from '@/store/prefs';
 import { commitClips, newId, scheduleApply, setPins } from './actions';
 
 export interface IkChain {
@@ -154,7 +157,10 @@ export function addPin(bone: string, from: number, to: number, blendIn = 3, blen
   if (!modelId || !clip) return;
   const track = clip.bones.find((t) => t.name === bone);
   if (!track?.keys.length) {
-    toast('warning', `${bone} has no keys to pin`);
+    toast(
+      'warning',
+      `${formatName(getNameTable(modelId).get('bone', bone), usePrefs.getState().nameDisplay)} has no keys to pin`,
+    );
     return;
   }
   const anchor = sampleBone(track.keys, from);

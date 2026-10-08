@@ -8,6 +8,7 @@ import { deleteProjectById, newProject, openProjectById } from '@/features/proje
 import { openFilePicker } from '@/features/app/filePickers';
 import { studio, useStudio } from '@/store/studio';
 import { SHORTCUTS } from './useShortcuts';
+import { NameDialogs } from '@/features/names/NameDialogs';
 
 const MoreMenu = lazy(() => import('@/features/shell/MoreMenu'));
 
@@ -18,6 +19,7 @@ export function Dialogs() {
   };
   return (
     <>
+      <NameDialogs />
       <Dialog open={dialog === 'shortcuts'} onOpenChange={close} title="Keyboard shortcuts">
         <table className="w-full text-[12px]">
           <tbody>

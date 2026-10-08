@@ -43,6 +43,11 @@ import {
   setTransform,
 } from '@/store/actions';
 import { useStudio, type ModelUI } from '@/store/studio';
+import { matchesName } from '@/lib/names';
+import { NameLabel } from '@/features/names/NameLabel';
+import { NameDisplaySwitch } from '@/features/names/NameDisplaySwitch';
+import { useNameText } from '@/features/names/text';
+import { useNameTable } from '@/store/names';
 
 export function ModelInspector() {
   const model = useStudio((s) => s.models.find((m) => m.id === s.selectedModelId) ?? null);
@@ -53,8 +58,11 @@ export function ModelInspector() {
   return (
     <div data-testid="model-inspector">
       <div className="border-b border-line px-3 py-2">
-        <div className="truncate font-medium" title={model.name}>
-          {model.name}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 truncate font-medium" title={model.name}>
+            {model.name}
+          </div>
+          <NameDisplaySwitch />
         </div>
         <div className="text-[11px] text-fg-dim">
           {model.info.fileName} · {model.info.vertexCount.toLocaleString()} verts · {model.info.bones.length}{' '}
@@ -177,17 +185,20 @@ const CATEGORY_ORDER: MorphCategory[] = ['eyebrow', 'eye', 'mouth', 'other', 'sy
 
 function MorphSection({ model }: { model: ModelUI }) {
   const [query, setQuery] = useState('');
+  const names = useNameTable(model.id);
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const byCat = new Map<MorphCategory, MorphInfo[]>();
     for (const m of model.info.morphs) {
-      if (q && !m.name.toLowerCase().includes(q)) continue;
-      const list = byCat.get(m.category) ?? [];
+      const r = names.get('morph', m.name);
+      if (query.trim() && !matchesName(query, r)) continue;
+      // The PMX panel decides; the dictionary only places morphs the PMX left in "other".
+      const cat = m.category === 'other' && r.category ? r.category : m.category;
+      const list = byCat.get(cat) ?? [];
       list.push(m);
-      byCat.set(m.category, list);
+      byCat.set(cat, list);
     }
     return CATEGORY_ORDER.filter((c) => byCat.has(c)).map((c) => ({ category: c, morphs: byCat.get(c)! }));
-  }, [model.info.morphs, query]);
+  }, [model.info.morphs, query, names]);
   const active = Object.values(model.morphs).filter((v) => v !== 0).length;
   return (
     <Section
@@ -202,7 +213,7 @@ function MorphSection({ model }: { model: ModelUI }) {
         <p className="text-[12px] text-fg-dim">This model has no morphs.</p>
       ) : (
         <>
-          <SearchBox value={query} onChange={setQuery} label="Search morphs" />
+          <SearchBox value={query} onChange={setQuery} label="Search morphs (English or 日本語)" />
           {groups.map((g) => (
             <MorphGroup
               key={g.category}
@@ -305,28 +316,29 @@ const MorphSlider = memo(function MorphSlider({
   value: number;
 }) {
   const coarse = useLayout((st) => st.coarse);
+  const text = useNameText(modelId)('morph', name);
   const nudge = (d: number): void =>
     setMorph(modelId, name, Math.min(1, Math.max(0, Math.round((value + d) * 100) / 100)));
   return (
     <div
       className={cn(
         'grid items-center gap-2 py-[3px]',
-        coarse ? 'grid-cols-[minmax(56px,96px)_44px_1fr_44px_40px]' : 'grid-cols-[96px_1fr_34px]',
+        coarse ? 'grid-cols-[minmax(56px,120px)_44px_1fr_44px_40px]' : 'grid-cols-[120px_1fr_34px]',
       )}
     >
-      <span
-        className={cn('truncate text-[12px] coarse:text-[13px]', value ? 'text-fg' : 'text-fg-muted')}
-        title={name}
-      >
-        {name}
-      </span>
+      <NameLabel
+        modelId={modelId}
+        kind="morph"
+        ja={name}
+        className={cn('block text-[12px] coarse:text-[13px]', value ? 'text-fg' : 'text-fg-muted')}
+      />
       {coarse && (
-        <Stepper label={`Decrease morph ${name}`} onStep={(n) => nudge(-0.05 * n)}>
+        <Stepper label={`Decrease morph ${text}`} onStep={(n) => nudge(-0.05 * n)}>
           <Minus size={16} />
         </Stepper>
       )}
       <Slider
-        label={`Morph ${name}`}
+        label={`Morph ${text}`}
         value={value}
         onChange={(v) => setMorph(modelId, name, v)}
         min={0}
@@ -334,7 +346,7 @@ const MorphSlider = memo(function MorphSlider({
         step={0.01}
       />
       {coarse && (
-        <Stepper label={`Increase morph ${name}`} onStep={(n) => nudge(0.05 * n)}>
+        <Stepper label={`Increase morph ${text}`} onStep={(n) => nudge(0.05 * n)}>
           <Plus size={16} />
         </Stepper>
       )}
@@ -364,11 +376,13 @@ function BoneSection({ model }: { model: ModelUI }) {
   const selected = useStudio((s) => s.selectedBone);
   const gizmo = useStudio((s) => s.gizmoMode);
   const [query, setQuery] = useState('');
+  const names = useNameTable(model.id);
   const tree = useMemo(() => buildTree(model.info.bones), [model.info.bones]);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? model.info.bones.filter((b) => b.name.toLowerCase().includes(q)) : null;
-  }, [model.info.bones, query]);
+  const filtered = useMemo(
+    () =>
+      query.trim() ? model.info.bones.filter((b) => matchesName(query, names.get('bone', b.name))) : null,
+    [model.info.bones, query, names],
+  );
   return (
     <Section title={`Bones (${model.info.bones.length})`} defaultOpen={false}>
       <div className="mb-2 flex items-center gap-1">
@@ -392,15 +406,19 @@ function BoneSection({ model }: { model: ModelUI }) {
           </Button>
         )}
       </div>
-      <SearchBox value={query} onChange={setQuery} label="Search bones" />
+      <SearchBox value={query} onChange={setQuery} label="Search bones (English or 日本語)" />
       <div
         role="tree"
         aria-label="Bone hierarchy"
         className="max-h-72 overflow-y-auto rounded border border-line bg-bg py-1"
       >
         {filtered
-          ? filtered.map((b) => <BoneRow key={b.index} bone={b} depth={0} selected={selected === b.index} />)
-          : tree.map((n) => <BoneTreeNode key={n.bone.index} node={n} depth={0} selected={selected} />)}
+          ? filtered.map((b) => (
+              <BoneRow key={b.index} modelId={model.id} bone={b} depth={0} selected={selected === b.index} />
+            ))
+          : tree.map((n) => (
+              <BoneTreeNode key={n.bone.index} modelId={model.id} node={n} depth={0} selected={selected} />
+            ))}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-fg-dim">
         Select a bone, then drag the gizmo in the viewport. Edits are undoable; playing a motion overrides
@@ -410,11 +428,22 @@ function BoneSection({ model }: { model: ModelUI }) {
   );
 }
 
-function BoneTreeNode({ node, depth, selected }: { node: BoneNode; depth: number; selected: number | null }) {
+function BoneTreeNode({
+  modelId,
+  node,
+  depth,
+  selected,
+}: {
+  modelId: string;
+  node: BoneNode;
+  depth: number;
+  selected: number | null;
+}) {
   const [open, setOpen] = useState(depth < 2);
   return (
     <div role="none">
       <BoneRow
+        modelId={modelId}
         bone={node.bone}
         depth={depth}
         selected={selected === node.bone.index}
@@ -424,13 +453,14 @@ function BoneTreeNode({ node, depth, selected }: { node: BoneNode; depth: number
       />
       {open &&
         node.children.map((c) => (
-          <BoneTreeNode key={c.bone.index} node={c} depth={depth + 1} selected={selected} />
+          <BoneTreeNode key={c.bone.index} modelId={modelId} node={c} depth={depth + 1} selected={selected} />
         ))}
     </div>
   );
 }
 
 function BoneRow({
+  modelId,
   bone,
   depth,
   selected,
@@ -438,6 +468,7 @@ function BoneRow({
   open,
   onToggle,
 }: {
+  modelId: string;
   bone: BoneInfo;
   depth: number;
   selected: boolean;
@@ -452,7 +483,7 @@ function BoneRow({
       aria-expanded={hasChildren ? open : undefined}
       tabIndex={0}
       className={cn(
-        'flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] outline-none',
+        'flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] outline-none coarse:h-11',
         selected ? 'bg-accent-soft text-accent' : 'hover:bg-bg-hover focus-visible:bg-bg-hover',
       )}
       style={{ paddingLeft: 4 + depth * 12 }}
@@ -488,40 +519,40 @@ function BoneRow({
         <span className="inline-block w-[11px]" />
       )}
       <Bone size={11} className={bone.physics ? 'text-warn' : 'text-fg-dim'} />
-      <span className="truncate">{bone.name}</span>
+      <NameLabel modelId={modelId} kind="bone" ja={bone.name} />
       {bone.physics && <span className="ml-auto text-[10px] text-warn">phys</span>}
     </div>
   );
 }
 
 function MaterialSection({ model }: { model: ModelUI }) {
+  const nameText = useNameText(model.id);
   return (
     <Section title={`Materials (${model.info.materials.length})`} defaultOpen={false}>
       <div className="flex flex-col gap-1">
         {model.info.materials.map((mat, i) => {
           const st = model.materials[i] ?? { visible: true, outline: mat.outline, alpha: mat.alpha };
+          const label = mat.name ? nameText('material', mat.name) : `Material ${i}`;
           return (
             <div key={i} className="rounded border border-line px-2 py-1">
               <div className="flex items-center gap-1">
                 <IconButton
                   size="sm"
-                  label={st.visible ? `Hide ${mat.name}` : `Show ${mat.name}`}
+                  label={st.visible ? `Hide ${label}` : `Show ${label}`}
                   onClick={() => setMaterial(model.id, i, { visible: !st.visible })}
                 >
                   {st.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                 </IconButton>
-                <span
-                  className={cn(
-                    'min-w-0 flex-1 truncate text-[12px]',
-                    !st.visible && 'text-fg-dim line-through',
-                  )}
-                  title={mat.name}
-                >
-                  {mat.name || `Material ${i}`}
-                </span>
+                <NameLabel
+                  modelId={model.id}
+                  kind="material"
+                  ja={mat.name}
+                  fallback={`Material ${i}`}
+                  className={cn('flex-1 text-[12px]', !st.visible && 'text-fg-dim line-through')}
+                />
                 <span className="text-[10px] text-fg-dim">outline</span>
                 <Switch
-                  label={`Outline for ${mat.name}`}
+                  label={`Outline for ${label}`}
                   checked={st.outline}
                   onChange={(v) => setMaterial(model.id, i, { outline: v })}
                 />
@@ -529,7 +560,7 @@ function MaterialSection({ model }: { model: ModelUI }) {
               <div className="grid grid-cols-[40px_1fr_30px] items-center gap-2 pl-1">
                 <span className="text-[11px] text-fg-dim">alpha</span>
                 <Slider
-                  label={`Alpha for ${mat.name}`}
+                  label={`Alpha for ${label}`}
                   value={st.alpha}
                   min={0}
                   max={1}
