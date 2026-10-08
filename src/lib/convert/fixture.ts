@@ -208,7 +208,9 @@ export function humanoidData(opts: FixtureOptions = {}): HumanoidData {
       [2, 3, 7, 6],
       [3, 0, 4, 7],
     ];
-    for (const f of faces) {
+    for (const face of faces) {
+      // Listed inward; reversed so fronts face out (CCW seen from outside).
+      const f = [...face].reverse();
       const base = pos.length / 3;
       const p0 = corners[f[0]];
       const n = norm(cross(sub(corners[f[1]], p0), sub(corners[f[2]], p0)));

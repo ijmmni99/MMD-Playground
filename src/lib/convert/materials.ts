@@ -8,7 +8,7 @@ import type { SourceMaterial, SourceTexture } from './types';
 export function texturePaths(textures: SourceTexture[]): string[] {
   const used = new Set<string>();
   return textures.map((t, i) => {
-    const ext = /jpe?g/i.test(t.mime) ? 'jpg' : 'png';
+    const ext = /jpe?g/i.test(t.mime) ? 'jpg' : /tga/i.test(t.mime) ? 'tga' : /bmp/i.test(t.mime) ? 'bmp' : 'png';
     let base = t.name
       .replace(/\.[^.]+$/, '')
       .normalize('NFKD')

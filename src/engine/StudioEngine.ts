@@ -169,6 +169,8 @@ export interface StudioEngine {
     camera: [number, number, number];
     screen: [number, number];
   } | null;
+  /** A static, vertex-coloured mesh (model converter "original" preview); null removes it. */
+  setPreviewMesh(data: { positions: Float32Array; indices: Uint32Array; colors: Float32Array; offset: [number, number, number] } | null): void;
   /** Minimum playback length in frames (clip timeline end). */
   setMinDuration(frames: number): void;
   /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */

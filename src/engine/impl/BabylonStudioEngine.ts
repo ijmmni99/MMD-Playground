@@ -21,6 +21,8 @@ import {
   LoadAssetContainerAsync,
   Matrix,
   Mesh,
+  StandardMaterial,
+  VertexData,
   PositionGizmo,
   Quaternion,
   RotationGizmo,
@@ -1438,6 +1440,30 @@ export class BabylonStudioEngine implements StudioEngine {
   }
 
   private text!: TextLayer;
+  private previewMesh: Mesh | null = null;
+
+  setPreviewMesh(data: { positions: Float32Array; indices: Uint32Array; colors: Float32Array; offset: [number, number, number] } | null): void {
+    this.previewMesh?.dispose(false, true);
+    this.previewMesh = null;
+    if (!data) return;
+    const mesh = new Mesh('converter-original', this.scene);
+    const vd = new VertexData();
+    vd.positions = data.positions;
+    vd.indices = data.indices;
+    vd.colors = data.colors;
+    const normals: number[] = [];
+    VertexData.ComputeNormals(data.positions, data.indices, normals);
+    vd.normals = normals;
+    vd.applyToMesh(mesh);
+    const mat = new StandardMaterial('converter-original', this.scene);
+    mat.backFaceCulling = false;
+    mat.specularColor = new Color3(0.1, 0.1, 0.1);
+    mesh.material = mat;
+    mesh.position.set(...data.offset);
+    mesh.isPickable = false;
+    this.shadowGen?.addShadowCaster(mesh, false);
+    this.previewMesh = mesh;
+  }
 
   setTextItems(items: TextItem[]): void {
     this.text.setItems(items);

@@ -6,6 +6,7 @@ import {
   Info,
   Keyboard,
   PersonStanding,
+  Boxes,
   Redo2,
   Save,
   Smartphone,
@@ -32,15 +33,18 @@ function Action({
   label,
   onClick,
   disabled,
+  testid,
 }: {
   icon: ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  testid?: string;
 }) {
   return (
     <button
       type="button"
+      data-testid={testid}
       disabled={disabled}
       onClick={onClick}
       className="flex min-h-[48px] items-center gap-2 rounded-lg border border-line bg-bg-raised px-3 text-left text-[13px] active:bg-bg-hover disabled:opacity-40"
@@ -114,6 +118,16 @@ export default function MoreMenu() {
           onClick={() =>
             mode === 'phone-landscape' ? setSideTab('video2vmd') : openSheet('video2vmd', 'full')
           }
+        />
+        <Action
+          icon={<Boxes size={18} />}
+          label="Model Converter (FBX / VRM / glTF → PMX)"
+          testid="more-converter"
+          onClick={() => {
+            studio.set({ mode: 'converter' });
+            if (mode === 'phone-landscape') setSideTab('converter');
+            else openSheet('converter', 'full');
+          }}
         />
       </Section>
       <Section title="Edit">

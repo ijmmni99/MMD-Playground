@@ -47,7 +47,7 @@ export interface Toast {
 
 export type DialogId = 'shortcuts' | 'export' | 'projects' | 'about' | 'more' | null;
 export type RightTab = 'model' | 'scene' | 'camera' | 'export';
-export type AppMode = 'studio' | 'playground' | 'video2vmd';
+export type AppMode = 'studio' | 'playground' | 'video2vmd' | 'converter';
 
 export interface StudioState {
   engineReady: boolean;

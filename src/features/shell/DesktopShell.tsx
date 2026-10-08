@@ -11,6 +11,7 @@ import { useClipTimeline } from '@/store/clipTimeline';
 
 const Playground = lazy(() => import('@/features/playground/Playground'));
 const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
+const ConverterPanel = lazy(() => import('@/features/model-converter/ConverterPanel'));
 
 export interface PanelToggles {
   left: boolean;
@@ -99,7 +100,11 @@ export function DesktopShell() {
               collapsedSize={0}
               onResize={(size) => setCollapsed((c) => ({ ...c, left: size.inPixels < 2 }))}
             >
-              {mode === 'video2vmd' ? (
+              {mode === 'converter' ? (
+                <Suspense fallback={<div className="grid h-full place-items-center bg-bg-panel text-fg-muted">Loading…</div>}>
+                  <ConverterPanel />
+                </Suspense>
+              ) : mode === 'video2vmd' ? (
                 <Suspense
                   fallback={
                     <div className="grid h-full place-items-center bg-bg-panel text-fg-muted">Loading…</div>

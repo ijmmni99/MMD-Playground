@@ -140,7 +140,15 @@ export async function importFiles(raw: VFile[], opts: { asStage?: boolean } = {}
       !plan.poses.length
     ) {
       // Other 3D formats are a common mix-up: say what to do instead of a generic miss.
-      const other = files.find((f) => /\.(fbx|glb|gltf|vrm|obj|blend|dae|3ds|max|ma|mb|x)$/i.test(f.path));
+      // FBX / VRM / glTF: hand the original upload (ZIP included) to the Model Converter.
+      if (files.some((f) => /\.(fbx|glb|gltf|vrm)$/i.test(f.path))) {
+        set({ mode: 'converter' });
+        const { importConverterFiles } = await import('@/features/model-converter/actions');
+        toast('info', 'That’s not a PMX model — opening the Model Converter to turn it into one.', 6000);
+        await importConverterFiles(raw);
+        return;
+      }
+      const other = files.find((f) => /\.(obj|blend|dae|3ds|max|ma|mb|x)$/i.test(f.path));
       if (other) {
         const ext = other.path.split('.').pop()!.toUpperCase();
         toast(

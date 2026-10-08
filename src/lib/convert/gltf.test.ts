@@ -26,6 +26,14 @@ describe('glTF / VRM parsing', () => {
     const w = m.meshes[0].weights;
     for (let v = 0; v < w.length / 4; v++) expect(w[v * 4] + w[v * 4 + 1] + w[v * 4 + 2] + w[v * 4 + 3]).toBeCloseTo(1, 5);
     expect(Math.max(...m.meshes[0].joints)).toBeLessThan(m.bones.length);
+    // Fixture boxes face outward (24 verts per box).
+    const mesh = m.meshes[0];
+    let out = 0;
+    for (let b = 0; b < mesh.positions.length / 3; b += 24) {
+      const c = [0, 1, 2].map((k) => Array.from({ length: 24 }, (_, i) => mesh.positions[(b + i) * 3 + k]).reduce((x, y) => x + y) / 24);
+      for (let v = b; v < b + 24; v++) out += [0, 1, 2].reduce((s, k) => s + (mesh.positions[v * 3 + k] - c[k]) * mesh.normals[v * 3 + k], 0) > 0 ? 1 : 0;
+    }
+    expect(out).toBe(mesh.positions.length / 3);
   });
 
   it('reads VRM 1.0 humanoid, expressions, spring bones and license', () => {
