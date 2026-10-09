@@ -599,6 +599,15 @@ function RetargetStep() {
           onChange={(v) => updateSettings({ rootDepthStrength: v })}
         />
         <SliderRow
+          label="Hand contact (hips, chest, face)"
+          value={s.handContact ?? 1}
+          min={0}
+          max={1}
+          step={0.05}
+          format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => updateSettings({ handContact: v })}
+        />
+        <SliderRow
           label="Contact height"
           value={s.contactHeight}
           min={0.02}

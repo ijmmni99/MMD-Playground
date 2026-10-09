@@ -197,6 +197,28 @@ export function retarget(
 
   const prevArmHinge: Record<Side, Vec3 | null> = { 左: null, 右: null };
 
+  // Hand contact: model-side lengths for re-placing hands that touch the body (see solveFrame).
+  const contactStrength = settings.handContact ?? 1;
+  const restAt = (name: string): Vec3 => restPos(name) ?? [0, 0, 0];
+  const armLen = Object.fromEntries(
+    SIDES.map((s) => [
+      s,
+      [dist(restAt(BONE.arm(s)), restAt(BONE.elbow(s))), dist(restAt(BONE.elbow(s)), restAt(BONE.wrist(s)))],
+    ]),
+  ) as Record<Side, [number, number]>;
+  const modelTorso = dist(
+    mid(restAt(BONE.leg('左')), restAt(BONE.leg('右'))),
+    mid(restAt(BONE.arm('左')), restAt(BONE.arm('右'))),
+  );
+  // Ear height above 頭 (the person's ear midpoint maps to this point of the model's head).
+  const headLift = sk.has('両目') ? restAt('両目')[1] - restAt(BONE.head)[1] : 0.27 * modelTorso;
+  const canContact =
+    contactStrength > 0 &&
+    modelTorso > 1e-6 &&
+    [BONE.head, ...SIDES.flatMap((s) => [BONE.arm(s), BONE.elbow(s), BONE.wrist(s), BONE.leg(s)])].every(
+      (b) => sk.has(b),
+    );
+
   // Foot pitch calibration: a person's ankle→toe direction is pitched differently from an MMD rig's
   // 足首→つま先, so map the person's flat-foot pitch (frames where the foot is lowest) onto the rig's.
   const pitchOf = (d: Vec3): number => Math.atan2(-d[1], Math.hypot(d[0], d[2]));
@@ -320,19 +342,96 @@ export function retarget(
       drivers.set(BONE.lower, () => ({ world: lowerWorld }));
     }
 
-    const local: Quat[] = bones.map(() => [...QI] as Quat);
-    const world: Quat[] = bones.map(() => [...QI] as Quat);
+    const run = (): FrameSolve => {
+      const local: Quat[] = bones.map(() => [...QI] as Quat);
+      const world: Quat[] = bones.map(() => [...QI] as Quat);
+      for (const i of sk.order) {
+        const p = bones[i].parent;
+        const wp = p >= 0 ? world[p] : QI;
+        const d = drivers.get(bones[i].name);
+        if (d) {
+          const r = d(wp);
+          local[i] = qnormalize(r.local ?? qmul(qconj(wp), r.world!));
+        }
+        world[i] = qnormalize(qmul(wp, local[i]));
+      }
+      return { local, world };
+    };
+    const first = run();
+    if (!canContact) return first;
+
+    // Hand contact. Copying arm directions puts the hands wherever the model's own arm lengths and
+    // shoulder width take them, so the dancer's hands on hips, chest or face cross the body or float on a
+    // model with other proportions. When a wrist is near one of those anchors, place it at the same offset
+    // from the model's anchor (scaled by torso length) and solve the arm with two-bone IK, keeping the
+    // dancer's elbow direction.
+    const pos: Vec3[] = new Array(bones.length);
     for (const i of sk.order) {
       const p = bones[i].parent;
-      const wp = p >= 0 ? world[p] : QI;
-      const d = drivers.get(bones[i].name);
-      if (d) {
-        const r = d(wp);
-        local[i] = qnormalize(r.local ?? qmul(qconj(wp), r.world!));
-      }
-      world[i] = qnormalize(qmul(wp, local[i]));
+      pos[i] =
+        p >= 0 ? add(pos[p], rotate(first.world[p], sub(bones[i].position, bones[p].position))) : [0, 0, 0];
     }
-    return { local, world };
+    const at = (name: string): Vec3 => pos[sk.index(name)];
+    const personTorso = Math.max(1e-6, dist(hipMid, shMid));
+    const k = modelTorso / personTorso;
+    const headModel = add(at(BONE.head), rotate(first.world[sk.index(BONE.head)], [0, headLift, 0]));
+    const anchors: [person: Vec3, model: Vec3][] = [
+      [P[LM.leftHip], at(BONE.leg('左'))],
+      [P[LM.rightHip], at(BONE.leg('右'))],
+      [shMid, mid(at(BONE.arm('左')), at(BONE.arm('右')))],
+      [earMid, headModel],
+    ];
+    let changed = false;
+    for (const s of SIDES) {
+      const L = ls(s);
+      const [a, b] = armLen[s];
+      if (a < 1e-6 || b < 1e-6) continue;
+      const wristP = P[L.wrist];
+      let wSum = 0;
+      let wMax = 0;
+      let target: Vec3 = [0, 0, 0];
+      for (const [aP, aM] of anchors) {
+        const w = 1 - smoothstep(0.3, 0.55, dist(wristP, aP) / personTorso);
+        if (w <= 0) continue;
+        target = add(target, scale(add(aM, scale(sub(wristP, aP), k)), w));
+        wSum += w;
+        wMax = Math.max(wMax, w);
+      }
+      const weight = wMax * Math.min(1, contactStrength);
+      if (weight < 1e-3) continue;
+      const S = at(BONE.arm(s));
+      const fkWrist = at(BONE.wrist(s));
+      const T = lerp3(fkWrist, scale(target, 1 / wSum), weight);
+      // Two-bone IK; the elbow bends toward the dancer's elbow (its offset from the shoulder → wrist line).
+      const reach = sub(T, S);
+      const d = Math.min(Math.max(length(reach), Math.abs(a - b) + 1e-4), a + b - 1e-4);
+      const dir = normalize(reach, normalize(sub(fkWrist, S)));
+      const lineP = normalize(sub(wristP, P[L.shoulder]), dir);
+      const elbowOff = sub(P[L.elbow], P[L.shoulder]);
+      let pole = sub(elbowOff, scale(lineP, dot(elbowOff, lineP)));
+      pole = sub(pole, scale(dir, dot(pole, dir)));
+      if (length(pole) < 1e-4) {
+        const fkElbow = sub(at(BONE.elbow(s)), S);
+        pole = sub(fkElbow, scale(dir, dot(fkElbow, dir)));
+      }
+      pole = normalize(pole, normalize(cross(dir, FORWARD)));
+      const along = (a * a - b * b + d * d) / (2 * d);
+      const E = add(add(S, scale(dir, along)), scale(pole, Math.sqrt(Math.max(0, a * a - along * along))));
+      const upperDir = sub(E, S);
+      const foreDir = sub(add(S, scale(dir, d)), E);
+      const prevHinge = prevArmHinge[s] ?? rotate(upperFull, rest[s].armHinge);
+      let n = normalize(cross(upperDir, foreDir), prevHinge);
+      if (dot(n, prevHinge) < 0) n = scale(n, -1);
+      const R = rest[s];
+      const armWorld = frameRotation(R.upper, R.armHinge, upperDir, n);
+      const elbowWorld = frameRotation(R.fore, R.armHinge, foreDir, n);
+      drivers.set(BONE.arm(s), () => ({ world: armWorld }));
+      drivers.set(BONE.elbow(s), (wp) => ({
+        local: hinge(qmul(qconj(wp), elbowWorld), R.armHinge, -5 * DEG, 165 * DEG),
+      }));
+      changed = true;
+    }
+    return changed ? run() : first;
   };
 
   // ---- per-frame FK --------------------------------------------------------------------------------

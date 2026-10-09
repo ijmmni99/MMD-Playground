@@ -78,6 +78,8 @@ export interface ConversionSettings {
   scale: number;
   /** Drive legs and センター (off for seated / cropped videos). */
   lowerBody: boolean;
+  /** Re-place hands that touch the hips, chest or face onto the model's body (0–1; absent = 1). */
+  handContact?: number;
   /** Keyframe reduction tolerance (degrees for rotations; MMD units ×10 for positions). 0 = keep all. */
   reduceTolerance: number;
   /** v2 features (two-view, face, fingers); absent = body only. */

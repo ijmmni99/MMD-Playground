@@ -175,6 +175,7 @@ The converter walks through six steps:
    - A zero-lag One Euro filter smooths the motion, and bone lengths are normalised.
 4. **Retarget:** onto the **selected PMX model's own rest pose and hierarchy**, or a standard MMD skeleton if none is loaded.
    - Rotations are computed per bone with hinge limits and quaternion continuity.
+   - **Hand contact:** a hand touching the hips, chest or face is re-placed at the same spot on the model's own body (two-bone arm IK), so it doesn't cross or float on models with other proportions. Adjustable under Advanced: retargeting.
    - センター root motion uses leg odometry and ground contact.
    - Optional foot IK pins planted feet. A **quality report** is shown.
 5. **Preview:** **Apply to model** plays the motion in the viewport. The source video follows the studio playhead, and scrubbing either one moves both. The video's soundtrack can be copied into the studio's audio slot, with an offset control.
