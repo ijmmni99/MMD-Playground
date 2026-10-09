@@ -37,7 +37,17 @@ const RAD = Math.PI / 180;
 export interface SceneOptions {
   /** Swing the arms forward / back (motion mostly along the front camera's depth axis). */
   depthHeavy?: boolean;
+  /** Add irregular little hops (non-periodic vertical motion, so motion sync is unambiguous). */
+  hops?: boolean;
 }
+
+/** Hop times (seconds) of the `hops` option: irregular on purpose. */
+export const HOP_TIMES = [0.9, 2.35, 2.9, 4.6, 5.15, 7.3, 8.05, 9.9];
+const hopHeight = (t: number): number =>
+  HOP_TIMES.reduce((h, c) => {
+    const u = (t - c) / 0.18;
+    return Math.abs(u) < 1 ? Math.max(h, 0.07 * Math.cos((u * Math.PI) / 2) ** 2) : h;
+  }, 0);
 
 export interface SyntheticScene {
   t: number;
@@ -225,7 +235,8 @@ function facePoints(headC: Vec3, q: Quat, gaze: [number, number], blend: number[
 /** Ground truth at time t (performance time). */
 export function syntheticScene(t: number, o: SceneOptions = {}): SyntheticScene {
   const { joints, contact, headYaw } = syntheticPose(t);
-  const body = joints.map((p) => [...p] as Vec3);
+  const lift = o.hops ? hopHeight(t) : 0;
+  const body = joints.map((p) => [p[0], p[1] + lift, p[2]] as Vec3);
   const forearmEnds = {} as Record<'left' | 'right', { wrist: Vec3; h: Vec3; a: Vec3 }>;
   for (const side of ['left', 'right'] as const) {
     const L =
