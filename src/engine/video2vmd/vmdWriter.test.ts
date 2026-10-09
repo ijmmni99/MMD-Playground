@@ -5,7 +5,9 @@ import { summarizeVmd } from '@/lib/vmd';
 import {
   LINEAR_INTERPOLATION,
   VMD_BONE_KEY_BYTES,
+  VMD_MORPH_KEY_BYTES,
   normalizeBoneKeys,
+  normalizeMorphKeys,
   shiftJis,
   writeVmd,
   type BoneKey,
@@ -132,6 +134,77 @@ describe('vmd writer', () => {
     expect(names).toEqual(['センター', '左足ＩＫ']);
     expect(anim.endFrame).toBe(60);
     expect(anim.propertyTrack.ikBoneNames).toEqual(['左足ＩＫ']);
+    scene.dispose();
+  });
+
+  it('writes 23-byte morph records: 15-byte Shift-JIS name, uint32 frame, float32 weight', () => {
+    const buf = writeVmd({
+      modelName: 'm',
+      bones: [key('センター', 0)],
+      morphs: [
+        { morph: 'まばたき', frame: 12, weight: 0.75 },
+        { morph: 'あ', frame: 3, weight: 1 },
+      ],
+    });
+    expect(VMD_MORPH_KEY_BYTES).toBe(23);
+    expect(buf.byteLength).toBe(30 + 20 + 4 + 111 + 4 + 2 * 23 + 4 * 3 + 4);
+    const bytes = new Uint8Array(buf);
+    const view = new DataView(buf);
+    const m0 = 54 + 111;
+    expect(view.getUint32(m0, true)).toBe(2);
+    // Sorted by name (code unit order): あ (U+3042) before まばたき (U+307E).
+    const a = sjis('あ');
+    expect(Array.from(bytes.slice(m0 + 4, m0 + 4 + a.length))).toEqual(a);
+    expect(bytes.slice(m0 + 4 + a.length, m0 + 4 + 15).every((b) => b === 0)).toBe(true);
+    expect(view.getUint32(m0 + 4 + 15, true)).toBe(3);
+    expect(view.getFloat32(m0 + 4 + 19, true)).toBe(1);
+    const r2 = m0 + 4 + 23;
+    const blink = sjis('まばたき');
+    expect(Array.from(bytes.slice(r2, r2 + blink.length))).toEqual(blink);
+    expect(view.getUint32(r2 + 15, true)).toBe(12);
+    expect(view.getFloat32(r2 + 19, true)).toBe(0.75);
+    expect(summarizeVmd(buf)).toMatchObject({ boneKeyCount: 1, morphKeyCount: 2 });
+  });
+
+  it('sorts morph keys by name then frame and drops duplicates', () => {
+    const out = normalizeMorphKeys([
+      { morph: 'う', frame: 4, weight: 0.1 },
+      { morph: 'あ', frame: 9, weight: 0.2 },
+      { morph: 'う', frame: 1, weight: 0.3 },
+      { morph: 'う', frame: 4, weight: 0.9 },
+    ]);
+    expect(out.map((k) => `${k.morph}${k.frame}:${k.weight}`)).toEqual(['あ9:0.2', 'う1:0.3', 'う4:0.9']);
+  });
+
+  it('round-trips body, finger and morph tracks through babylon-mmd', async () => {
+    const bones: BoneKey[] = [];
+    const names = ['センター', '左腕', '左人指１', '左人指２', '右親指０', '右小指３', '両目'];
+    for (const n of names)
+      for (let f = 0; f <= 30; f += 5) bones.push(key(n, f, [Math.sin(f / 20), 0, 0, Math.cos(f / 20)]));
+    const morphs = ['まばたき', 'あ', 'ウィンク右'].flatMap((m, i) =>
+      [0, 10, 20, 30].map((f) => ({ morph: m, frame: f, weight: ((f / 10 + i) % 3) / 2 })),
+    );
+    const buf = writeVmd({ modelName: 'テスト', bones, morphs });
+    const vmd = VmdObject.ParseFromBuffer(buf);
+    expect(vmd.boneKeyFrames.length).toBe(bones.length);
+    expect(vmd.morphKeyFrames.length).toBe(morphs.length);
+    const morphNames = new Set<string>();
+    for (let i = 0; i < vmd.morphKeyFrames.length; i++) morphNames.add(vmd.morphKeyFrames.get(i).morphName);
+    expect([...morphNames].sort()).toEqual(['あ', 'ウィンク右', 'まばたき'].sort());
+
+    const { NullEngine } = await import('@babylonjs/core/Engines/nullEngine');
+    const { Scene } = await import('@babylonjs/core/scene');
+    const { VmdLoader } = await import('babylon-mmd/esm/Loader/vmdLoader');
+    const scene = new Scene(new NullEngine());
+    const loader = new VmdLoader(scene);
+    loader.loggingEnabled = false;
+    const anim = await loader.loadFromBufferAsync('t', buf);
+    const tracks = [...anim.boneTracks, ...anim.movableBoneTracks].map((t) => t.name).sort();
+    expect(tracks).toEqual([...names].sort());
+    const blink = anim.morphTracks.find((t) => t.name === 'まばたき')!;
+    expect(Array.from(blink.frameNumbers)).toEqual([0, 10, 20, 30]);
+    expect(blink.weights[1]).toBeCloseTo(0.5);
+    expect(anim.endFrame).toBe(30);
     scene.dispose();
   });
 });

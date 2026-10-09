@@ -1,5 +1,12 @@
 import { encodeSjis } from '@/lib/motion/sjis';
-import { BONE_CHANNELS, emptyClip, linearCurves, type BoneTrack, type MotionClip } from '@/lib/motion/types';
+import {
+  BONE_CHANNELS,
+  emptyClip,
+  linearCurves,
+  type BoneTrack,
+  type MorphTrack,
+  type MotionClip,
+} from '@/lib/motion/types';
 import { writeVmd as writeMotion } from '@/lib/motion/vmd';
 
 /** One bone keyframe. Position is the offset from the rest position; rotation is the local quaternion. */
@@ -18,9 +25,18 @@ export interface PropertyKey {
   ik: { bone: string; enabled: boolean }[];
 }
 
+/** One morph (face) keyframe. */
+export interface MorphKey {
+  morph: string;
+  frame: number;
+  /** 0–1. */
+  weight: number;
+}
+
 export interface VmdInput {
   modelName: string;
   bones: BoneKey[];
+  morphs?: MorphKey[];
   properties?: PropertyKey[];
 }
 
@@ -29,6 +45,8 @@ export const VMD_HEADER_BYTES = 30;
 export const VMD_MODEL_NAME_BYTES = 20;
 export const VMD_BONE_NAME_BYTES = 15;
 export const VMD_BONE_KEY_BYTES = 111;
+/** 15-byte Shift-JIS name + uint32 frame + float32 weight. */
+export const VMD_MORPH_KEY_BYTES = 23;
 
 /**
  * Standard linear interpolation block written by MMD: control points (20,20)-(107,107) for X, Y, Z and
@@ -58,7 +76,16 @@ export function normalizeBoneKeys(keys: BoneKey[]): BoneKey[] {
     .sort((a, b) => (a.bone < b.bone ? -1 : a.bone > b.bone ? 1 : a.frame - b.frame));
 }
 
-/** Serialise a bone motion to the binary VMD format (delegates to the shared motion-library writer). */
+/** Sort by morph name then frame and drop duplicate frames per morph (the last one wins). */
+export function normalizeMorphKeys(keys: MorphKey[]): MorphKey[] {
+  const byKey = new Map<string, MorphKey>();
+  for (const k of keys) byKey.set(`${k.morph}\u0000${Math.round(k.frame)}`, k);
+  return [...byKey.values()]
+    .map((k) => ({ ...k, frame: Math.max(0, Math.round(k.frame)) }))
+    .sort((a, b) => (a.morph < b.morph ? -1 : a.morph > b.morph ? 1 : a.frame - b.frame));
+}
+
+/** Serialise a bone (+ morph) motion to the binary VMD format (delegates to the shared motion-library writer). */
 export function writeVmd(input: VmdInput): ArrayBuffer {
   const tracks = new Map<string, BoneTrack>();
   for (const k of normalizeBoneKeys(input.bones)) {
@@ -66,9 +93,16 @@ export function writeVmd(input: VmdInput): ArrayBuffer {
     if (!t) tracks.set(k.bone, (t = { name: k.bone, keys: [] }));
     t.keys.push({ f: k.frame, p: [...k.position], r: [...k.rotation], ip: linearCurves(BONE_CHANNELS) });
   }
+  const morphs = new Map<string, MorphTrack>();
+  for (const k of normalizeMorphKeys(input.morphs ?? [])) {
+    let t = morphs.get(k.morph);
+    if (!t) morphs.set(k.morph, (t = { name: k.morph, keys: [] }));
+    t.keys.push({ f: k.frame, w: k.weight });
+  }
   const clip: MotionClip = {
     ...emptyClip(input.modelName),
     bones: [...tracks.values()],
+    morphs: [...morphs.values()],
     props: (input.properties ?? []).map((p) => ({
       f: Math.max(0, Math.round(p.frame)),
       visible: p.visible,

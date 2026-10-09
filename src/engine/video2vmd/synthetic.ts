@@ -62,7 +62,7 @@ const ease = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * 
 export function syntheticPose(
   t: number,
   o: SyntheticOptions = {},
-): { joints: Vec3[]; contact: [boolean, boolean] } {
+): { joints: Vec3[]; contact: [boolean, boolean]; headYaw: number } {
   const period = o.period ?? 1.2;
   const sway = o.sway ?? 0.18;
   const yawAmp = o.yaw ?? 0.35;
@@ -181,7 +181,7 @@ export function syntheticPose(
   j[LM.rightHeel] = heelR;
   j[LM.leftFootIndex] = toeL;
   j[LM.rightFootIndex] = toeR;
-  return { joints: j, contact };
+  return { joints: j, contact, headYaw: yaw * 1.6 };
 }
 
 /** Deterministic pseudo-random noise in [-1, 1]. */

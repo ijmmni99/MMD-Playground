@@ -1,3 +1,5 @@
+import type { FaceObs, HandPair } from '@/lib/video2vmd/types';
+
 /** Landmark values per frame: 33 × [x, y, z, visibility]. */
 export type LandmarkArray = Float32Array | number[];
 
@@ -11,6 +13,10 @@ export interface PoseFrame {
   world: LandmarkArray;
   /** Number of people detected in the frame (when the estimator can tell). */
   people?: number;
+  /** Face tracking (crop pass), when enabled. */
+  face?: FaceObs | null;
+  /** Hands per body wrist (crop pass), when enabled. */
+  hands?: HandPair | null;
 }
 
 export interface CropBox {
