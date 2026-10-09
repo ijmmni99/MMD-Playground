@@ -54,7 +54,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
         <div className="grid h-6 w-6 place-items-center rounded-md bg-accent-strong text-white">
           <Box size={14} />
         </div>
-        {!compact && <span className="hidden font-semibold sm:inline">MMD Studio</span>}
+        {!compact && <span className="hidden font-semibold xl:inline">MMD Studio</span>}
       </div>
       <div className={cn('hidden min-w-0 items-center gap-1.5 sm:flex', compact && '!hidden')}>
         {editing ? (
@@ -136,7 +136,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
         <Redo2 size={15} />
       </IconButton>
       <div className="flex-1" />
-      <div className="mr-2 flex rounded-md border border-line p-0.5" role="tablist" aria-label="Mode">
+      <div className="mr-2 flex min-w-0 overflow-x-auto rounded-md border border-line p-0.5 [scrollbar-width:none]" role="tablist" aria-label="Mode">
         {(['studio', 'playground', 'video2vmd', 'converter', 'modeledit'] as const).map((m) => (
           <button
             key={m}
@@ -147,7 +147,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             aria-label={LONG[m] ?? m}
             onClick={() => studio.set({ mode: m })}
             className={cn(
-              'flex h-6 items-center gap-1 rounded px-2.5 text-[12px] capitalize',
+              'flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded px-2.5 text-[12px] capitalize',
               mode === m ? 'bg-bg-hover text-fg' : 'text-fg-muted hover:text-fg',
             )}
           >

@@ -117,15 +117,23 @@ const allLook = (look: string, extra: Record<string, unknown> = {}) => ({
 
 test('looks: Default matches the renderer without NPR; every preset compiles, changes the image, per tier', async ({
   page,
+  browser,
 }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  // Baseline: NPR system off entirely.
-  await boot(page, '&npr=off');
-  const baseline = await grab(page);
+  // Baseline: NPR system off entirely (its own context, so no restored project interferes).
+  const ctx = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    serviceWorkers: 'block',
+    reducedMotion: 'reduce',
+  });
+  const off = await ctx.newPage();
+  await boot(off, '&npr=off');
+  const baseline = await grab(off);
+  await ctx.close();
 
   const id = await boot(page);
   const plain = await grab(page);
@@ -218,6 +226,148 @@ test('looks: skinning and morphs still play with looks applied', async ({ page }
   }, id);
   expect(diff(await grab(page), before)).toBeGreaterThan(0.3);
   expect(errors).toEqual([]);
+});
+
+test('looks: see-through hair over eyes, outlines, tiers follow render quality, context loss keeps looks', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  const id = await boot(page);
+  const face = (seeThroughEyes: boolean) => ({
+    seeThroughEyes,
+    materials: {
+      髪: { look: 'animeHair' },
+      顔: { look: 'animeFace' },
+      目: { look: 'eye' },
+      体: { look: 'animeSkin' },
+    },
+  });
+  await page.evaluate(() => {
+    const s = (window as W).__studio!;
+    s.setCameraState({
+      ...s.getCameraState(),
+      target: [0, 16.4, 0],
+      alpha: -Math.PI / 2,
+      beta: Math.PI / 2,
+      radius: 9,
+      fov: 30,
+    });
+  });
+  // Blue eye pixels: count pixels where blue clearly dominates.
+  const blue = (img: number[]) => {
+    let n = 0;
+    for (let i = 0; i < img.length; i += 3) if (img[i + 2] > 120 && img[i + 2] > img[i] * 1.6) n++;
+    return n;
+  };
+  await page.evaluate(([m, l]) => (window as W).__studio!.setModelLooks(m, l), [id, face(false)] as const);
+  const hidden = await grab(page);
+  await page.locator('canvas').first().screenshot({ path: 'e2e/__shots/npr-eyes-off.png' });
+  await page.evaluate(([m, l]) => (window as W).__studio!.setModelLooks(m, l), [id, face(true)] as const);
+  const shown = await grab(page);
+  await page.locator('canvas').first().screenshot({ path: 'e2e/__shots/npr-eyes-on.png' });
+  expect(blue(shown)).toBeGreaterThan(blue(hidden) + 10);
+
+  // Outlines: per-material thickness and colour, and the post-process mode.
+  await page.evaluate(() => {
+    const s = (window as W).__studio!;
+    s.setCameraState({
+      ...s.getCameraState(),
+      target: [0, 11, 0],
+      alpha: -Math.PI / 2.6,
+      beta: Math.PI / 2.3,
+      radius: 26,
+      fov: 40,
+    });
+  });
+  await page.evaluate(([m, l]) => (window as W).__studio!.setModelLooks(m, l), [
+    id,
+    allLook('clothSmooth'),
+  ] as const);
+  const hull = await grab(page);
+  await page.evaluate(([m, l]) => (window as W).__studio!.setModelLooks(m, l), [
+    id,
+    allLook('clothSmooth', { params: { outlineScale: 3, outlineColor: [1, 0, 0] } }),
+  ] as const);
+  const thick = await grab(page);
+  expect(diff(thick, hull)).toBeGreaterThan(0.3);
+  await page.locator('canvas').first().screenshot({ path: 'e2e/__shots/npr-outline-thick.png' });
+  const settings = {
+    tier: 'auto',
+    showOriginal: false,
+    toonStrength: 1,
+    rimStrength: 1,
+    shadowWarmth: 0,
+    outlineMode: 'post',
+    outlineFalloff: true,
+  };
+  await page.evaluate((st) => (window as W).__studio!.setNprSettings(st), settings);
+  const post = await grab(page);
+  expect(diff(post, thick)).toBeGreaterThan(0.3);
+  await page.locator('canvas').first().screenshot({ path: 'e2e/__shots/npr-outline-post.png' });
+  await page.evaluate(
+    (st) => (window as W).__studio!.setNprSettings({ ...st, outlineMode: 'hull' }),
+    settings,
+  );
+
+  // Auto tier follows the render quality (which adaptive quality lowers on slow devices).
+  await page.getByLabel('Render quality').selectOption('low');
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.getNprStats().tier)).toBe('low');
+  await page.getByLabel('Render quality').selectOption('medium');
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.getNprStats().tier)).toBe('medium');
+  await page.getByLabel('Render quality').selectOption('high');
+  await expect.poll(() => page.evaluate(() => (window as W).__studio!.getNprStats().tier)).toBe('high');
+
+  // WebGL context loss and restore: looks (kept in the store) survive.
+  await page.evaluate(
+    ([m, l]) =>
+      (
+        window as unknown as { __looks: { setModelLooks(id: string, l: unknown): void } }
+      ).__looks.setModelLooks(m, l),
+    [id, allLook('animeHair')] as const,
+  );
+  const beforeLoss = await grab(page);
+  await page.evaluate(async () => {
+    const gl = document.querySelector('canvas')!.getContext('webgl2')!;
+    const ext = gl.getExtension('WEBGL_lose_context')!;
+    ext.loseContext();
+    await new Promise((r) => setTimeout(r, 800));
+    ext.restoreContext();
+  });
+  await page.waitForTimeout(3000);
+  expect(await page.evaluate(() => (window as W).__studio!.getNprStats().materials)).toBe(MATERIALS.length);
+  await expect.poll(async () => diff(await grab(page), beforeLoss), { timeout: 30_000 }).toBeLessThan(1.5);
+  expect(errors.filter((e) => !/context/i.test(e))).toEqual([]);
+});
+
+test('looks: three models with looks stay interactive', async ({ page }) => {
+  test.setTimeout(240_000);
+  const id = await boot(page);
+  for (let k = 0; k < 2; k++) {
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Import files / project' }).click();
+    await (await chooser).setFiles(MODEL);
+    await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(k + 2);
+  }
+  const ids = await page.evaluate(() => (window as W).__studio!.listModels());
+  expect(ids[0]).toBe(id);
+  for (const m of ids)
+    await page.evaluate(([mm, l]) => (window as W).__studio!.setModelLooks(mm, l), [
+      m,
+      allLook('animeSkin'),
+    ] as const);
+  await expect
+    .poll(() => page.evaluate(() => (window as W).__studio!.getNprStats().materials))
+    .toBe(MATERIALS.length * 3);
+  // CI renders on a CPU rasteriser: only check it keeps rendering frames.
+  await page.waitForTimeout(3000);
+  const fps = await page.evaluate(() =>
+    (window as unknown as { __studio: { getFps(): number } }).__studio.getFps(),
+  );
+  console.log('fps with three looked models (software GL):', fps);
+  expect(fps).toBeGreaterThan(0);
 });
 
 test('looks UI: auto-assign, tweak live, before / after, save, reload', async ({ page }) => {

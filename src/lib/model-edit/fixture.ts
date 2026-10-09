@@ -609,10 +609,48 @@ export function makeEditFixture(opts: FixtureOptions = {}): FixtureFiles {
     // Eyes on the face front, knee socks over the shins, a metal belt ring around the waist.
     const h = P('頭');
     for (const sx of [-1, 1])
-      tube(g, M('目'), off(h, [sx * 0.42, 1.05, -1.25]), off(h, [sx * 0.42, 1.05, -1.42]), () => 0.2, () => [[I('頭')], [1]], 2, 10);
+      tube(
+        g,
+        M('目'),
+        off(h, [sx * 0.42, 1.05, -1.25]),
+        off(h, [sx * 0.42, 1.05, -1.42]),
+        () => 0.2,
+        () => [[I('頭')], [1]],
+        2,
+        10,
+      );
+    // Bangs: a strand of hair across the eyes (see-through hair test).
+    tube(
+      g,
+      M('髪'),
+      off(h, [-0.75, 1.08, -1.62]),
+      off(h, [0.75, 1.08, -1.62]),
+      () => 0.1,
+      () => [[I('頭')], [1]],
+      2,
+      6,
+    );
     for (const J of ['左', '右'])
-      tube(g, M('ニーソ'), off(P(`${J}ひざ`), [0, 0.6, 0]), off(P(`${J}足首`), [0, 0.35, 0]), (t) => 0.54 - t * 0.15, blendIn(I(`${J}足`), I(`${J}ひざ`), 0.15), 6, 10);
-    tube(g, M('ベルト金具'), off(P('下半身'), [0, -0.05, 0]), off(P('下半身'), [0, 0.3, 0]), () => 1.2, () => [[I('下半身')], [1]], 1, 16);
+      tube(
+        g,
+        M('ニーソ'),
+        off(P(`${J}ひざ`), [0, 0.6, 0]),
+        off(P(`${J}足首`), [0, 0.35, 0]),
+        (t) => 0.54 - t * 0.15,
+        blendIn(I(`${J}足`), I(`${J}ひざ`), 0.15),
+        6,
+        10,
+      );
+    tube(
+      g,
+      M('ベルト金具'),
+      off(P('下半身'), [0, -0.05, 0]),
+      off(P('下半身'), [0, 0.3, 0]),
+      () => 1.2,
+      () => [[I('下半身')], [1]],
+      1,
+      16,
+    );
   }
 
   // Materials (only the wanted ones keep faces; vertices of dropped materials are compacted away).
@@ -629,8 +667,15 @@ export function makeEditFixture(opts: FixtureOptions = {}): FixtureFiles {
     ...(opts.npr
       ? [
           matDef('目', 'eye', [0.25, 0.45, 0.85]),
-          { ...matDef('ニーソ', 'knee socks', [0.12, 0.1, 0.14]), diffuse: [0.12, 0.1, 0.14, 0.85] as [number, number, number, number] },
-          { ...matDef('ベルト金具', 'belt metal', [0.85, 0.8, 0.6]), shininess: 60, specular: [0.9, 0.9, 0.8] as [number, number, number] },
+          {
+            ...matDef('ニーソ', 'knee socks', [0.12, 0.1, 0.14]),
+            diffuse: [0.12, 0.1, 0.14, 0.85] as [number, number, number, number],
+          },
+          {
+            ...matDef('ベルト金具', 'belt metal', [0.85, 0.8, 0.6]),
+            shininess: 60,
+            specular: [0.9, 0.9, 0.8] as [number, number, number],
+          },
         ]
       : []),
   ];

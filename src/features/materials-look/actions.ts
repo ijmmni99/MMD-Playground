@@ -223,3 +223,6 @@ export function wireLooks(): void {
     engine.events.on('contextRestored', () => void syncEngine());
   });
 }
+
+// Test / debugging hook.
+(window as unknown as { __looks?: unknown }).__looks = { setModelLooks, setNprSettings, state: () => get() };
