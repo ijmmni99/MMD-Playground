@@ -13,6 +13,7 @@ const ExportPanel = lazy(() =>
 const MoreMenu = lazy(() => import('./MoreMenu'));
 const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
 const ConverterPanel = lazy(() => import('@/features/model-converter/ConverterPanel'));
+const ModelEditorPanel = lazy(() => import('@/features/model-editor/ModelEditorPanel'));
 
 const Loading = () => <div className="p-6 text-center text-fg-muted">Loading…</div>;
 
@@ -46,6 +47,12 @@ export function TabContent({ tab }: { tab: SheetTab }) {
       return (
         <Suspense fallback={<Loading />}>
           <ConverterPanel embedded />
+        </Suspense>
+      );
+    case 'modeledit':
+      return (
+        <Suspense fallback={<Loading />}>
+          <ModelEditorPanel embedded />
         </Suspense>
       );
     case 'video2vmd':

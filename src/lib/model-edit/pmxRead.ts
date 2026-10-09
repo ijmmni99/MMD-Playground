@@ -261,10 +261,10 @@ export function fromPmxObject(o: PmxObject): PmxModel {
 
 /** Parse PMX bytes into a PmxModel. */
 export async function readPmx(bytes: ArrayBuffer | Uint8Array): Promise<PmxModel> {
-  const buf =
-    bytes instanceof Uint8Array
-      ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-      : bytes;
+  // ArrayBuffer.isView also catches Node Buffers from another realm (tests).
+  const buf = ArrayBuffer.isView(bytes)
+    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength).slice().buffer
+    : bytes;
   return fromPmxObject(await PmxReader.ParseAsync(buf as ArrayBuffer));
 }
 

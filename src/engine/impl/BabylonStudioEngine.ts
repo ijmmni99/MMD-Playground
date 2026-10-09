@@ -40,6 +40,7 @@ import {
   type AbstractMesh,
   type BaseTexture,
   type LinesMesh,
+  VertexBuffer,
 } from '@babylonjs/core';
 import { GridMaterial, ShadowOnlyMaterial } from '@babylonjs/materials';
 import {
@@ -65,6 +66,7 @@ import { DEFAULT_CAMERA, DEFAULT_SETTINGS } from '../defaults';
 import type {
   BoneLocalTransform,
   GizmoMode,
+  LiveMaterial,
   LoadModelOptions,
   RecordProgress,
   StudioEngine,
@@ -780,7 +782,12 @@ export class BabylonStudioEngine implements StudioEngine {
         rootUrl: prepared.rootUrl,
         pluginOptions: {
           // Serialization data keeps the PMX's English material names (display labels).
-          mmdmodel: { referenceFiles: prepared.referenceFiles, loggingEnabled: false, preserveSerializationData: true },
+          mmdmodel: {
+            referenceFiles: prepared.referenceFiles,
+            loggingEnabled: false,
+            preserveSerializationData: true,
+            ...(options.singleMesh ? { optimizeSubmeshes: false } : {}),
+          },
         },
         onProgress: (ev) => {
           if (ev.lengthComputable && ev.total > 0) {
@@ -867,13 +874,13 @@ export class BabylonStudioEngine implements StudioEngine {
         ),
       };
       this.models.set(id, entry);
-      if (prepared.missing.length) {
+      if (prepared.missing.length && !options.quiet) {
         this.events.emit(
           'warning',
           `${name}: ${prepared.missing.length} texture(s) missing — ${prepared.missing.slice(0, 4).join(', ')}${prepared.missing.length > 4 ? '…' : ''}`,
         );
       }
-      if (prepared.remapped.length) {
+      if (prepared.remapped.length && !options.quiet) {
         this.events.emit(
           'warning',
           `${name}: ${prepared.remapped.length} texture path(s) resolved by filename only.`,
@@ -922,6 +929,92 @@ export class BabylonStudioEngine implements StudioEngine {
   listModels(): string[] {
     return [...this.models.keys()];
   }
+
+  async replaceModel(
+    id: string,
+    files: VFile[],
+    mainPath: string,
+    options: { singleMesh?: boolean } = {},
+  ): Promise<ModelInfo> {
+    const old = this.need(id);
+    const state = this.getModelState(id)!;
+    const motion = old.motion?.animation ?? null;
+    const ikEnabled = old.ikEnabled;
+    const selectedBone = this.selected?.modelId === id ? this.selected.bone : null;
+    const tmp = `${id}~${newId()}`;
+    await this.loadModel(files, mainPath, { id: tmp, name: old.name, singleMesh: options.singleMesh, quiet: true });
+    const entry = this.models.get(tmp)!;
+    // Drop the old one quietly (no modelRemoved: the id lives on).
+    if (this.selected?.modelId === id) this.selectBone(null, null);
+    if (old.motion) old.model.destroyRuntimeAnimation(old.motion.handle);
+    for (const mesh of old.container.meshes) this.shadowGen.removeShadowCaster(mesh, false);
+    this.runtime.destroyMmdModel(old.model);
+    old.container.removeAllFromScene();
+    old.container.dispose();
+    this.models.delete(tmp);
+    entry.id = id;
+    entry.info = { ...entry.info, id };
+    this.models.set(id, entry);
+    this.applyModelState(entry, {
+      transform: state.transform,
+      visible: state.visible,
+      stage: state.stage,
+      materials: state.materials.slice(0, entry.materialState.length),
+      morphs: state.morphs,
+    });
+    this.applyMaterials(entry);
+    if (motion) {
+      const handle = entry.model.createRuntimeAnimation(motion);
+      entry.model.setRuntimeAnimation(handle);
+      entry.motion = { animation: motion, handle };
+    }
+    if (!ikEnabled) this.setIkEnabled(id, false);
+    this.setModelPhysics(id, state.physics);
+    this.updateDuration();
+    await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
+    if (this.activeModelId === id || this.activeModelId === null) this.setActiveModel(this.activeModelId);
+    if (selectedBone !== null && selectedBone < entry.model.runtimeBones.length) this.selectBone(id, selectedBone);
+    this.events.emit('modelAdded', entry.info);
+    return entry.info;
+  }
+
+  setModelVertices(id: string, positions: Float32Array, normals?: Float32Array): boolean {
+    const m = this.models.get(id);
+    if (!m) return false;
+    const meshes = m.container.meshes.filter((x) => x.getTotalVertices() > 0) as Mesh[];
+    if (meshes.length !== 1 || meshes[0].getTotalVertices() * 3 !== positions.length) return false;
+    const mesh = meshes[0];
+    mesh.updateVerticesData(VertexBuffer.PositionKind, positions, false, false);
+    if (normals && normals.length === positions.length)
+      mesh.updateVerticesData(VertexBuffer.NormalKind, normals, false, false);
+    mesh.refreshBoundingInfo({ applySkeleton: false });
+    return true;
+  }
+
+  setMaterialLive(id: string, index: number, v: LiveMaterial): void {
+    const m = this.models.get(id);
+    const mat = (m?.mesh.metadata as MmdModelMetadata | undefined)?.materials[index];
+    if (!m || !mat) return;
+    if (mat instanceof MmdStandardMaterial) {
+      if (v.diffuse) mat.diffuseColor.set(v.diffuse[0], v.diffuse[1], v.diffuse[2]);
+      if (v.specular) mat.specularColor.set(...v.specular);
+      if (v.ambient) mat.ambientColor.set(...v.ambient);
+      if (v.shininess !== undefined) mat.specularPower = v.shininess;
+      if (v.edgeColor) {
+        mat.outlineColor.set(v.edgeColor[0], v.edgeColor[1], v.edgeColor[2]);
+        mat.outlineAlpha = v.edgeColor[3];
+      }
+      if (v.edgeSize !== undefined) {
+        m.baseOutline[index] = v.edgeSize;
+        mat.outlineWidth = m.baseOutline[index] * this.settings.postfx.outlineScale;
+      }
+    }
+    if (v.diffuse && m.materialState[index]) {
+      m.materialState[index].alpha = v.diffuse[3];
+      this.applyMaterials(m);
+    }
+  }
+
 
   private need(id: string): ModelEntry {
     const m = this.models.get(id);

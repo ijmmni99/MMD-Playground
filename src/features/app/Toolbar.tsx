@@ -11,6 +11,7 @@ import {
   PanelRight,
   PersonStanding,
   Boxes,
+  PencilRuler,
   Redo2,
   Save,
   Undo2,
@@ -132,7 +133,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
       </IconButton>
       <div className="flex-1" />
       <div className="mr-2 flex rounded-md border border-line p-0.5" role="tablist" aria-label="Mode">
-        {(['studio', 'playground', 'video2vmd', 'converter'] as const).map((m) => (
+        {(['studio', 'playground', 'video2vmd', 'converter', 'modeledit'] as const).map((m) => (
           <button
             key={m}
             type="button"
@@ -148,7 +149,8 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             {m === 'playground' && <Code2 size={13} />}
             {m === 'video2vmd' && <PersonStanding size={13} />}
             {m === 'converter' && <Boxes size={13} />}
-            {m === 'video2vmd' ? (compact ? 'Video' : 'Video → VMD') : m === 'converter' ? (compact ? 'Convert' : 'Model Converter') : m}
+            {m === 'modeledit' && <PencilRuler size={13} />}
+            {m === 'video2vmd' ? (compact ? 'Video' : 'Video → VMD') : m === 'converter' ? (compact ? 'Convert' : 'Model Converter') : m === 'modeledit' ? (compact ? 'Edit' : 'Model Editor') : m}
           </button>
         ))}
       </div>

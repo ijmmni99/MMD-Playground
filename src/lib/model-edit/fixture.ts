@@ -207,7 +207,7 @@ function tube(
       const i1 = start + r * sides + ((s + 1) % sides);
       const j0 = i0 + sides;
       const j1 = i1 + sides;
-      f.push(i0, j0, i1, i1, j0, j1);
+      f.push(i0, i1, j0, i1, j1, j0);
     }
   // Caps (fan around ring 0 and the last ring).
   for (const [ring, flip] of [
@@ -228,8 +228,8 @@ function tube(
     for (let s = 0; s < sides; s++) {
       const p = start + ring * sides + s;
       const q = start + ring * sides + ((s + 1) % sides);
-      if (flip) f.push(ci, p, q);
-      else f.push(ci, q, p);
+      if (flip) f.push(ci, q, p);
+      else f.push(ci, p, q);
     }
   }
 }
@@ -331,6 +331,7 @@ export const FIXTURE_MATERIALS = ['髪', '顔', '体', 'トップス', 'スカ�
 export interface FixtureOptions {
   /** Model name (Japanese). */
   name?: string;
+  nameEn?: string;
   /** Only these materials (for a "clothes donor" model); the skeleton is always complete. */
   materials?: readonly string[];
   /** Tint applied to the top (lets a donor's jacket look different). */
@@ -764,7 +765,7 @@ export function makeEditFixture(opts: FixtureOptions = {}): FixtureFiles {
 
   const pmx: PmxModel = {
     name: opts.name ?? 'エディットテスト',
-    nameEn: 'EditTest',
+    nameEn: opts.nameEn ?? 'EditTest',
     comment: 'Procedural test model for MMD Studio. Free to use.',
     commentEn: 'Procedural test model for MMD Studio. Free to use.',
     vertices,

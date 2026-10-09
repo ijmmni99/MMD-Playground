@@ -15,6 +15,7 @@ import type { PanelToggles } from './DesktopShell';
 const Playground = lazy(() => import('@/features/playground/Playground'));
 const Video2VmdPanel = lazy(() => import('@/features/video2vmd/Video2VmdPanel'));
 const ConverterPanel = lazy(() => import('@/features/model-converter/ConverterPanel'));
+const ModelEditorPanel = lazy(() => import('@/features/model-editor/ModelEditorPanel'));
 
 function Drawer({
   side,
@@ -80,11 +81,15 @@ export function TabletShell() {
             side="left"
             open={drawers.left}
             label={
-              mode === 'playground' ? 'Playground' : mode === 'video2vmd' ? 'Video to VMD' : mode === 'converter' ? 'Model Converter' : 'Scene panel'
+              mode === 'playground' ? 'Playground' : mode === 'video2vmd' ? 'Video to VMD' : mode === 'converter' ? 'Model Converter' : mode === 'modeledit' ? 'Model Editor' : 'Scene panel'
             }
             onClose={() => toggleDrawer('left')}
           >
-            {mode === 'converter' ? (
+            {mode === 'modeledit' ? (
+              <Suspense fallback={<div className="grid h-full place-items-center bg-bg-panel p-4 text-fg-muted">Loading…</div>}>
+                <ModelEditorPanel />
+              </Suspense>
+            ) : mode === 'converter' ? (
               <Suspense fallback={<div className="p-4 text-fg-muted">Loading…</div>}>
                 <ConverterPanel />
               </Suspense>

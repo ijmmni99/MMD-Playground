@@ -7,6 +7,7 @@ import {
   Keyboard,
   PersonStanding,
   Boxes,
+  PencilRuler,
   Redo2,
   Save,
   Smartphone,
@@ -127,6 +128,16 @@ export default function MoreMenu() {
             studio.set({ mode: 'converter' });
             if (mode === 'phone-landscape') setSideTab('converter');
             else openSheet('converter', 'full');
+          }}
+        />
+        <Action
+          icon={<PencilRuler size={18} />}
+          label="Model Editor (proportions, outfits, materials…)"
+          testid="more-modeledit"
+          onClick={() => {
+            studio.set({ mode: 'modeledit' });
+            if (mode === 'phone-landscape') setSideTab('modeledit');
+            else openSheet('modeledit', 'half');
           }}
         />
       </Section>

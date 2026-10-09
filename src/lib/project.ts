@@ -4,6 +4,7 @@ import type { MotionEditorDoc } from '@/store/motionEditor';
 import type { LabelOverrides } from '@/lib/names/types';
 import type { Video2VmdDoc } from '@/store/video2vmd';
 import type { TimelineDoc } from '@/lib/clips/types';
+import type { ModelEditorDoc } from '@/store/modelEditor';
 import { parseTimeline } from '@/lib/clips/serialize';
 
 export const PROJECT_VERSION = 1;
@@ -48,6 +49,8 @@ export interface ProjectDoc {
   labels?: Record<string, LabelOverrides>;
   /** Clip timeline: tracks, clips (non-destructive edits) and their sources. */
   clipTimeline?: TimelineDoc;
+  /** Model editor: per-model edit lists on top of the original files, added textures, clothes donors. */
+  modelEditor?: ModelEditorDoc;
 }
 
 export interface ProjectSummary {
@@ -156,6 +159,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     motionEditor: parseMotionEditor(json.motionEditor),
     labels: parseLabels(json.labels),
     clipTimeline: parseTimeline(json.clipTimeline),
+    modelEditor: parseModelEditor(json.modelEditor),
   };
 }
 
@@ -184,6 +188,11 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
   }
   for (const s of doc.clipTimeline?.sources ?? []) if (s.ref) ids.add(s.ref.blobId);
   for (const f of doc.clipTimeline?.fonts ?? []) ids.add(f.ref.blobId);
+  for (const s of doc.modelEditor?.sessions ?? []) {
+    for (const f of s.files) ids.add(f.blobId);
+    for (const a of s.assets) ids.add(a.blobId);
+    for (const d of s.donors) for (const f of d.files) ids.add(f.blobId);
+  }
   return ids;
 }
 
@@ -305,4 +314,38 @@ function parseMotionEditor(v: unknown): MotionEditorDoc | undefined {
       : { bpm: 0, offset: 0, beatsPerBar: 4 },
     shots: Array.isArray(v.shots) ? (v.shots as MotionEditorDoc['shots']) : [],
   };
+}
+
+function parseModelEditor(v: unknown): ModelEditorDoc | undefined {
+  if (!isObj(v) || !Array.isArray(v.sessions)) return undefined;
+  const sessions = v.sessions.filter(isObj).flatMap((s) => {
+    if (typeof s.modelId !== 'string' || typeof s.mainPath !== 'string' || !Array.isArray(s.files)) return [];
+    return [
+      {
+        modelId: s.modelId,
+        mainPath: s.mainPath,
+        files: s.files.filter(isFileRef),
+        ops: Array.isArray(s.ops) ? (s.ops.filter(isObj) as unknown as ModelEditorDoc['sessions'][number]['ops']) : [],
+        assets: Array.isArray(s.assets) ? s.assets.filter(isFileRef) : [],
+        donors: Array.isArray(s.donors)
+          ? s.donors
+              .filter(isObj)
+              .filter((d) => typeof d.id === 'string' && typeof d.mainPath === 'string' && Array.isArray(d.files))
+              .map((d) => ({
+                id: d.id as string,
+                label: typeof d.label === 'string' ? d.label : 'Clothes',
+                mainPath: d.mainPath as string,
+                files: (d.files as unknown[]).filter(isFileRef),
+              }))
+          : [],
+        outfitPresets: Array.isArray(s.outfitPresets)
+          ? (s.outfitPresets.filter(isObj) as unknown as ModelEditorDoc['sessions'][number]['outfitPresets'])
+          : undefined,
+      },
+    ];
+  });
+  const presets = Array.isArray(v.proportionPresets)
+    ? (v.proportionPresets.filter(isObj) as unknown as ModelEditorDoc['proportionPresets'])
+    : undefined;
+  return sessions.length || presets?.length ? { sessions, proportionPresets: presets } : undefined;
 }

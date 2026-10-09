@@ -427,6 +427,41 @@ Bones, morphs and materials keep Japanese MMD names as their real IDs; the studi
 - **Better results:** export FBX with skin and blend shapes, in a T- or A-pose, with textures packed or alongside in the ZIP; name morphs after VRM / ARKit conventions; check the Face and Physics steps before exporting.
 - **Legal:** you are responsible for the license of every model you convert. The converter never strips license information: VRM metadata (allowed users, commercial use, redistribution, modification) is shown before export and written into the output README; FBX and glTF files usually carry none, so check the terms where you got them (e.g. Adobe's terms for Mixamo characters).
 
+## Model Editor
+
+Edit a loaded PMX / PMD model in the browser and save it back as a PMX: **Model Editor** tab (phones: More → Model Editor). Pick the model at the top. Edits are a non-destructive list on top of the untouched original. Undo / Redo (≥ 200 steps), **Revert** and the **Edited / Original** A/B switch are always visible, and the session is saved with the project (and in `.mmdstudio.zip`).
+
+| Section | What you can do |
+|---|---|
+| Proportions | Scale head, neck, torso, chest, hips, upper arm, forearm, hands, fingers, thigh, shin, feet or the whole body: overall / length / thickness, 0.5–2× (a warning shows outside it). Left and right can be linked. Tap the model to jump to a part. Presets: Chibi, Long legs, Bigger head, Reset, plus your own, which you can save and load as JSON. Test pose. "Attach" fixes accessories that only follow the root bone. |
+| Outfit | Materials are auto-grouped into Hair / Face / Body / Top / Bottom / Shoes / Gloves / Accessories / Other; you can move them or add groups. Hiding a group also removes its physics. You get a hole warning, and "Hide body under it" for clothing. Outfit presets. Recolour: diffuse colour, texture HSV / tint, and uploaded image, logo or pattern (always saved as new files). Clothes from another model with the same skeleton. |
+| Materials | Every PMX material field, visibility, solo and outline. Texture list with size and missing flags, preview, replace, and batch downscale to 2048 / 1024. |
+| Bones | Searchable tree. Position (numbers or a gizmo), parent, flags and display frame. IK target / chain / loop / angle limits, a knee X-limit button and a knee-flip warning. Add, delete (weights go to the parent) and rename (with a VMD warning and "restore standard name"). Mirror left → right. |
+| Morphs | Bilingual search by panel; slider mix → new group morph. Edit members, rename, panel, strength, mirror left → right, reorder and delete. No sculpting. |
+| Physics | Rigid body and joint overlay. Edit shape, size, mass, damping, bounce, friction, mode, group, mask, limits and springs. Soft / Skirt / Stiff presets with sway, generate physics for a bone chain, test motion, reset, and a NaN / explosion warning. |
+| Info & save | Names and comments (JA / EN), checks, edit history. **Apply to scene** (the model's files become the edited PMX). **Save as PMX ZIP**. Export / import the edit list as JSON. |
+
+```mermaid
+flowchart LR
+  O[Original PMX files] --> P[parse: babylon-mmd PmxReader → PmxModel]
+  P --> A[applyOps: structural ops → proportions → outfit]
+  OPS[(op list + undo/redo)] --> A
+  D[clothes donors] --> A
+  A --> V[validate]
+  V --> W[PMX writer: UTF-16LE, dynamic index sizes]
+  W --> R[engine.replaceModel: same id, state kept]
+  W --> Z[PMX ZIP: model.pmx, textures, README.txt, edit-report.json]
+```
+
+**Rules**
+- Japanese bone / morph / material names stay the real IDs (motions use them). English labels come from the English names layer.
+- Proportions blend each vertex by its bone weights, so joints don't tear. Parts further down a chain move with it. Bones, IK handles, rigid bodies, joints and morph offsets follow, and the feet stay on the floor.
+- Clothes swap maps standard bones by name. Extra bones (skirt chains…) are added under collision-free names, with their physics. A standard bone missing in the target refuses the merge with a message. There is no weight transfer.
+
+**Limits:** no mesh sculpting or weight painting. Proportion scaling is per bone segment, so curved limbs scale along one axis. While you drag, the live preview updates the rest-pose mesh only; the skeleton follows on release (about 0.4 s rebuild). TGA / DDS textures can't be recoloured in the browser.
+
+**Legal:** MMD Studio ships no models. Edited models are still their authors' work: follow each model's license, including whether modification and redistribution are allowed. The saved README keeps the original comment and lists the clothes sources.
+
 ## Clip Timeline & 3D text
 
 Arrange motions like a video editor: drop VMDs on tracks, cut, repeat and reorder them, add camera cuts, music, face presets and 3D text. Nothing is destructive — clips point into their source files and the timeline is baked into ordinary motions for playback and export.
@@ -577,8 +612,10 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
   - **Model converter:** PMX writer byte layout and round-trip through babylon-mmd's `PmxReader`, glTF / VRM 0.x / 1.0 / ASCII-FBX parsing of a procedural humanoid, name analysis and mapping for Mixamo, VRoid, Blender and scrambled rigs, orientation / scale / grounding, T- to A-pose rebind (vertices exact), winding after the Z mirror, weight limits, IK chains, morph name matching, capsule orientation against Babylon, VRM spring chains, static (non-humanoid) conversion and manual mapping overrides.
   - **Clip timeline:** clip segments match the motion tools, split continuity at any speed and inside loops, ops (move / trim / split / duplicate / reorder / paste), overlap and adjacent crossfades, root continuity, camera cut / blend, face overrides, snapping, timeline serialisation, SRT and LRC parsing. 3D text: closed, outward-facing meshes (signed volume and normal checks) for Latin, kana, kanji, digits and symbols with real fonts, holes with either winding, font fallback and missing-glyph reports, multi-line layout and alignment, glyph caching, and every in / out / idle animation.
+  - **Model Editor:** full PMX 2.0 round trip (SDEF / QDEF, extra UVs, every morph type, custom toon, external parent) against a procedural humanoid with fingers, IK, skirt physics and outfit materials. Also: op list and undo / redo (coalescing, depth); hands-only scaling with no seam; long legs with planted feet, IK, bodies and joints following; head morphs; whole-body and presets; outfit grouping, skirt hiding with its physics, body under clothes, hole warnings; bone rename / add / delete / reparent / IK / mirror; group morphs, reorder, delete, scale, mirror; physics presets, auto physics, NaN checks; attach-to-bone; clothes swap and the refusal message for different skeletons; texture recolour maths.
   - **English names:** dictionary integrity, resolution order, left / right and full-width pattern rules, bilingual search, per-model name tables, label overrides and their `.mmdstudio.zip` round-trip.
 - **E2E (Playwright):**
+  - **Model Editor:** procedural model + same-skeleton jacket donor (`e2e/fixtures/EditTest`, `EditDonor`; regenerate with `GEN_FIXTURES=1 pnpm vitest run src/lib/model-edit/genFixtures.test.ts`). It drags the hand slider, lengthens the legs, hides the skirt, recolours the top and its texture, builds a group morph, swaps in the jacket, then undoes and redoes, saves the ZIP and reloads with every edit restored. Phone and tablet variants check 44 px targets and layout.
   - **English names:** a generated PMX with Japanese bones, morphs and materials (`e2e/fixtures/NameTest`): labels in every panel, EN / 日本語 / Both, search in both languages, renaming and resetting labels, reload persistence while the motion still plays, and a phone variant with long-press rename.
   - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.
   - **Model converter:** a VRM through every step (mapping, face, physics, test dance with bounded physics, original side by side), license gate, ZIP contents, load into the studio, a VMD with IK feet, reload; FBX and glTF ZIPs with external textures; a mis-named rig fixed in the mapping screen; phone and tablet. Fixtures are procedural (`e2e/fixtures/converter`, regenerate with `GEN_FIXTURES=1 pnpm vitest run src/lib/convert/genFixtures.test.ts`).

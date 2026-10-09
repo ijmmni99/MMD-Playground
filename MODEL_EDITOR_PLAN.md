@@ -137,14 +137,14 @@ last op in place (same `coalesceKey`) instead of pushing a new step.
 
 ## Milestones
 
-- [ ] a. EditableModel, full PMX writer, op list, validation, undo / redo, round-trip tests
-- [ ] b. Materials editor
-- [ ] c. Proportion sliders (body and hands)
-- [ ] d. Dependent data (physics, IK, helper bones, floor)
-- [ ] e. Outfit grouping, toggles, presets
-- [ ] f. Recolour and retexture
-- [ ] g. Bone and IK editing
-- [ ] h. Morph editing
-- [ ] i. Physics editing
-- [ ] j. Clothes swap for same-skeleton models
-- [ ] k. Mobile, polish, tests, docs
+- [x] a. EditableModel, full PMX writer, op list, validation, undo / redo, round-trip tests
+- [x] b. Materials editor
+- [x] c. Proportion sliders (body and hands)
+- [x] d. Dependent data (physics, IK, helper bones, floor)
+- [x] e. Outfit grouping, toggles, presets
+- [x] f. Recolour and retexture
+- [x] g. Bone and IK editing
+- [x] h. Morph editing
+- [x] i. Physics editing
+- [x] j. Clothes swap for same-skeleton models
+- [x] k. Mobile, polish, tests, docs

@@ -71,6 +71,20 @@ export interface LoadModelOptions {
   id?: string;
   name?: string;
   state?: Partial<ModelRuntimeState>;
+  /** One mesh in PMX vertex order (no per-material split), so vertices can be updated live. */
+  singleMesh?: boolean;
+  /** No missing / remapped texture warnings (rebuilds of a model already loaded once). */
+  quiet?: boolean;
+}
+
+/** Live material values (model editor preview; MMD material fields). */
+export interface LiveMaterial {
+  diffuse?: [number, number, number, number];
+  specular?: [number, number, number];
+  shininess?: number;
+  ambient?: [number, number, number];
+  edgeColor?: [number, number, number, number];
+  edgeSize?: number;
 }
 
 export interface RecordProgress {
@@ -93,6 +107,15 @@ export interface StudioEngine {
   // models
   loadModel(files: VFile[], mainPath: string, options?: LoadModelOptions): Promise<ModelInfo>;
   removeModel(id: string): void;
+  /**
+   * Swap a model's files for new ones under the same id (model editor rebuild). Transform, visibility,
+   * physics, material states, morph weights, motion, selection and gizmos carry over.
+   */
+  replaceModel(id: string, files: VFile[], mainPath: string, options?: { singleMesh?: boolean }): Promise<ModelInfo>;
+  /** Rewrite rest-pose vertex positions (and normals) in place; false when the model isn't a single mesh. */
+  setModelVertices(id: string, positions: Float32Array, normals?: Float32Array): boolean;
+  /** Change material colours live (no reload). */
+  setMaterialLive(id: string, index: number, values: LiveMaterial): void;
   listModels(): string[];
   setModelVisible(id: string, visible: boolean): void;
   setModelPhysics(id: string, enabled: boolean): void;
