@@ -28,3 +28,7 @@ it.skipIf(!process.env.GEN_FIXTURES)('generate the model editor fixtures', () =>
     }),
   );
 });
+
+it.skipIf(!process.env.GEN_FIXTURES)('generate the NPR look fixture', () => {
+  write('LookTest', 'looktest.pmx', makeEditFixture({ name: 'ルックテスト', nameEn: 'LookTest', npr: true }));
+});

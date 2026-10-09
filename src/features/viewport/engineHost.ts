@@ -2,6 +2,7 @@
 // Shells re-parent the canvas into whichever viewport container is mounted, so rotating a phone
 // or crossing a breakpoint never recreates the engine or loses the scene.
 import { createStudioEngine, type StudioEngine } from '@/engine/StudioEngine';
+import { wireLooks } from '@/features/materials-look/actions';
 import { connectEngine } from '@/features/app/bridge';
 import { hasRestorableProject, restoreLastProject, startAutosave } from '@/features/project/persistence';
 import { setEngine, setEngineBooter } from '@/store/engineRef';
@@ -35,6 +36,7 @@ export function bootEngine(): Promise<StudioEngine | null> {
       engine.applySettings(studio.get().settings);
       studio.set({ engineReady: true });
       (window as unknown as { __studio?: unknown }).__studio = engine;
+      wireLooks();
       await restoreLastProject();
       startAutosave();
       return engine;

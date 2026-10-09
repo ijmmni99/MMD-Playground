@@ -4,6 +4,8 @@ import type { MotionClip } from '@/lib/motion/types';
 import type { TextMesh } from '@/lib/clips/text/layout';
 import type { TextSpec } from '@/lib/clips/types';
 import type { Emitter } from './emitter';
+import type { ModelLooks, NprSettings } from '@/lib/npr/looks';
+import type { NprStats } from './npr/NprManager';
 
 /** A 3D text clip for the scene. */
 export interface TextItem {
@@ -114,6 +116,11 @@ export interface StudioEngine {
   replaceModel(id: string, files: VFile[], mainPath: string, options?: { singleMesh?: boolean }): Promise<ModelInfo>;
   /** Rewrite rest-pose vertex positions (and normals) in place; false when the model isn't a single mesh. */
   setModelVertices(id: string, positions: Float32Array, normals?: Float32Array): boolean;
+  /** NPR looks for a model (null = PMX original everywhere). */
+  setModelLooks(id: string, looks: ModelLooks | null): void;
+  /** Global NPR options: tier, before / after, quick controls, outline mode. */
+  setNprSettings(settings: NprSettings): void;
+  getNprStats(): NprStats;
   /** Change material colours live (no reload). */
   setMaterialLive(id: string, index: number, values: LiveMaterial): void;
   listModels(): string[];

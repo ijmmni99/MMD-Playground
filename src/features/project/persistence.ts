@@ -19,6 +19,7 @@ import { buildVideo2VmdDoc, restoreVideo2Vmd } from '@/features/video2vmd/action
 import { buildMotionEditorDoc, restoreMotionEditor } from '@/features/motion-editor/persist';
 import { buildClipTimelineDoc, restoreClipTimeline } from '@/features/clip-timeline/persist';
 import { buildModelEditorDoc, restoreModelEditor } from '@/features/model-editor/persist';
+import { buildLooksDoc, restoreLooks } from '@/features/materials-look/actions';
 
 const { get, set } = studio;
 const LAST_PROJECT = 'lastProjectId';
@@ -65,6 +66,7 @@ export function buildProjectDoc(): ProjectDoc {
     motionEditor: buildMotionEditorDoc(),
     clipTimeline: buildClipTimelineDoc(),
     modelEditor: buildModelEditorDoc(),
+    looks: buildLooksDoc(),
     labels: Object.keys(useNames.getState().labels).length ? useNames.getState().labels : undefined,
   };
 }
@@ -227,6 +229,11 @@ export async function openProject(doc: ProjectDoc): Promise<void> {
       },
     });
     engine.setActiveModel(get().selectedModelId);
+    try {
+      await restoreLooks(doc.looks);
+    } catch (e) {
+      failures.push(`looks: ${String(e)}`);
+    }
     try {
       await restoreModelEditor(doc.modelEditor);
     } catch (e) {

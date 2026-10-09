@@ -5,6 +5,7 @@ import type { LabelOverrides } from '@/lib/names/types';
 import type { Video2VmdDoc } from '@/store/video2vmd';
 import type { TimelineDoc } from '@/lib/clips/types';
 import type { ModelEditorDoc } from '@/store/modelEditor';
+import type { LooksDoc } from '@/store/looks';
 import { parseTimeline } from '@/lib/clips/serialize';
 
 export const PROJECT_VERSION = 1;
@@ -51,6 +52,8 @@ export interface ProjectDoc {
   clipTimeline?: TimelineDoc;
   /** Model editor: per-model edit lists on top of the original files, added textures, clothes donors. */
   modelEditor?: ModelEditorDoc;
+  /** NPR looks per model and the global look settings (validated when restored). */
+  looks?: LooksDoc;
 }
 
 export interface ProjectSummary {
@@ -160,6 +163,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     labels: parseLabels(json.labels),
     clipTimeline: parseTimeline(json.clipTimeline),
     modelEditor: parseModelEditor(json.modelEditor),
+    looks: isObj(json.looks) ? (json.looks as unknown as LooksDoc) : undefined,
   };
 }
 

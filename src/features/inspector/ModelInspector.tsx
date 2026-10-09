@@ -1,3 +1,4 @@
+import { LookSection } from '@/features/materials-look/LookPanel';
 import {
   Bone,
   ChevronDown,
@@ -82,6 +83,7 @@ export function ModelInspector() {
       <MorphSection model={model} />
       <BoneSection model={model} />
       <MaterialSection model={model} />
+      <LookSection model={model} />
       <PoseSection model={model} />
     </div>
   );

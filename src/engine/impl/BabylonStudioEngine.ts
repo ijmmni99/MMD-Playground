@@ -97,6 +97,10 @@ import type {
 } from '../types';
 import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
+import { NprManager, outlineFalloff, type NprMaterialState, type NprStats } from '../npr/NprManager';
+import { setNprLight } from '../npr/globals';
+import { PostOutline } from '../npr/postOutline';
+import { selectTier, type ModelLooks, type NprSettings } from '@/lib/npr/looks';
 import { TextLayer, type TextPointerHandlers } from './TextLayer';
 import { PNG_SEQUENCE_MIME, recordDeterministic, recordPngSequence, recordRealtime } from './recording';
 import { basename, stripExt } from '@/lib/paths';
@@ -127,6 +131,11 @@ interface ModelEntry {
   stage: boolean;
   motion: { animation: MmdAnimation; handle: MmdRuntimeAnimationHandle } | null;
   baseOutline: number[];
+  baseOutlineColor: [number, number, number, number][];
+  npr: NprMaterialState[];
+  /** Outline distance factor last applied. */
+  outlineFactor: number;
+  height: number;
   materialState: { visible: boolean; outline: boolean; alpha: number }[];
   transform: TransformState;
   restPositions: Vector3[];
@@ -183,6 +192,8 @@ export class BabylonStudioEngine implements StudioEngine {
   private readonly audio = new AudioSync();
   private settings: SceneSettings = structuredClone(DEFAULT_SETTINGS);
   private appliedQuality: QualityPreset | null = null;
+  private npr!: NprManager;
+  private postOutline: PostOutline | null = null;
   private loop = false;
   private speed = 1;
   private follow: { modelId: string; bone: string } | null = null;
@@ -262,6 +273,16 @@ export class BabylonStudioEngine implements StudioEngine {
   private async init(): Promise<void> {
     this.engine = await this.createEngine();
     SdefInjector.OverrideEngineCreateEffect(this.engine);
+    {
+      const q = new URLSearchParams(location.search);
+      // NPR looks are GLSL-only (WebGL2); WebGPU keeps the PMX original. ?npr=off disables them (baseline tests).
+      this.npr = new NprManager(!this.webgpu && q.get('npr') !== 'off', (msg) => {
+        console.warn('[npr]', msg);
+        this.events.emit('warning', msg);
+      });
+      this.npr.breakLook = q.get('nprBreak');
+      this.npr.onFailure = () => setTimeout(() => this.applyNprAll(), 0);
+    }
     RegisterDxBmpTextureLoader();
 
     const scene = (this.scene = new Scene(this.engine));
@@ -496,6 +517,7 @@ export class BabylonStudioEngine implements StudioEngine {
   // ---------------------------------------------------------------- frame
   private beforeRender(): void {
     const now = performance.now();
+    this.updateOutlineFalloff();
     const playing = this.runtime.isAnimationPlaying;
     // Audio leads; the animation follows by nudging its speed (applies from the next frame).
     const nudge = this.audio.sync(this.runtime.currentTime, playing, this.speed);
@@ -582,6 +604,12 @@ export class BabylonStudioEngine implements StudioEngine {
     this.hemiLight.intensity = l.ambientIntensity;
     this.hemiLight.diffuse = hexColor(l.ambientColor);
     this.hemiLight.groundColor = hexColor(l.groundColor);
+    {
+      const sun = hexColor(l.dirColor).scale(Math.min(1.4, 0.35 + l.dirIntensity * 0.8));
+      const sky = hexColor(l.ambientColor).scale(l.ambientIntensity);
+      const ground = hexColor(l.groundColor).scale(l.ambientIntensity);
+      setNprLight([-dir.x, -dir.y, -dir.z], [sun.r, sun.g, sun.b], [sky.r, sky.g, sky.b], [ground.r, ground.g, ground.b]);
+    }
     this.shadowGen.setDarkness(l.shadowDarkness);
     this.shadowGen.usePercentageCloserFiltering = l.softShadows;
     this.shadowGen.filteringQuality = l.softShadows
@@ -637,6 +665,14 @@ export class BabylonStudioEngine implements StudioEngine {
 
   private applyQuality(q: QualityPreset): void {
     this.appliedQuality = q;
+    if (this.npr) {
+      const tier = selectTier(this.npr.settings.tier, q);
+      if (tier !== this.npr.tier) {
+        this.npr.tier = tier;
+        this.npr.clearFailures();
+        this.applyNprAll();
+      }
+    }
     const dpr = window.devicePixelRatio || 1;
     if (this.coarse) {
       // Phones/tablets: cap pixel ratio at 2 (1.5 on Low) and rely on FXAA instead of MSAA on Low.
@@ -815,6 +851,11 @@ export class BabylonStudioEngine implements StudioEngine {
       }
       const materials = metadata.materials;
       const baseOutline = materials.map((mat) => (mat instanceof MmdStandardMaterial ? mat.outlineWidth : 0));
+      const baseOutlineColor = materials.map((mat): [number, number, number, number] =>
+        mat instanceof MmdStandardMaterial
+          ? [mat.outlineColor.r, mat.outlineColor.g, mat.outlineColor.b, mat.outlineAlpha]
+          : [0, 0, 0, 1],
+      );
       const name = options.name ?? (metadata.header.modelName || stripExt(fileName));
       const boneIndex = new Map(model.runtimeBones.map((b, i) => [b, i]));
       const boneEn = new Map(metadata.bones.map((b) => [b.name, b.englishName]));
@@ -865,6 +906,10 @@ export class BabylonStudioEngine implements StudioEngine {
         stage: false,
         motion: null,
         baseOutline,
+        baseOutlineColor,
+        npr: [],
+        outlineFactor: 1,
+        height: Math.max(1, mesh.getHierarchyBoundingVectors(true).max.y - mesh.getHierarchyBoundingVectors(true).min.y),
         materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
         transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
         restPositions: model.runtimeBones.map((b) => b.linkedBone.position.clone()),
@@ -887,7 +932,7 @@ export class BabylonStudioEngine implements StudioEngine {
         );
       }
       if (options.state) this.applyModelState(entry, options.state);
-      this.applyMaterials(entry);
+      this.applyNpr(entry);
       this.events.emit('modelAdded', info);
       return info;
     } finally {
@@ -921,6 +966,7 @@ export class BabylonStudioEngine implements StudioEngine {
     m.container.removeAllFromScene();
     m.container.dispose();
     this.models.delete(id);
+    this.npr.forget(id);
     this.updateDuration();
     this.refreshStageEnvironment();
     this.events.emit('modelRemoved', id);
@@ -962,7 +1008,7 @@ export class BabylonStudioEngine implements StudioEngine {
       materials: state.materials.slice(0, entry.materialState.length),
       morphs: state.morphs,
     });
-    this.applyMaterials(entry);
+    this.applyNpr(entry);
     if (motion) {
       const handle = entry.model.createRuntimeAnimation(motion);
       entry.model.setRuntimeAnimation(handle);
@@ -1105,10 +1151,61 @@ export class BabylonStudioEngine implements StudioEngine {
       if (meshes.length) for (const mesh of meshes) mesh.isVisible = st.visible;
       mat.alpha = st.visible || meshes.length ? st.alpha : 0;
       if (mat instanceof MmdStandardMaterial) {
-        mat.renderOutline = st.outline && this.settings.postfx.outlineScale > 0;
-        mat.outlineWidth = m.baseOutline[i] * this.settings.postfx.outlineScale;
+        const look = m.npr[i];
+        const scale = this.settings.postfx.outlineScale * (look?.outlineScale ?? 1) * m.outlineFactor;
+        mat.renderOutline =
+          st.outline && this.settings.postfx.outlineScale > 0 && scale > 0 && this.npr.settings.outlineMode === 'hull';
+        mat.outlineWidth = m.baseOutline[i] * scale;
+        const c = look?.outlineColor ?? m.baseOutlineColor[i];
+        if (c) mat.outlineColor.set(c[0], c[1], c[2]);
       }
     });
+  }
+
+  // ---------------------------------------------------------------- NPR looks
+  private applyNpr(m: ModelEntry): void {
+    const metadata = m.mesh.metadata as MmdModelMetadata;
+    m.npr = this.npr.apply(m.id, metadata.materials, m.height / 20);
+    this.applyMaterials(m);
+  }
+
+  private applyNprAll(): void {
+    for (const m of this.models.values()) this.applyNpr(m);
+    this.postOutline?.setEnabled(this.npr.settings.outlineMode === 'post' && this.models.size > 0);
+  }
+
+  setModelLooks(id: string, looks: ModelLooks | null): void {
+    this.npr.setLooks(id, looks);
+    const m = this.models.get(id);
+    if (m) this.applyNpr(m);
+  }
+
+  setNprSettings(settings: NprSettings): void {
+    const tierChanged = settings.tier !== this.npr.settings.tier;
+    this.npr.settings = { ...settings };
+    this.npr.tier = selectTier(settings.tier, this.settings.viewport.quality);
+    if (tierChanged) this.npr.clearFailures();
+    if (!settings.outlineFalloff) for (const m of this.models.values()) m.outlineFactor = 1;
+    if (settings.outlineMode === 'post' && !this.postOutline) this.postOutline = new PostOutline(this.scene, this.viewCamera());
+    this.applyNprAll();
+  }
+
+  getNprStats(): NprStats {
+    return this.npr.getStats();
+  }
+
+  /** Thinner outlines far away; rewrites widths only when the factor moves by more than 2 %. */
+  private updateOutlineFalloff(): void {
+    if (!this.npr.settings.outlineFalloff) return;
+    const cam = this.viewCamera().globalPosition;
+    for (const m of this.models.values()) {
+      const d = Vector3.Distance(cam, m.mesh.getAbsolutePosition());
+      const f = outlineFalloff(d, 30 * (m.height / 20) * Math.max(0.01, m.transform.scale));
+      if (Math.abs(f - m.outlineFactor) > 0.02) {
+        m.outlineFactor = f;
+        this.applyMaterials(m);
+      }
+    }
   }
 
   setMorph(id: string, name: string, weight: number): void {
