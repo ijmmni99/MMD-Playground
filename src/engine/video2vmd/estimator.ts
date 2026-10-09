@@ -33,7 +33,7 @@ export interface PoseEstimator {
   dispose(): void;
 }
 
-export type EstimatorId = 'mediapipe' | 'synthetic';
+export type EstimatorId = 'mediapipe' | 'synthetic' | 'synthetic2';
 
 export interface EstimatorOptions {
   /** Absolute URL of the folder holding MediaPipe's WASM files. */
@@ -43,16 +43,48 @@ export interface EstimatorOptions {
   preferGpu: boolean;
   /** Synthetic backend only: artificial per-frame delay (tests). */
   delayMs?: number;
+  /** Synthetic two-camera backend: which view this run is. */
+  synthetic?: import('./syntheticV2').SyntheticViewConfig;
 }
 
 export const POSE_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task';
 
 export async function createEstimator(id: EstimatorId, options: EstimatorOptions): Promise<PoseEstimator> {
+  if (id === 'synthetic2') {
+    const { SyntheticPoseEstimatorV2, DEFAULT_SYNTHETIC_VIEW } = await import('./syntheticV2');
+    return new SyntheticPoseEstimatorV2(options.synthetic ?? DEFAULT_SYNTHETIC_VIEW, options.delayMs ?? 0);
+  }
   if (id === 'synthetic') {
     const { SyntheticEstimator } = await import('./syntheticEstimator');
     return new SyntheticEstimator(options.delayMs ?? 0);
   }
   const { MediaPipeEstimator } = await import('./mediapipeEstimator');
   return new MediaPipeEstimator(options);
+}
+
+/** Face backend paired with a pose backend (synthetic pose → synthetic face). */
+export async function createFaceEstimator(
+  id: EstimatorId,
+  options: EstimatorOptions & { faceModelUrl: string },
+): Promise<import('./faceEstimator').FaceEstimator> {
+  if (id !== 'mediapipe') {
+    const { SyntheticFaceEstimator, DEFAULT_SYNTHETIC_VIEW } = await import('./syntheticV2');
+    return new SyntheticFaceEstimator(options.synthetic ?? DEFAULT_SYNTHETIC_VIEW);
+  }
+  const { MediaPipeFaceEstimator } = await import('./mediapipeFaceHand');
+  return new MediaPipeFaceEstimator({ ...options, modelUrl: options.faceModelUrl });
+}
+
+/** Hand backend paired with a pose backend. */
+export async function createHandEstimator(
+  id: EstimatorId,
+  options: EstimatorOptions & { handModelUrl: string },
+): Promise<import('./handEstimator').HandEstimator> {
+  if (id !== 'mediapipe') {
+    const { SyntheticHandEstimator, DEFAULT_SYNTHETIC_VIEW } = await import('./syntheticV2');
+    return new SyntheticHandEstimator(options.synthetic ?? DEFAULT_SYNTHETIC_VIEW);
+  }
+  const { MediaPipeHandEstimator } = await import('./mediapipeFaceHand');
+  return new MediaPipeHandEstimator({ ...options, modelUrl: options.handModelUrl });
 }

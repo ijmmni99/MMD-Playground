@@ -1,3 +1,5 @@
+import { sourceRect } from '@/lib/video2vmd/crop';
+import type { CropWindow } from '@/lib/video2vmd/types';
 import type { CropBox, VideoInfo } from './types';
 
 /** A decoded frame, already cropped and scaled to the analysis size. Valid until the next frame. */
@@ -5,6 +7,11 @@ export interface AnalysedFrame {
   /** Source time in seconds. */
   time: number;
   canvas: OffscreenCanvas | HTMLCanvasElement;
+  /**
+   * Cut a window (normalised analysed-area coordinates) from the full-resolution decoded frame into an
+   * `out` × `out` canvas (reused between calls with the same `slot`). Only valid while this frame is.
+   */
+  crop(win: CropWindow, out: number, slot: string): OffscreenCanvas | HTMLCanvasElement;
 }
 
 export interface FrameRange {
@@ -18,6 +25,8 @@ export interface FrameSource {
   readonly kind: 'webcodecs' | 'seek';
   /** Analysis size in pixels after crop + downscale. */
   readonly size: [number, number];
+  /** Full source frame size in pixels. */
+  readonly sourceSize: [number, number];
   frames(range: FrameRange, signal: AbortSignal): AsyncGenerator<AnalysedFrame>;
   dispose(): void;
 }
@@ -47,6 +56,25 @@ function makeCanvas(w: number, h: number): OffscreenCanvas | HTMLCanvasElement {
 
 const ctx2d = (c: OffscreenCanvas | HTMLCanvasElement): Ctx2D =>
   c.getContext('2d', { willReadFrequently: false }) as Ctx2D;
+
+/** Reusable square canvases for crops, keyed by slot. */
+function cropCanvases(): (
+  slot: string,
+  out: number,
+) => { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: Ctx2D } {
+  const pool = new Map<string, { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: Ctx2D }>();
+  return (slot, out) => {
+    let c = pool.get(slot);
+    if (!c || c.canvas.width !== out) {
+      const canvas = makeCanvas(out, out);
+      c = { canvas, ctx: ctx2d(canvas) };
+      pool.set(slot, c);
+    }
+    c.ctx.fillStyle = '#000';
+    c.ctx.fillRect(0, 0, out, out);
+    return c;
+  };
+}
 
 /** Read container metadata (works without WebCodecs). */
 export async function probeVideo(file: Blob, name: string): Promise<VideoInfo & { decodable: boolean }> {
@@ -134,10 +162,12 @@ export async function createWebCodecsSource(
   const fullCtx = ctx2d(full);
   const outCtx = ctx2d(out);
   const sink = new VideoSampleSink(track);
+  const crops = cropCanvases();
 
   return {
     kind: 'webcodecs',
     size,
+    sourceSize: [W, H],
     async *frames(range, signal) {
       const minStep = 1 / range.fps - 1e-4;
       let last = -Infinity;
@@ -159,7 +189,16 @@ export async function createWebCodecsSource(
             size[0],
             size[1],
           );
-          yield { time: sample.timestamp, canvas: out };
+          yield {
+            time: sample.timestamp,
+            canvas: out,
+            crop: (win, n, slot) => {
+              const { canvas, ctx } = crops(slot, n);
+              const r = sourceRect(win, crop, [W, H]);
+              sample.draw(ctx as OffscreenCanvasRenderingContext2D, r.sx, r.sy, r.sw, r.sh, 0, 0, n, n);
+              return canvas;
+            },
+          };
         } finally {
           sample.close();
         }
@@ -199,6 +238,7 @@ export async function createSeekSource(
   const c = crop ?? { x: 0, y: 0, w: 1, h: 1 };
   const out = makeCanvas(size[0], size[1]);
   const outCtx = ctx2d(out);
+  const crops = cropCanvases();
 
   const seek = (t: number): Promise<void> =>
     new Promise((resolve) => {
@@ -217,6 +257,7 @@ export async function createSeekSource(
   return {
     kind: 'seek',
     size,
+    sourceSize: [W, H],
     async *frames(range, signal) {
       const step = 1 / range.fps;
       for (let t = range.start; t < range.end - 1e-6; t += step) {
@@ -224,7 +265,16 @@ export async function createSeekSource(
         // Seek slightly into the frame to avoid landing on the previous one.
         await seek(Math.min(t + step * 0.25, Math.max(0, video.duration - 0.001)));
         outCtx.drawImage(video, c.x * W, c.y * H, c.w * W, c.h * H, 0, 0, size[0], size[1]);
-        yield { time: t, canvas: out };
+        yield {
+          time: t,
+          canvas: out,
+          crop: (win, n, slot) => {
+            const { canvas, ctx } = crops(slot, n);
+            const r = sourceRect(win, crop, [W, H]);
+            ctx.drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, n, n);
+            return canvas;
+          },
+        };
       }
     },
     dispose() {

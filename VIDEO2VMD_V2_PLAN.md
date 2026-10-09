@@ -313,7 +313,7 @@ wrist moves more than 1.5 crop widths per second while the detection is lost.
 ## Milestones
 
 - [x] a. Morph writer + round-trip tests; synthetic two-camera fixture
-- [ ] b. Crop pass infrastructure
+- [x] b. Crop pass infrastructure
 - [ ] c. Face tracking + morph mapping + eye / head
 - [ ] d. Hand tracking + finger retargeting
 - [ ] e. Two-view import + time sync
