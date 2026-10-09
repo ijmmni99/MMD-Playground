@@ -11,6 +11,7 @@ import {
   Scaling,
   Video,
 } from 'lucide-react';
+import { useLayout } from '@/store/layout';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CameraMode } from '@/engine/types';
 import { IconButton } from '@/components/ui/controls';
@@ -177,6 +178,7 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
   const bone = useStudio((s) => s.selectedBone);
   const gizmo = useStudio((s) => s.gizmoMode);
   const hasModel = useStudio((s) => s.selectedModelId !== null);
+  const coarse = useLayout((s) => s.coarse);
   const modes: { mode: CameraMode; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
     { mode: 'orbit', label: 'Orbit camera', icon: <Rotate3D size={15} /> },
     { mode: 'fly', label: 'Free-fly camera (WASD + Q/E)', icon: <Plane size={15} /> },
@@ -239,22 +241,27 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
       {(bone !== null || hasModel) && (
         <>
           <div className="mx-1 h-5 w-px shrink-0 bg-line" />
-          <IconButton
-            label="Rotate bone (R)"
-            active={bone !== null && gizmo === 'rotate'}
-            disabled={bone === null}
-            onClick={() => setGizmoMode('rotate')}
-          >
-            <Rotate3D size={15} />
-          </IconButton>
-          <IconButton
-            label="Move bone (T)"
-            active={bone !== null && gizmo === 'translate'}
-            disabled={bone === null}
-            onClick={() => setGizmoMode('translate')}
-          >
-            <Move3D size={15} />
-          </IconButton>
+          {/* Bone tools: always on touch (tap a bone to enable), else only with a bone picked. */}
+          {(bone !== null || coarse) && (
+            <>
+              <IconButton
+                label="Rotate bone (R)"
+                active={bone !== null && gizmo === 'rotate'}
+                disabled={bone === null}
+                onClick={() => setGizmoMode('rotate')}
+              >
+                <Rotate3D size={15} />
+              </IconButton>
+              <IconButton
+                label="Move bone (T)"
+                active={bone !== null && gizmo === 'translate'}
+                disabled={bone === null}
+                onClick={() => setGizmoMode('translate')}
+              >
+                <Move3D size={15} />
+              </IconButton>
+            </>
+          )}
           <IconButton
             label="Move model (drag the arrows or the floor square)"
             active={gizmo === 'move'}
