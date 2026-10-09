@@ -22,7 +22,10 @@ export async function runDetection(
   signal: AbortSignal,
   opts: { allowWorker?: boolean } = {},
 ): Promise<DetectionResult> {
-  if (opts.allowWorker !== false && typeof Worker !== 'undefined') {
+  // ?poseWorker=off forces the main-thread path (what iOS Safari often ends up on) for testing.
+  const forceMain =
+    typeof location !== 'undefined' && new URLSearchParams(location.search).get('poseWorker') === 'off';
+  if (opts.allowWorker !== false && !forceMain && typeof Worker !== 'undefined') {
     const viaWorker = await tryWorker(req, cb, signal);
     if (viaWorker) return { ...viaWorker, mode: 'worker' };
   }

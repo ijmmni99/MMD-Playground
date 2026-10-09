@@ -1,4 +1,5 @@
-import { FilesetResolver, PoseLandmarker, type PoseLandmarkerResult } from '@mediapipe/tasks-vision';
+import { PoseLandmarker, type PoseLandmarkerResult } from '@mediapipe/tasks-vision';
+import { visionFileset } from './mediapipeFileset';
 import type { EstimatorOptions, EstimatorStatus, FrameImage, PoseEstimate, PoseEstimator } from './estimator';
 import { LANDMARK_COUNT } from './landmarks';
 
@@ -14,7 +15,7 @@ export class MediaPipeEstimator implements PoseEstimator {
   async init(onStatus?: (s: EstimatorStatus) => void): Promise<void> {
     onStatus?.({ phase: 'loading-runtime', message: 'Loading pose runtime…' });
     // The "module" WASM build loads through dynamic import, which also works inside module workers.
-    const fileset = await FilesetResolver.forVisionTasks(this.options.wasmBase, true);
+    const fileset = await visionFileset(this.options.wasmBase);
     onStatus?.({
       phase: 'loading-model',
       message: 'Loading pose model (~30 MB, cached after the first run)…',

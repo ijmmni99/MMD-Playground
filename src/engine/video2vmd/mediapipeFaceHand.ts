@@ -1,7 +1,6 @@
 // MediaPipe Face Landmarker and Hand Landmarker on crops (GPU delegate with CPU fallback; module workers).
 import {
   FaceLandmarker,
-  FilesetResolver,
   HandLandmarker,
   type FaceLandmarkerResult,
   type HandLandmarkerResult,
@@ -10,6 +9,7 @@ import { BLENDSHAPES, FACE_MESH_INDICES } from '@/lib/video2vmd/types';
 import type { EstimatorStatus, FrameImage } from './estimator';
 import type { FaceEstimate, FaceEstimator } from './faceEstimator';
 import type { HandEstimate, HandEstimator } from './handEstimator';
+import { visionFileset } from './mediapipeFileset';
 
 export interface CropEstimatorOptions {
   wasmBase: string;
@@ -47,7 +47,7 @@ export class MediaPipeFaceEstimator implements FaceEstimator {
 
   async init(onStatus?: (s: EstimatorStatus) => void): Promise<void> {
     onStatus?.({ phase: 'loading-model', message: 'Loading face model (~4 MB)…' });
-    const fileset = await FilesetResolver.forVisionTasks(this.o.wasmBase, true);
+    const fileset = await visionFileset(this.o.wasmBase);
     const { task, delegate } = await withFallback(this.o.preferGpu, (d) =>
       FaceLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: this.o.modelUrl, delegate: d },
@@ -109,7 +109,7 @@ export class MediaPipeHandEstimator implements HandEstimator {
 
   async init(onStatus?: (s: EstimatorStatus) => void): Promise<void> {
     onStatus?.({ phase: 'loading-model', message: 'Loading hand model (~8 MB)…' });
-    const fileset = await FilesetResolver.forVisionTasks(this.o.wasmBase, true);
+    const fileset = await visionFileset(this.o.wasmBase);
     let used: 'GPU' | 'CPU' = 'CPU';
     for (const k of [0, 1] as const) {
       const { task, delegate } = await withFallback(this.o.preferGpu, (d) =>
