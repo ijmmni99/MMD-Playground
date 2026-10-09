@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -126,6 +126,36 @@ test('first visit defers the 3D engine until it is needed', async ({ page }) => 
   await waitForEngine(page);
 });
 
+test.describe('first visit on a phone', () => {
+  const { viewport, deviceScaleFactor, isMobile, hasTouch, userAgent } = devices['Pixel 7'];
+  test.use({ viewport, deviceScaleFactor, isMobile, hasTouch, userAgent });
+  test('the first tap on "Add model" opens the file picker while the engine starts', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('empty-state')).toBeVisible();
+    expect(await page.evaluate(() => '__studio' in window)).toBe(false);
+    const chooser = page.waitForEvent('filechooser', { timeout: 10_000 });
+    await page.getByTestId('empty-state').getByTestId('add-model').tap();
+    await (
+      await chooser
+    ).setFiles(
+      ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png'].map((f) => join(fixtures, f)),
+    );
+    await waitForEngine(page);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              (window as unknown as { __studio: { listModels(): string[] } }).__studio.listModels().length,
+          ),
+        {
+          timeout: 60_000,
+        },
+      )
+      .toBe(1);
+  });
+});
+
 test('stage: loads as scenery, keeps the dancer selected, motions go to the dancer', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -158,6 +188,14 @@ test('stage: loads as scenery, keeps the dancer selected, motions go to the danc
   await (await chooser).setFiles([join(fixtures, 'dance.vmd')]);
   await expect(rows.nth(0)).toContainText('dance.vmd');
   await expect(rows.nth(1)).not.toContainText('dance.vmd');
+
+  // Turning the selected model into a stage keeps its inspector open, so it can be switched back.
+  await rows.nth(0).click();
+  await page.getByRole('switch', { name: 'Stage (scenery)' }).click();
+  await expect(page.getByTestId('model-inspector')).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Stage (scenery)' })).toBeChecked();
+  await page.getByRole('switch', { name: 'Stage (scenery)' }).click();
+  await expect(page.getByRole('switch', { name: 'Stage (scenery)' })).not.toBeChecked();
 
   // The stage flag survives a reload.
   await expect(page.getByTestId('save-status')).toHaveText('Saved', { timeout: 30_000 });

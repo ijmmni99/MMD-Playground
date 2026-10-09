@@ -332,10 +332,9 @@ export function setModelStage(id: string, stage: boolean): void {
   const engine = engineOrNull();
   engine?.setModelStage(id, stage);
   updateModel(id, { stage });
-  if (stage) {
-    setModelPhysics(id, false);
-    if (get().selectedModelId === id) selectModel(performerId() ?? null);
-  }
+  // The model stays selected so its Inspector (and the Stage switch to undo this) stays open; it just
+  // can't be picked by tapping in the viewport any more.
+  if (stage) setModelPhysics(id, false);
   markDirty();
 }
 

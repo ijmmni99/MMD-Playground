@@ -34,6 +34,7 @@ export function Viewport({ compact = false }: { compact?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ready = useStudio((s) => s.engineReady);
   const booting = useStudio((s) => s.engineBooting);
+  const fromWelcome = useStudio((s) => s.bootFromWelcome);
   const error = useStudio((s) => s.engineError);
   const hasModels = useStudio((s) => s.models.length > 0);
   const restoring = useStudio((s) => s.project.restoring);
@@ -109,8 +110,17 @@ export function Viewport({ compact = false }: { compact?: boolean }) {
       <div ref={hostRef} className="absolute inset-0 overscroll-none" />
       {ready && (!compact || hasModels) && <ViewportToolbar compact={compact} />}
       {ready && <StatsOverlay />}
-      {(ready || !booting) && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
-      {booting && !ready && !error && (
+      {(ready || !booting || fromWelcome) && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
+      {booting && !ready && !error && fromWelcome && !hasModels && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-bg-panel/95 px-3 py-1.5 text-[12px] text-fg-muted shadow"
+          data-testid="engine-starting"
+        >
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          Starting 3D engine…
+        </div>
+      )}
+      {booting && !ready && !error && !(fromWelcome && !hasModels) && (
         <div className="absolute inset-0 grid place-items-center text-fg-muted">
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />

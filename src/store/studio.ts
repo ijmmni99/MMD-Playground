@@ -53,6 +53,8 @@ export interface StudioState {
   engineReady: boolean;
   /** True once the engine bundle has been requested. */
   engineBooting: boolean;
+  /** The engine is starting because the user touched the welcome screen (not to restore a project). */
+  bootFromWelcome: boolean;
   engineError: string | null;
   physics: { available: boolean; message?: string };
 
@@ -102,6 +104,7 @@ export const initialPlayback: PlaybackState = {
 export const useStudio = create<StudioState>(() => ({
   engineReady: false,
   engineBooting: false,
+  bootFromWelcome: false,
   engineError: null,
   physics: { available: true },
   models: [],

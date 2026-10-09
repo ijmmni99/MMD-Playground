@@ -60,11 +60,15 @@ export function scheduleEngineBoot(): void {
   if (scheduled) return;
   scheduled = true;
   const events = ['pointerdown', 'keydown', 'dragenter', 'touchstart'] as const;
-  const start = (): void => {
-    events.forEach((t) => window.removeEventListener(t, start, true));
+  const start = (fromWelcome = false): void => {
+    events.forEach((t) => window.removeEventListener(t, onInteract, true));
+    // A first visit keeps the welcome screen up while the engine loads, so the tap that started it
+    // still reaches its button (e.g. "Add model" opens the file picker right away).
+    if (fromWelcome) studio.set({ bootFromWelcome: true });
     void bootEngine();
   };
-  events.forEach((t) => window.addEventListener(t, start, { capture: true, passive: true }));
+  const onInteract = (): void => start(true);
+  events.forEach((t) => window.addEventListener(t, onInteract, { capture: true, passive: true }));
   const params = new URLSearchParams(location.search);
   if (params.has('shared') || params.has('engine')) return start();
   void hasRestorableProject().then((restore) => {

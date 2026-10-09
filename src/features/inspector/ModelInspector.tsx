@@ -36,6 +36,7 @@ import {
   resetMorphs,
   resetPose,
   selectBone,
+  selectModel,
   setGizmoMode,
   setMaterial,
   setModelPhysics,
@@ -52,9 +53,32 @@ import { useNameTable } from '@/store/names';
 
 export function ModelInspector() {
   const model = useStudio((s) => s.models.find((m) => m.id === s.selectedModelId) ?? null);
+  const models = useStudio((s) => s.models);
   if (!model)
     return (
-      <Empty>Select a model in the Scene panel to edit its transform, morphs, bones and materials.</Empty>
+      <div>
+        <Empty>
+          {models.length
+            ? 'Pick a model to edit its transform, morphs, bones and materials.'
+            : 'Load a model to edit its transform, morphs, bones and materials.'}
+        </Empty>
+        {models.length > 0 && (
+          <ul className="space-y-1 px-3 pb-3" data-testid="inspector-pick-model">
+            {models.map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  onClick={() => selectModel(m.id)}
+                  className="flex min-h-[36px] w-full items-center justify-between gap-2 rounded-md border border-line px-3 text-left text-[13px] hover:bg-bg-hover coarse:min-h-[48px]"
+                >
+                  <span className="truncate">{m.name}</span>
+                  {m.stage && <span className="shrink-0 text-[11px] text-fg-dim">Stage</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
   return (
     <div data-testid="model-inspector">
