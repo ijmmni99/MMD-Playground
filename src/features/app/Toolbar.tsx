@@ -29,6 +29,10 @@ import { redo, undo, updateSettings } from '@/store/actions';
 import { useHistory } from '@/store/history';
 import { studio, toast, useStudio } from '@/store/studio';
 
+/** Mode tab labels: short below 1280 px (and on tablets), full otherwise; the accessible name is always full. */
+const SHORT: Partial<Record<string, string>> = { video2vmd: 'Video', converter: 'Convert', modeledit: 'Edit' };
+const LONG: Partial<Record<string, string>> = { video2vmd: 'Video → VMD', converter: 'Model Converter', modeledit: 'Model Editor' };
+
 export function Toolbar({ panels }: { panels: PanelToggles }) {
   const project = useStudio((s) => s.project);
   const mode = useStudio((s) => s.mode);
@@ -140,6 +144,7 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             role="tab"
             data-testid={`mode-${m}`}
             aria-selected={mode === m}
+            aria-label={LONG[m] ?? m}
             onClick={() => studio.set({ mode: m })}
             className={cn(
               'flex h-6 items-center gap-1 rounded px-2.5 text-[12px] capitalize',
@@ -150,7 +155,18 @@ export function Toolbar({ panels }: { panels: PanelToggles }) {
             {m === 'video2vmd' && <PersonStanding size={13} />}
             {m === 'converter' && <Boxes size={13} />}
             {m === 'modeledit' && <PencilRuler size={13} />}
-            {m === 'video2vmd' ? (compact ? 'Video' : 'Video → VMD') : m === 'converter' ? (compact ? 'Convert' : 'Model Converter') : m === 'modeledit' ? (compact ? 'Edit' : 'Model Editor') : m}
+            {SHORT[m] ? (
+              compact ? (
+                SHORT[m]
+              ) : (
+                <>
+                  <span className="xl:hidden">{SHORT[m]}</span>
+                  <span className="hidden xl:inline">{LONG[m]}</span>
+                </>
+              )
+            ) : (
+              m
+            )}
           </button>
         ))}
       </div>
