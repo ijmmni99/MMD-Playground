@@ -64,8 +64,8 @@ export interface StudioEvents {
   morphsChanged: { modelId: string };
 }
 
-/** 'scale' applies to the whole active model (uniform). */
-export type GizmoMode = 'rotate' | 'translate' | 'scale';
+/** 'scale' and 'move' apply to the whole active model ('scale' is uniform). */
+export type GizmoMode = 'rotate' | 'translate' | 'scale' | 'move';
 
 export interface LoadModelOptions {
   id?: string;

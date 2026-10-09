@@ -427,7 +427,7 @@ Rotating the device switches layouts without restarting the 3D engine, so the sc
 | Double-tap                            | Focus the selected model                               |
 | Tap a model                           | Select it                                              |
 | Tap near a bone of the selected model | Select the bone (rotate / move gizmo, larger on touch) |
-| Toolbar buttons                       | Rotate / move bone, scale model                        |
+| Toolbar buttons                       | Rotate / move bone, move model (drag arrows or the floor square), scale model |
 | Timeline: drag / pinch                | Scrub / zoom the time range (two-finger drag pans)     |
 | Long-press an icon                    | Show its label                                         |
 | Hold a − / + stepper                  | Fine-adjust a slider value, with repeat                |

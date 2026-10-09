@@ -201,6 +201,9 @@ export class BabylonStudioEngine implements StudioEngine {
   private positionGizmo!: PositionGizmo;
   private gizmoMode: GizmoMode = 'rotate';
   private scaleGizmo!: ScaleGizmo;
+  /** Moves the whole active model (on-screen "move" mode): floor plane plus X / Y / Z arrows. */
+  private moveGizmo!: PositionGizmo;
+  private moveStart: TransformState | null = null;
   private scaleStart: TransformState | null = null;
   private activeModelId: string | null = null;
   private selected: { modelId: string; bone: number } | null = null;
@@ -389,6 +392,27 @@ export class BabylonStudioEngine implements StudioEngine {
       this.setModelTransform(m.id, after);
       this.events.emit('modelTransformEdited', { modelId: m.id, before: this.scaleStart, after });
       this.scaleStart = null;
+    });
+    this.moveGizmo = new PositionGizmo(this.utilLayer, thickness);
+    this.moveGizmo.scaleRatio = this.coarse ? 1.6 : 1.1;
+    this.moveGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+    this.moveGizmo.planarGizmoEnabled = true;
+    // Only the floor plane (normal +Y); the vertical planes are easy to grab by mistake.
+    this.moveGizmo.xPlaneGizmo.isEnabled = false;
+    this.moveGizmo.zPlaneGizmo.isEnabled = false;
+    this.moveGizmo.onDragStartObservable.add(() => {
+      const m = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+      this.moveStart = m ? structuredClone(m.transform) : null;
+    });
+    this.moveGizmo.onDragEndObservable.add(() => {
+      const m = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
+      if (!m || !this.moveStart) return;
+      const r = (v: number): number => Math.round(v * 100) / 100;
+      const p = m.mesh.position;
+      const after = { ...m.transform, position: [r(p.x), r(p.y), r(p.z)] as TransformState['position'] };
+      this.setModelTransform(m.id, after);
+      this.events.emit('modelTransformEdited', { modelId: m.id, before: this.moveStart, after });
+      this.moveStart = null;
     });
 
     // MMD runtime + physics
@@ -1794,7 +1818,8 @@ export class BabylonStudioEngine implements StudioEngine {
     this.gizmoMode = mode;
     const active = this.activeModelId ? this.models.get(this.activeModelId) : undefined;
     this.scaleGizmo.attachedMesh = mode === 'scale' && active ? active.mesh : null;
-    const bone = this.selected !== null && mode !== 'scale';
+    this.moveGizmo.attachedMesh = mode === 'move' && active ? active.mesh : null;
+    const bone = this.selected !== null && mode !== 'scale' && mode !== 'move';
     this.rotationGizmo.attachedNode = bone && mode === 'rotate' ? this.gizmoProxy : null;
     this.positionGizmo.attachedNode = bone && mode === 'translate' ? this.gizmoProxy : null;
   }

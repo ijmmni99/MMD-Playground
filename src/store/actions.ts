@@ -405,6 +405,8 @@ export function syncMorphsFromEngine(id: string): void {
 
 export function selectBone(bone: number | null): void {
   const id = get().selectedModelId;
+  // Picking a bone means posing: leave the whole-model move tool.
+  if (bone !== null && get().gizmoMode === 'move') setGizmoMode('rotate');
   engineOrNull()?.selectBone(id, bone);
   set({ selectedBone: bone });
 }

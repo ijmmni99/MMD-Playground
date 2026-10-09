@@ -167,3 +167,65 @@ test('stage: loads as scenery, keeps the dancer selected, motions go to the danc
   await expect(rows.nth(1).getByLabel('Stage')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('move model: drag the on-screen move gizmo, then undo', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?engine=1');
+  await waitForEngine(page);
+  await page.getByLabel('Render quality').selectOption('low');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Open files / ZIP…' }).click();
+  await (
+    await chooser
+  ).setFiles(
+    ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png'].map((f) => join(fixtures, f)),
+  );
+  await expect(page.getByTestId('model-list').getByRole('option')).toHaveCount(1);
+  await page.getByTestId('move-model').click();
+  await expect(page.getByTestId('move-model')).toHaveAttribute('aria-pressed', 'true');
+
+  type Eng = {
+    listModels(): string[];
+    getModelState(id: string): { transform: { position: number[] } } | null;
+    viewCamera(): unknown;
+  };
+  const position = (): Promise<number[]> =>
+    page.evaluate(() => {
+      const e = (window as unknown as { __studio: Eng }).__studio;
+      return e.getModelState(e.listModels()[0])!.transform.position;
+    });
+  // The X arrow of the gizmo: project the model origin and a point along +X to the screen.
+  const box = (await page.getByTestId('viewport-canvas').boundingBox())!;
+  const handle = await page.evaluate(
+    ({ w, h }) => {
+      const e = (window as unknown as { __studio: Eng }).__studio;
+      const m = (
+        e.viewCamera() as { getTransformationMatrix(): { m: ArrayLike<number> } }
+      ).getTransformationMatrix().m;
+      const project = (x: number, y: number, z: number): [number, number] => {
+        const cx = x * m[0] + y * m[4] + z * m[8] + m[12];
+        const cy = x * m[1] + y * m[5] + z * m[9] + m[13];
+        const cw = x * m[3] + y * m[7] + z * m[11] + m[15];
+        return [((cx / cw + 1) / 2) * w, ((1 - cy / cw) / 2) * h];
+      };
+      const [ox, oy] = project(0, 0, 0);
+      const [px, py] = project(0.5, 0, 0);
+      const len = Math.hypot(px - ox, py - oy);
+      return { x: ox + ((px - ox) / len) * 60, y: oy + ((py - oy) / len) * 60 };
+    },
+    { w: box.width, h: box.height },
+  );
+  expect(handle).not.toBeNull();
+  const start = await position();
+  await page.mouse.move(box.x + handle!.x, box.y + handle!.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(box.x + handle!.x + i * 8, box.y + handle!.y + i * 3);
+  await page.mouse.up();
+  await expect.poll(async () => (await position()).some((v, i) => Math.abs(v - start[i]) > 0.05)).toBe(true);
+  // The inspector follows, and undo puts the model back.
+  await page.getByTestId('viewport-canvas').focus();
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await position()).every((v, i) => Math.abs(v - start[i]) < 1e-6)).toBe(true);
+  expect(errors).toEqual([]);
+});

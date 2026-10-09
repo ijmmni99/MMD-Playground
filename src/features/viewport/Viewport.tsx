@@ -4,13 +4,13 @@ import {
   Camera,
   Focus,
   Grid3x3,
+  Move,
   Move3D,
   Plane,
   Rotate3D,
   Scaling,
   Video,
 } from 'lucide-react';
-import { useLayout } from '@/store/layout';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CameraMode } from '@/engine/types';
 import { IconButton } from '@/components/ui/controls';
@@ -177,7 +177,6 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
   const bone = useStudio((s) => s.selectedBone);
   const gizmo = useStudio((s) => s.gizmoMode);
   const hasModel = useStudio((s) => s.selectedModelId !== null);
-  const coarse = useLayout((s) => s.coarse);
   const modes: { mode: CameraMode; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
     { mode: 'orbit', label: 'Orbit camera', icon: <Rotate3D size={15} /> },
     { mode: 'fly', label: 'Free-fly camera (WASD + Q/E)', icon: <Plane size={15} /> },
@@ -237,7 +236,7 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
           </IconButton>
         </>
       )}
-      {(bone !== null || (coarse && hasModel)) && (
+      {(bone !== null || hasModel) && (
         <>
           <div className="mx-1 h-5 w-px shrink-0 bg-line" />
           <IconButton
@@ -255,6 +254,15 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
             onClick={() => setGizmoMode('translate')}
           >
             <Move3D size={15} />
+          </IconButton>
+          <IconButton
+            label="Move model (drag the arrows or the floor square)"
+            active={gizmo === 'move'}
+            disabled={!hasModel}
+            data-testid="move-model"
+            onClick={() => setGizmoMode(gizmo === 'move' ? 'rotate' : 'move')}
+          >
+            <Move size={15} />
           </IconButton>
           <IconButton
             label="Scale model"
