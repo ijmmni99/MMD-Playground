@@ -89,7 +89,8 @@ export function writePmx(m: PmxModel): ArrayBuffer {
   o.bytes(new Uint8Array([0x50, 0x4d, 0x58, 0x20])); // "PMX "
   o.f32(2.0);
   o.u8(8);
-  for (const g of [0, 0, vSize, tSize, matSize, bSize, mSize, rSize]) o.u8(g);
+  const addUv = Math.max(0, Math.min(4, m.additionalUvCount ?? 0));
+  for (const g of [0, addUv, vSize, tSize, matSize, bSize, mSize, rSize]) o.u8(g);
   o.text(m.name);
   o.text(m.nameEn);
   o.text(m.comment);
@@ -101,8 +102,21 @@ export function writePmx(m: PmxModel): ArrayBuffer {
     o.vec(v.position);
     o.vec(v.normal);
     o.vec(v.uv);
+    for (let k = 0; k < addUv; k++) o.vec(v.addUv?.[k] ?? [0, 0, 0, 0]);
     const n = v.bones.length;
-    if (n <= 1) {
+    if (v.sdef && n === 2) {
+      o.u8(3);
+      bone(v.bones[0]);
+      bone(v.bones[1]);
+      o.f32(v.weights[0]);
+      o.vec(v.sdef.c);
+      o.vec(v.sdef.r0);
+      o.vec(v.sdef.r1);
+    } else if (v.qdef && n > 1) {
+      o.u8(4);
+      for (let i = 0; i < 4; i++) bone(v.bones[i] ?? 0);
+      for (let i = 0; i < 4; i++) o.f32(v.weights[i] ?? 0);
+    } else if (n <= 1) {
       o.u8(0);
       bone(v.bones[0] ?? 0);
     } else if (n === 2) {
@@ -146,7 +160,7 @@ export function writePmx(m: PmxModel): ArrayBuffer {
       o.u8(mat.sharedToon);
     } else {
       o.u8(0);
-      signed(tSize, -1);
+      signed(tSize, mat.toon ?? -1);
     }
     o.text(mat.memo);
     o.i32(mat.indexCount);
@@ -162,6 +176,8 @@ export function writePmx(m: PmxModel): ArrayBuffer {
     if (b.append?.move) flags |= BoneFlag.AppendMove;
     if (b.fixedAxis) flags |= BoneFlag.FixedAxis;
     if (b.localAxis) flags |= BoneFlag.LocalAxis;
+    if (b.externalParent !== undefined) flags |= 0x2000;
+    else flags &= ~0x2000;
     o.text(b.name);
     o.text(b.nameEn);
     o.vec(b.position);
@@ -179,6 +195,7 @@ export function writePmx(m: PmxModel): ArrayBuffer {
       o.vec(b.localAxis.x);
       o.vec(b.localAxis.z);
     }
+    if (b.externalParent !== undefined) o.i32(b.externalParent);
     if (b.ik) {
       bone(b.ik.target);
       o.i32(b.ik.loop);
@@ -201,20 +218,68 @@ export function writePmx(m: PmxModel): ArrayBuffer {
     o.text(mo.name);
     o.text(mo.nameEn);
     o.u8(mo.panel);
-    if (mo.kind === 'group') {
-      o.u8(0);
-      o.i32(mo.offsets.length);
-      for (const x of mo.offsets) {
-        signed(mSize, x.morph);
-        o.f32(x.weight);
-      }
-    } else {
-      o.u8(1);
-      o.i32(mo.offsets.length);
-      for (const x of mo.offsets) {
-        vIdx(x.vertex);
-        o.vec(x.offset);
-      }
+    switch (mo.kind) {
+      case 'group':
+      case 'flip':
+        o.u8(mo.kind === 'group' ? 0 : 9);
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          signed(mSize, x.morph);
+          o.f32(x.weight);
+        }
+        break;
+      case 'vertex':
+        o.u8(1);
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          vIdx(x.vertex);
+          o.vec(x.offset);
+        }
+        break;
+      case 'bone':
+        o.u8(2);
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          bone(x.bone);
+          o.vec(x.position);
+          o.vec(x.rotation);
+        }
+        break;
+      case 'uv':
+        o.u8(3 + Math.max(0, Math.min(4, mo.uvIndex)));
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          vIdx(x.vertex);
+          o.vec(x.offset);
+        }
+        break;
+      case 'material':
+        o.u8(8);
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          signed(matSize, x.material);
+          o.u8(x.op);
+          o.vec(x.diffuse);
+          o.vec(x.specular);
+          o.f32(x.shininess);
+          o.vec(x.ambient);
+          o.vec(x.edgeColor);
+          o.f32(x.edgeSize);
+          o.vec(x.texture);
+          o.vec(x.sphere);
+          o.vec(x.toon);
+        }
+        break;
+      case 'impulse':
+        o.u8(10);
+        o.i32(mo.offsets.length);
+        for (const x of mo.offsets) {
+          signed(rSize, x.body);
+          o.u8(x.local ? 1 : 0);
+          o.vec(x.velocity);
+          o.vec(x.torque);
+        }
+        break;
     }
   }
 

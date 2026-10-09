@@ -71,10 +71,29 @@ export function validatePmx(m: PmxModel, files?: ReadonlySet<string>): Validatio
   }
 
   m.morphs.forEach((mo) => {
-    if (mo.kind === 'vertex') {
-      if (mo.offsets.some((x) => x.vertex < 0 || x.vertex >= m.vertices.length || !finite(x.offset)))
-        err(`Morph ${mo.name}: bad vertex offset`);
-    } else if (mo.offsets.some((x) => x.morph < 0 || x.morph >= m.morphs.length)) err(`Morph ${mo.name}: bad group entry`);
+    const nv = m.vertices.length;
+    switch (mo.kind) {
+      case 'vertex':
+      case 'uv':
+        if (mo.offsets.some((x) => x.vertex < 0 || x.vertex >= nv || !finite(x.offset)))
+          err(`Morph ${mo.name}: bad vertex offset`);
+        break;
+      case 'group':
+      case 'flip':
+        if (mo.offsets.some((x) => x.morph < 0 || x.morph >= m.morphs.length)) err(`Morph ${mo.name}: bad group entry`);
+        break;
+      case 'bone':
+        if (mo.offsets.some((x) => !inBone(x.bone) || !finite(x.position) || !finite(x.rotation)))
+          err(`Morph ${mo.name}: bad bone entry`);
+        break;
+      case 'material':
+        if (mo.offsets.some((x) => x.material < -1 || x.material >= m.materials.length))
+          err(`Morph ${mo.name}: bad material entry`);
+        break;
+      case 'impulse':
+        if (mo.offsets.some((x) => x.body < 0 || x.body >= m.rigidBodies.length)) err(`Morph ${mo.name}: bad rigid body entry`);
+        break;
+    }
   });
   m.frames.forEach((f) => {
     if (f.items.some((it) => (it.kind === 'bone' ? !inBone(it.index) : it.index < 0 || it.index >= m.morphs.length)))

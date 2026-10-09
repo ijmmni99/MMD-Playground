@@ -12,6 +12,12 @@ export interface PmxVertex {
   bones: number[];
   weights: number[];
   edgeScale: number;
+  /** SDEF parameters (two bones). */
+  sdef?: { c: V3; r0: V3; r1: V3 };
+  /** QDEF (dual quaternion, four bones). */
+  qdef?: boolean;
+  /** Additional UVs (PMX "additional vec4"), `PmxModel.additionalUvCount` of them. */
+  addUv?: V4[];
 }
 
 export const MaterialFlag = {
@@ -36,8 +42,10 @@ export interface PmxMaterial {
   texture: number;
   sphere: number;
   sphereMode: 0 | 1 | 2 | 3;
-  /** Shared toon 0–9 (toon01–10.bmp), or -1 for none. */
+  /** Shared toon 0–9 (toon01–10.bmp), or -1 for none / custom. */
   sharedToon: number;
+  /** Custom toon texture index (when `sharedToon` is -1); -1 or absent = none. */
+  toon?: number;
   memo: string;
   /** Triangle index count (3 × faces) for this material, in order. */
   indexCount: number;
@@ -76,13 +84,42 @@ export interface PmxBone {
   fixedAxis?: V3;
   localAxis?: { x: V3; z: V3 };
   ik?: { target: number; loop: number; limit: number; links: PmxIkLink[] };
+  /** External parent key (flag 0x2000). */
+  externalParent?: number;
 }
 
 export type MorphPanel = 0 | 1 | 2 | 3 | 4; // system, eyebrow, eye, mouth, other
 
+export interface PmxMaterialMorphOffset {
+  /** Material index, -1 = all materials. */
+  material: number;
+  /** 0 = multiply, 1 = add. */
+  op: 0 | 1;
+  diffuse: V4;
+  specular: V3;
+  shininess: number;
+  ambient: V3;
+  edgeColor: V4;
+  edgeSize: number;
+  texture: V4;
+  sphere: V4;
+  toon: V4;
+}
+
+type MorphBase = { name: string; nameEn: string; panel: MorphPanel };
+
 export type PmxMorph =
-  | { kind: 'vertex'; name: string; nameEn: string; panel: MorphPanel; offsets: { vertex: number; offset: V3 }[] }
-  | { kind: 'group'; name: string; nameEn: string; panel: MorphPanel; offsets: { morph: number; weight: number }[] };
+  | (MorphBase & { kind: 'vertex'; offsets: { vertex: number; offset: V3 }[] })
+  | (MorphBase & { kind: 'group'; offsets: { morph: number; weight: number }[] })
+  | (MorphBase & { kind: 'bone'; offsets: { bone: number; position: V3; rotation: V4 }[] })
+  /** `uvIndex` 0 = base UV, 1–4 = additional UVs. */
+  | (MorphBase & { kind: 'uv'; uvIndex: number; offsets: { vertex: number; offset: V4 }[] })
+  | (MorphBase & { kind: 'material'; offsets: PmxMaterialMorphOffset[] })
+  | (MorphBase & { kind: 'flip'; offsets: { morph: number; weight: number }[] })
+  | (MorphBase & {
+      kind: 'impulse';
+      offsets: { body: number; local: boolean; velocity: V3; torque: V3 }[];
+    });
 
 export interface PmxDisplayFrame {
   name: string;
@@ -126,6 +163,8 @@ export interface PmxJoint {
 }
 
 export interface PmxModel {
+  /** Number of additional vec4 UVs per vertex (0–4). */
+  additionalUvCount?: number;
   name: string;
   nameEn: string;
   comment: string;
