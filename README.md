@@ -229,9 +229,9 @@ flowchart LR
 **Limitations.**
 
 - Monocular pose estimation can't see depth well. Moves toward or away from the camera, and the exact feet placement when facing sideways, are approximations.
-- Fingers, facial expressions and eye movement are not tracked (they stay at rest).
+- Without the **Face** / **Fingers** options, fingers, facial expressions and eye movement stay at rest (see below).
 - Assumes a single person, the full body in frame and a mostly static camera. Spins, floor work and occlusions reduce quality, and the quality report flags the affected times.
-- 肩 (shoulders) and the twist bones (腕捩/手捩) stay at rest.
+- 肩 (shoulders) and 腕捩 stay at rest; 手捩 is driven only with **Fingers** on (wrist refinement).
 - On phones, analysis runs at up to 720p and 30 fps and is much slower than on a laptop GPU.
 - The open-source Chromium builds used by test runners can't decode H.264. Branded Chrome, Edge and Safari can.
 
@@ -243,6 +243,93 @@ flowchart LR
 - **What happens after it:** cleaning, retargeting and export only consume that `PoseSequence`.
 - **Higher-quality estimators:** an SMPL-based one such as WHAM or 4DHumans (on a server, or in WebGPU / ONNX Runtime Web) can be added as another implementation. It would map SMPL joints onto the BlazePose landmark set, register itself in `createEstimator()`, and need no other changes. A future backend could also emit joint rotations directly; the retargeting step would then skip its direction-vector solve.
 - **Built-in test backend:** `?pose=synthetic` swaps in a procedural stick-figure dancer, used by the tests and demos.
+
+### Two-view, face and fingers
+
+Three optional upgrades, picked at **Import** with checkboxes or a preset. **Fast** is body only, **Balanced** is body + face, and **Full** is two-view + face + fingers. Single-view body-only stays the default.
+
+- **Two-view (high accuracy):** add a **side video** of the same performance, filmed about 90° from the front one. Depth is what a single camera gets wrong; a side camera sees it directly. Analysis takes about twice as long.
+- **Face:** blinks, winks, mouth shapes (あいうえお), expressions, eye direction and head rotation, written as standard MMD morphs plus 両目 (or 左目 / 右目) rotations.
+- **Fingers:** open, close, point and spread, written as rotations of the PMX finger bones (親指０–２, 人指 / 中指 / 薬指 / 小指 １–３).
+
+```mermaid
+flowchart LR
+  F[Front video] --> PF[Pose + crop pass<br/>Worker]
+  S[Side video] --> PS[Pose + crop pass<br/>Worker]
+  PF --> SY[Time sync<br/>audio onsets · hip motion · manual]
+  PS --> SY
+  SY --> CA[Calibration<br/>yaw-only robust Kabsch · scale · DLT]
+  CA --> FU[Fusion per joint<br/>visibility × view geometry<br/>single-view fallback · bone lengths]
+  FU --> CL[Clean · retarget · foot IK<br/>unchanged]
+  PF -. face / hands .-> FH[Face → morphs, eyes, head<br/>Hands → finger bones]
+  PS -. face / hands .-> FH
+  FH --> W[VMD writer<br/>bones + fingers + eyes + morphs]
+  CL --> W
+```
+
+**How two-view works.**
+
+1. **Sync.** Both soundtracks are decoded (downsampled to 11 kHz) and their onset envelopes cross-correlated, giving the offset and a confidence. A clap at the start makes this unambiguous. Without usable audio, the vertical hip motion of both pose tracks is correlated instead. You can always set the offset by hand (frame nudges, side-by-side scrub). Different frame rates and lengths are fine: both go onto one 30 fps timeline over their overlap.
+2. **Calibration.** The side camera's angle is found by a robust yaw-only Procrustes (Kabsch) fit of the two views' 3D landmarks over the whole clip, with your angle as the starting guess. A shared scale comes from the body's vertical extent, and camera distances come from weak perspective. Warnings appear when cameras move, the dancer isn't visible in both, or the views are too similar.
+3. **Fusion.** Each joint in each frame mixes both views, weighted by landmark visibility and by geometry. Each camera is trusted least along its own viewing direction, so at 90° it is "front for left/right and up/down, side for depth". With an estimated field of view, joints are also triangulated (DLT), and the triangulated point is used where it reprojects better. If one view loses a joint, the other view is used (counted as single-view); if both lose it, the gap is interpolated. Bone lengths are then enforced, and the usual cleaning, retargeting and foot IK run unchanged.
+4. **Report and A/B.** You get detection per view, the sync method and confidence, calibration confidence, and the share of joints seen by both views. **Preview** can switch between the two-view and single-view results, with foot-skate and jitter scores for each.
+
+**Filming two views.**
+
+- Two phones on **tripods**, about **90°** apart (front and side), both static for the whole take.
+- The **same dancer, full body**, in both shots; similar lighting; a plain background.
+- **Clap once** at the start, visible and audible in both.
+- 1080p or higher is best, especially for face and fingers.
+
+**The crop pass (face and hands).** The body pose locates the head and both wrists. Smoothed square windows around them are cut from the **full-resolution** frame (not the downscaled analysis frame) and upscaled: 256 px for the face, 224 px for hands. MediaPipe Face / Hand Landmarker runs on each crop, and the landmarks are mapped back to the frame. A hand's left / right side comes from the body wrist it was cropped at, not from the hand model's label, so mirrored videos and the Mirror toggle work. In two-view mode both views are processed, and the larger, more frontal face or hand wins per frame. Crops that are too small (face under ~96 px, hands under ~64 px) raise warnings.
+
+**Face → MMD morphs** (edit the table in the **Clean** step: per-morph source, gain, offset and on / off). Only morphs the selected model has are written, including common aliases (瞬き, ウインク, 眉上…); the rest are listed in the report.
+
+| MMD morph               | Default source (MediaPipe / ARKit blendshapes)                          |
+| ----------------------- | ----------------------------------------------------------------------- |
+| まばたき                | both eyes closed: min(eyeBlinkLeft, eyeBlinkRight)                      |
+| ウィンク / ウィンク右   | one eye closed (left / right only)                                      |
+| あ い う え お          | vowels from jawOpen, mouthFunnel, mouthPucker, mouthSmile, mouthStretch |
+| ん                      | mouthPress / mouthClose with the jaw shut                               |
+| 笑い                    | mouthSmile × 0.6 + cheekSquint × 0.4                                    |
+| にやり                  | one-sided smile                                                         |
+| 怒り                    | browDown                                                                |
+| 困る                    | browInnerUp (minus browOuterUp), plus some browDown                     |
+| 上                      | browOuterUp                                                             |
+| びっくり                | eyeWide                                                                 |
+| others (off by default) | any raw blendshape, e.g. cheekPuff → ぷくー                             |
+
+Blinks use hysteresis and a **minimum length** (3 frames by default), so short blinks survive 30 fps. The mouth uses attack / release smoothing, and small values fall into a deadzone. When the face is lost, the face eases to neutral. Eye direction comes from the irises (clamped ±20° / ±15°), and head rotation from the face matrix is blended into 首 / 頭. **Lip-sync from audio** can replace the video's mouth shapes, while video blinks and expressions are kept.
+
+**Hand landmarks → MMD fingers.**
+
+| MMD bones                    | Driven by                                            |
+| ---------------------------- | ---------------------------------------------------- |
+| 親指０                       | thumb opposition (out of the palm plane)             |
+| 親指１, 親指２               | thumb MCP / IP flexion                               |
+| 人指 / 中指 / 薬指 / 小指 １ | MCP flexion + sideways spread                        |
+| … ２, … ３                   | PIP / DIP flexion                                    |
+| 手首, 手捩                   | palm orientation from the hand (optional refinement) |
+
+Joint angles come from the hand's own landmarks, so they don't depend on its orientation. They are applied about each finger bone's bend axis in the model's own rest pose and clamped to anatomical limits. Impossible frames are dropped. On dropouts the last pose holds for 0.5 s, then the hand relaxes. Snapping low-confidence frames to the nearest preset (open, fist, point, peace, relaxed) is optional.
+
+**Integration.** **Apply to model** plays body, fingers, eyes and face together. With the Clip Timeline open, the body becomes a Dance clip and the face its own Face clip; the Motion Editor edits them like any motion. **Export** lets you choose body, fingers, face morphs and eye bones. The **landmark JSON** keeps both views' body, face and hand landmarks plus the sync and calibration, so conversion can be re-run without ML. Everything is saved with the project and survives `.mmdstudio.zip` export / import.
+
+**Known limits.**
+
+- Two-view needs **static cameras**; any camera move after the start breaks the calibration (the report warns).
+- Motion blur, hands crossing or hiding each other, and small faces or hands (far from the camera, low resolution) reduce quality.
+- A single view can't see depth well, which is what two-view is for.
+- MediaPipe's face model has no tongue, and lip shapes are approximated by five vowels.
+- Test runner Chromium builds can't decode H.264; the e2e fixtures are WebM.
+
+**Swapping estimators.** Pose, face and hands sit behind three interfaces, with MediaPipe as the default implementation of each:
+
+- `PoseEstimator` in `src/engine/video2vmd/estimator.ts`;
+- `FaceEstimator` in `faceEstimator.ts`: blendshapes, a head matrix and a few mesh points per crop;
+- `HandEstimator` in `handEstimator.ts`: 21 image + world points per crop.
+
+`createEstimator`, `createFaceEstimator` and `createHandEstimator` pick the backend. A GPU SMPL-X backend that covers body, face and hands together could implement all three (mapping its joints and expression parameters onto these outputs) without touching cleaning, fusion or retargeting. `?pose=synthetic2` swaps in the synthetic two-camera backends used by the tests.
 
 ## Motion Editor & Camera Director
 
@@ -270,7 +357,7 @@ Work on the tool range and either all or only the selected tracks:
 
 ### IK (footprints button)
 
-- 足ＩＫ / 手ＩＫ bones are tracks. Select one, drag it with the move gizmo — the leg follows through babylon-mmd's solver — and press K. With *Keying an IK bone also keys its FK chain* the solved knee / thigh are keyed too. A grey cross shows where the target was before the drag.
+- 足ＩＫ / 手ＩＫ bones are tracks. Select one, drag it with the move gizmo — the leg follows through babylon-mmd's solver — and press K. With _Keying an IK bone also keys its FK chain_ the solved knee / thigh are keyed too. A grey cross shows where the target was before the drag.
 - **Bake IK → FK** writes the solved chain rotations every frame over the range and turns IK off there (restored after it). **Fit IK from FK** keys the IK targets where FK puts the feet and turns IK on. Both report the maximum target error, so you can see there's no pop.
 - **Foot pinning:** pin an IK bone over the range with blend in / out. The planted foot holds its position (captured when you pin), and IK height is clamped at the floor. Pins show as lock bands in the dope sheet and cyan squares in the viewport; they're applied non-destructively and baked on export.
 - Overlay of IK chains, targets and knee direction, and a per-model IK solver switch.
@@ -302,12 +389,12 @@ Turn a non-MMD character into a PMX that dances: open **Model Converter** in the
 
 ### Supported input
 
-| Format | Versions | Notes |
-|---|---|---|
-| VRM | 0.x and 1.0 | humanoid map, expressions / blend shape groups, spring bones, MToon, license meta |
-| glTF / GLB | 2.0 | skins, morph targets (incl. sparse), embedded, external or data-URI buffers and textures |
-| FBX | 7.x binary and ASCII | parsed with three's `FBXLoader` (parse only — no ufbx build is published on npm); cm / m units, embedded media, multi-material meshes, blend shapes |
-| ZIP | — | the model plus its textures (recommended on phones) |
+| Format     | Versions             | Notes                                                                                                                                               |
+| ---------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| VRM        | 0.x and 1.0          | humanoid map, expressions / blend shape groups, spring bones, MToon, license meta                                                                   |
+| glTF / GLB | 2.0                  | skins, morph targets (incl. sparse), embedded, external or data-URI buffers and textures                                                            |
+| FBX        | 7.x binary and ASCII | parsed with three's `FBXLoader` (parse only — no ufbx build is published on npm); cm / m units, embedded media, multi-material meshes, blend shapes |
+| ZIP        | —                    | the model plus its textures (recommended on phones)                                                                                                 |
 
 ### How it works
 
@@ -324,11 +411,11 @@ flowchart LR
 ```
 
 1. **Import** — drop or choose files; the summary shows bones, vertices, textures and warnings. Very large models get a warning and downscaled textures.
-2. **Check** — every body bone with its confidence. Anything guessed opens the **mapping screen**: tap a body part on the diagram, then the model's bone (works on touch; *Accept suggestions* confirms the guesses). Non-humanoids (animals, robots) are flagged and convert as static or partially rigged models. MMD-style Japanese bone names (下半身, 腕L, ひざR…) are recognised directly. **Textures** lists each material's image: images in the ZIP that the model file doesn't reference (common with Sketchfab FBX exports: `textures/body.png`, `hair.png`, `face.png`) are linked by material name, and any choice can be changed here. Outline shell meshes are removed (the studio draws its own outlines).
+2. **Check** — every body bone with its confidence. Anything guessed opens the **mapping screen**: tap a body part on the diagram, then the model's bone (works on touch; _Accept suggestions_ confirms the guesses). Non-humanoids (animals, robots) are flagged and convert as static or partially rigged models. MMD-style Japanese bone names (下半身, 腕L, ひざR…) are recognised directly. **Textures** lists each material's image: images in the ZIP that the model file doesn't reference (common with Sketchfab FBX exports: `textures/body.png`, `hair.png`, `face.png`) are linked by material name, and any choice can be changed here. Outline shell meshes are removed (the studio draws its own outlines).
 3. **Pose & scale** — rest pose detected (T / A / other); arms are rotated to the MMD A-pose (angle slider) and the mesh is re-skinned so it deforms cleanly. Height, twist bones (腕捩 / 手捩), leg D bones, 肩P, 腰 and texture size are options.
-4. **Face** — VRM expressions and morph targets matched to MMD names (まばたき, ウィンク, あいうえお, 笑い, 怒り, 困る…) from VRM presets, ARKit, VRoid `Fcl_*`, VRChat visemes and Japanese / English names; a review table lets you change or drop any mapping. Several sources for one MMD morph become a group morph; unmatched morphs are kept under *Other*.
+4. **Face** — VRM expressions and morph targets matched to MMD names (まばたき, ウィンク, あいうえお, 笑い, 怒り, 困る…) from VRM presets, ARKit, VRoid `Fcl_*`, VRChat visemes and Japanese / English names; a review table lets you change or drop any mapping. Several sources for one MMD morph become a group morph; unmatched morphs are kept under _Other_.
 5. **Physics** — VRM spring bones become rigid bodies and spring joints (stiffness → springs and limits, drag → damping, gravity → mass, hit radius → capsule size). Without VRM data, hair, skirt, tail, ribbon, sleeve, ear and bust chains are found by name or by hanging off the head / hips / chest. Body colliders keep skirts out of the legs. A sway slider and per-chain presets (Soft, Skirt, Stiff) tune it.
-6. **Preview** — the converted model plays a built-in procedural test dance (stepping on leg IK, arm waves, blinking, talking) or any VMD; *Show the original* puts the source geometry next to it.
+6. **Preview** — the converted model plays a built-in procedural test dance (stepping on leg IK, arm waves, blinking, talking) or any VMD; _Show the original_ puts the source geometry next to it.
 7. **Export** — the model's license is shown and must be acknowledged; then **Load into studio** (saved with the project and in `.mmdstudio.zip`) or **Download PMX ZIP** (`model.pmx`, `tex/`, `README.txt` with the license, `conversion-report.json`).
 
 Bones, morphs and materials keep Japanese MMD names as their real IDs; the studio shows English labels as usual.
@@ -358,7 +445,7 @@ Open it with **Clips** in the transport bar (it is the default view on phones an
 
 - **Split** cuts on the exact pose, so the two halves meet without a jump.
 - **Crossfade:** neighbouring or overlapping clips blend (8 frames by default, adjustable per clip; rotations slerp, positions lerp, smoothstep weight).
-- **Root:** *Reset to origin* (the default, also for duplicates and pastes) keeps each clip's own placement, so repeats dance in place; *Continue* starts a clip where the previous one left the model (センター / 全ての親 and the foot IK targets move together, so feet don't slide) — use it for travelling moves. **Use these settings for every clip on this track** applies a join to the whole track.
+- **Root:** _Reset to origin_ (the default, also for duplicates and pastes) keeps each clip's own placement, so repeats dance in place; _Continue_ starts a clip where the previous one left the model (センター / 全ての親 and the foot IK targets move together, so feet don't slide) — use it for travelling moves. **Use these settings for every clip on this track** applies a join to the whole track.
 - **Duplicate / Loop** blend the seam between passes.
 - **Camera:** a hard **cut** (written as keys on consecutive frames, as MMD expects) or a **blend**.
 - **Keyframes:** double-click a dance, face or camera clip to open it — as it plays, at its place in the timeline — in the Motion Editor. **Back to clips** stores the edit as a new source for that clip; the original file is never touched.
@@ -370,7 +457,7 @@ Open it with **Clips** in the transport bar (it is the default view on phones an
 - **Looks:** Solid, Glossy, Neon (emissive + glow), Gradient, Outline, Glass; color, size, letter / line spacing, alignment, depth and bevel; cast-shadow and always-on-top switches.
 - **Placement:** fixed in the scene, billboard, attached to a bone with an offset (new text floats above the selected model's head), or a screen caption. **Drag the text in the viewport** (finger or mouse) to move it — captions move up and down the screen; tapping text selects its clip. The panel's Position / Offset fields set exact values.
 - **Animation:** in / out — fade, pop, slide, typewriter, wave, spin, drop & bounce, each with its length — and an idle float, pulse or wobble.
-- **Subtitles:** import `.srt` or `.lrc`; each line becomes a caption clip on its own track with one shared style (*Use this style for every subtitle line*).
+- **Subtitles:** import `.srt` or `.lrc`; each line becomes a caption clip on its own track with one shared style (_Use this style for every subtitle line_).
 - Text shows in the viewport, screenshots and video export. Detail follows the render quality and steps down by itself if the frame rate drops.
 
 ### Saving and export
@@ -420,17 +507,17 @@ Rotating the device switches layouts without restarting the 3D engine, so the sc
 
 **Gestures**
 
-| Gesture                               | Action                                                 |
-| ------------------------------------- | ------------------------------------------------------ |
-| One-finger drag                       | Orbit the camera                                       |
-| Two-finger pinch / drag               | Zoom / pan                                             |
-| Double-tap                            | Focus the selected model                               |
-| Tap a model                           | Select it                                              |
-| Tap near a bone of the selected model | Select the bone (rotate / move gizmo, larger on touch) |
+| Gesture                               | Action                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| One-finger drag                       | Orbit the camera                                                              |
+| Two-finger pinch / drag               | Zoom / pan                                                                    |
+| Double-tap                            | Focus the selected model                                                      |
+| Tap a model                           | Select it                                                                     |
+| Tap near a bone of the selected model | Select the bone (rotate / move gizmo, larger on touch)                        |
 | Toolbar buttons                       | Rotate / move bone, move model (drag arrows or the floor square), scale model |
-| Timeline: drag / pinch                | Scrub / zoom the time range (two-finger drag pans)     |
-| Long-press an icon                    | Show its label                                         |
-| Hold a − / + stepper                  | Fine-adjust a slider value, with repeat                |
+| Timeline: drag / pinch                | Scrub / zoom the time range (two-finger drag pans)                            |
+| Long-press an icon                    | Show its label                                                                |
+| Hold a − / + stepper                  | Fine-adjust a slider value, with repeat                                       |
 
 **Loading on a phone:** tap **Add model** and pick the `.pmx` plus its textures, or better, a **.zip** of the model folder (on iPhone: Files app → long-press the folder → Compress). Then use **Add motion** and **Add audio**. On Android you can also share files to the installed app.
 
@@ -473,13 +560,20 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
 
 ## Tests
 
-- **Unit (Vitest, 204 tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
+- **Unit (Vitest, 310+ tests):** path normalisation and texture resolution, including the real PMX fixture, Shift-JIS ZIP names, ZIP round-trips, import planning, project serialisation and `.mmdstudio.zip` round-trip, the IndexedDB store and garbage collection, undo/redo coalescing, timeline maths and VMD detection. Mobile coverage: layout breakpoints, bottom-sheet snapping, tap/double-tap/pinch maths, the adaptive quality controller, texture downscaling and iOS `accept` lists.
   - **Video to VMD:**
     - The VMD writer: byte-exact header, 111-byte records, section counts and Shift-JIS names.
     - Round-trips through babylon-mmd's VMD parser and `VmdLoader`.
     - Coordinate conversion and the mirror toggle; One Euro filtering; gap filling and 30 fps resampling.
     - Outlier repair, quaternion continuity, keyframe reduction and foot-contact detection / pinning.
     - Retargeting checked against a procedural stick-figure dancer with known ground truth: limb directions, hinge limits, floor contact, leg odometry and foot pitch.
+    - v2 (two-view, face, fingers), against a synthetic dancer with fingers and a face seen by two virtual cameras with monocular depth error:
+      - 23-byte morph records and a babylon-mmd round trip with body, finger and morph tracks;
+      - audio and motion sync with known offsets; yaw-only Kabsch recovering known angles under noise and outliers; DLT triangulation;
+      - fusion weighting and single-view fallback; bone-length enforcement; **two-view joint error below 70 % of single-view** on depth-heavy motion;
+      - blendshape → morph mapping, gain / offset / enable and aliases; blink minimum duration; attack / release; gaze from irises; head from the face matrix (front and side views); audio lip-sync;
+      - finger flexion for every preset, both hands, any orientation; limit clamping; left / right resolution with the mirror toggle; dropout hold and relax; finger rotations curling toward the palm on a PMX-style rig;
+      - crop-window tracking and mapping back to the frame, and the crop pass inside the detection pipeline.
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
   - **Model converter:** PMX writer byte layout and round-trip through babylon-mmd's `PmxReader`, glTF / VRM 0.x / 1.0 / ASCII-FBX parsing of a procedural humanoid, name analysis and mapping for Mixamo, VRoid, Blender and scrambled rigs, orientation / scale / grounding, T- to A-pose rebind (vertices exact), winding after the Z mirror, weight limits, IK chains, morph name matching, capsule orientation against Babylon, VRM spring chains, static (non-humanoid) conversion and manual mapping overrides.
   - **Clip timeline:** clip segments match the motion tools, split continuity at any speed and inside loops, ops (move / trim / split / duplicate / reorder / paste), overlap and adjacent crossfades, root continuity, camera cut / blend, face overrides, snapping, timeline serialisation, SRT and LRC parsing. 3D text: closed, outward-facing meshes (signed volume and normal checks) for Latin, kana, kanji, digits and symbols with real fonts, holes with either winding, font fallback and missing-glyph reports, multi-line layout and alignment, glyph caching, and every in / out / idle animation.
@@ -496,6 +590,7 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
     - Covers cancel / resume, the quality report, apply and play, ankles staying above the floor, and audio extraction.
     - Validates the downloaded VMD and loads it back as a motion, then checks the session is restored after a reload.
     - A phone variant runs the flow in the bottom sheet.
+    - **Full preset (two-view + face + fingers):** two generated videos from cameras 90° apart with a 0.4 s offset and a clap in the audio (`e2e/fixtures/twoview-*.webm`, `pnpm fixtures:twoview`) and a PMX with full fingers, eyes and face morphs (`e2e/fixtures/FaceHands`, `GEN_FIXTURES=1 pnpm vitest run src/lib/video2vmd/genFixtures.test.ts`), with the synthetic two-camera estimators. It checks the audio sync (≈ +400 ms), the calibration (≈ 90°), the report sections, fingers closing and blinks on the model, Dance + Face clips on the Clip Timeline, part-selective export, loading the exported VMD, and reload restore. Phone and tablet variants check the layout and the memory warning.
   - **Device matrix:** iPhone 14 and iPad (WebKit) and Pixel 7 (Chromium), each in portrait and landscape. Each run checks for horizontal overflow, the expected layout, sheet / side-panel / drawer navigation, loading a model and motion through the Add buttons, touch orbit and pinch zoom, play/pause, and console errors. If headless WebKit has no WebGL2, only the layout checks run.
 
 Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch to the Low quality preset. Inside a container that already has Chromium, set `PW_CHROMIUM_PATH=/path/to/chrome`. Without WebKit, `PW_WEBKIT_AS_CHROMIUM=1` runs the iPhone/iPad profiles on Chromium.

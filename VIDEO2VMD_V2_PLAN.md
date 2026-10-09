@@ -35,7 +35,7 @@ New pure modules in `src/lib/video2vmd/`:
 `PoseFrame` (stored per view) gains optional fields, so old pose JSON still loads:
 
 - `face?: FaceObs` — 52 blendshapes (fixed ARKit order), 4×4 facial transformation matrix, 18 key 2D points
-  (eye corners, lids, iris centres, mouth corners) in full-frame normalised coordinates, crop box, score.
+  (eye corners, lids, iris centres, mouth corners) in normalised analysed-area coordinates (like the body landmarks), crop box, score.
   The full 478-point mesh is not stored (≈ 20 MB/min of JSON); the points the retargeter uses are.
 - `hands?: { 15?: HandObs; 16?: HandObs }` — keyed by the **pose wrist landmark index** whose crop the hand
   came from (MediaPipe's left wrist 15, right wrist 16). Mirroring is applied later by the same index swap
@@ -58,8 +58,8 @@ Same as v1: MediaPipe world (right-handed, x right, y down, z away, hip-centred 
   `d = R_y(θ)·(0, 0, 1) = (−sin θ, 0, cos θ)`. A hip-centred point seen by the side camera, `p_s`, is
   `p = R_y(θ)·p_s` in the world frame.
 - **Camera view direction** in the world frame: front `d₀ = (0, 0, 1)`, side `d₁ = (−sin θ, 0, cos θ)`.
-- Face / hand image points are stored in full-frame normalised coordinates, mapped back from the crop:
-  `x_full = crop.x + x_crop · crop.w` (same for y).
+- Face / hand image points are stored in normalised analysed-area coordinates, mapped back from the crop:
+  `x = crop.x + x_crop · crop.w` (same for y).
 
 ## Time sync
 
@@ -92,7 +92,8 @@ Each IRLS step is a weighted 2D Procrustes in the x–z plane with a closed form
 starts from a coarse 5° grid (global minimum) and θ₀, then refines.
 
 - **Translation:** the mean of `a_i − R_y(θ) b_i` (≈ 0 because both are hip-centred; reported only).
-- **Scale:** the ratio of median limb lengths, side → front. MediaPipe world scale differs slightly per view.
+- **Scale:** the ratio of the two views' vertical extents (y is reliable in both; limb lengths are not, since each
+  view under-estimates depth along its own axis).
 - **Floor:** the 10th percentile of the lowest foot heel / toe height over the clip, in the fused frame.
 - **Intrinsics:** focal = `0.9 · max(w, h)` px by default (≈ 60° horizontal FOV on a phone), or the user's FOV.
   Camera distance per view comes from weak perspective (pixels per metre of limbs).
@@ -131,7 +132,7 @@ coverage. Plain-language warnings:
 - **Tracking:** square windows, centre and size smoothed with a One Euro filter (min cutoff 1.5 Hz,
   β 0.05). Size changes are rate-limited to 15 % per frame, so crops don't jitter.
 - **Crop:** from the full-resolution decoded frame (not the downscaled analysis canvas), upscaled to the
-  estimator input size: face 256 px, hand 224 px. Landmarks are mapped back to full-frame normalised
+  estimator input size: face 256 px, hand 224 px. Landmarks are mapped back to normalised analysed-area
   coordinates.
 - **Minimum pixel size:** head crops under 96 px and hand crops under 64 px in the source raise warnings.
 - **Two-view:** face and hands are estimated in both views. Per frame, the best view wins when its crop is
@@ -318,8 +319,8 @@ wrist moves more than 1.5 crop widths per second while the detection is lost.
 - [x] b. Crop pass infrastructure
 - [x] c. Face tracking + morph mapping + eye / head
 - [x] d. Hand tracking + finger retargeting
-- [ ] e. Two-view import + time sync
-- [ ] f. Auto-calibration + fusion
-- [ ] g. Quality reports, presets, A/B preview
-- [ ] h. Editor / timeline integration, persistence, export options
-- [ ] i. Mobile, polish, tests, docs
+- [x] e. Two-view import + time sync
+- [x] f. Auto-calibration + fusion
+- [x] g. Quality reports, presets, A/B preview
+- [x] h. Editor / timeline integration, persistence, export options
+- [x] i. Mobile, polish, tests, docs
