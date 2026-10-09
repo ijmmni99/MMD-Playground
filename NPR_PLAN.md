@@ -144,11 +144,11 @@ On context loss Babylon rebuilds effects; the looks are plain JS state, so they'
 
 ## Milestones
 
-- [ ] a. Plugin + Anime Skin with skinning, morphs and shadows
-- [ ] b. Preset library + auto-assign
-- [ ] c. Outline upgrade
-- [ ] d. Hair-over-eyes and alpha-hash
-- [ ] e. UI and per-material parameters
-- [ ] f. Quality tiers and adaptive fallback
-- [ ] g. Persistence and sharing
-- [ ] h. Mobile, tests, docs
+- [x] a. Plugin + Anime Skin with skinning, morphs and shadows
+- [x] b. Preset library + auto-assign
+- [x] c. Outline upgrade
+- [x] d. Hair-over-eyes and alpha-hash
+- [x] e. UI and per-material parameters
+- [x] f. Quality tiers and adaptive fallback
+- [x] g. Persistence and sharing
+- [x] h. Mobile, tests, docs

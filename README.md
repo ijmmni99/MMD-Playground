@@ -462,6 +462,75 @@ flowchart LR
 
 **Legal:** MMD Studio ships no models. Edited models are still their authors' work: follow each model's license, including whether modification and redistribution are allowed. The saved README keeps the original comment and lists the clothes sources.
 
+## Anime / toon looks (NPR)
+
+Give PMX materials an anime look: **Inspector → Looks (anime / toon)**.
+- Click **Auto-assign looks**, or pick a look per material.
+- Open a material's look (▸) to tweak it live; each slider has a number field and a reset to the preset value.
+- **Before / after** switches between the PMX original and the looks.
+
+Looks are saved per model in the project and in `.mmdstudio.zip`, and can be exported and imported as JSON.
+
+| Look | What it does |
+|---|---|
+| Default (PMX original) | unchanged; it renders exactly as before (tested pixel-for-pixel) |
+| Anime Skin | soft toon ramp, warm shadow tint, subtle rim |
+| Anime Face | very soft shading (no hard terminator), optional cheek blush |
+| Anime Hair | toon ramp, ring-shaped highlight band, rim |
+| Cloth Smooth / Cloth Rough | crisp or soft ramp; Rough adds a bump-noise grain |
+| Stockings | sheer centre, opaque edges by view angle, sheen, alpha-hash transparency |
+| Metal | tight highlight, strong rim, sparkle, partly realistic shading |
+| Eye | flat, slightly emissive |
+| Flat Unlit | texture colour only |
+
+**Auto-assign** reads the material name, its English name, the dictionary label and the texture file name. Eye,
+stockings and metal rules are checked first. Everything else uses the Model Editor's outfit groups:
+- hair → Hair;
+- face → Face;
+- body → Skin;
+- top / bottom / gloves → Cloth (Rough for leather, denim, knit);
+- shoes → Cloth Rough.
+
+Anything unrecognised stays Default, and materials you set yourself are kept.
+
+**Parameters** (per material):
+- shadow colour and saturation;
+- ramp softness and shadow line, PMX toon texture as a custom ramp;
+- cast-shadow strength, flatten;
+- rim strength, colour, width and lit-side mask;
+- highlight strength, size, colour and hair band;
+- emission, sphere / matcap strength, cloth bump, sparkle, sheen, edge opacity;
+- transparency (keep / blend / mask / alpha-hash), blush;
+- realistic roughness and "toon vs realistic";
+- outline colour and thickness.
+
+**Global controls:** Toon strength, Rim strength, Shadow warmth, outline mode (inverted hull from PMX edges, or a
+depth-edge post-process), thinner outlines far away, and "See-through hair over eyes".
+
+**Quality tiers:**
+
+| Tier | What's included |
+|---|---|
+| High | everything, including the realistic (GGX) blend and sparkle |
+| Medium | no realistic blend or sparkle |
+| Low | flat toon ramp, shadow tint and outline; alpha-hash becomes a cut-out |
+
+"Auto" follows the render quality: phones start on Low, and adaptive quality steps it down on slow devices. A cost
+badge shows when heavy looks are on. If a look fails to compile, its materials fall back to the PMX original with a
+message (never a black model). Looks survive a WebGL context loss.
+
+**How it works:** a Babylon `MaterialPlugin` added on top of babylon-mmd's material (see `NPR_PLAN.md`).
+Skinning, SDEF, morphs, shadows, the MMD outline and post-processing (bloom, tone mapping) are untouched.
+Each preset and tier compiles one shader variant, lazily, and it's cached.
+
+**Known limits:**
+- An approximation of anime shading on top of standard lighting: one sun, hemispheric ambient. The HDR environment
+  isn't used by looks.
+- The hair band and cheek blush are computed from normals, not from UVs or tangents.
+- See-through eyes is a depth bias, so it can also show eyes through very close objects.
+- Looks need WebGL2; with `?webgpu` they're off.
+- There's no node-graph editor in v1.
+
 ## Clip Timeline & 3D text
 
 Arrange motions like a video editor: drop VMDs on tracks, cut, repeat and reorder them, add camera cuts, music, face presets and 3D text. Nothing is destructive — clips point into their source files and the timeline is baked into ordinary motions for playback and export.
@@ -612,9 +681,25 @@ Alternatively, use the deployed GitHub Pages site, which is already HTTPS. Insta
   - **Motion Editor:** VMD read/write round-trips (byte-stable, 23-byte morph and 61-byte camera records, babylon `VmdLoader` parity), the runtime animation builder, bezier evaluation against babylon-mmd, key editing / copy / paste / snapping, Euler display and quaternion continuity, every motion tool (trim, retime, loop seams, mirror, smoothing, reduce / bake, blend, additive), foot pins and IK property writes, camera geometry against `MmdCamera`, look-at, shots and cuts, presets on the BPM grid and shake.
   - **Model converter:** PMX writer byte layout and round-trip through babylon-mmd's `PmxReader`, glTF / VRM 0.x / 1.0 / ASCII-FBX parsing of a procedural humanoid, name analysis and mapping for Mixamo, VRoid, Blender and scrambled rigs, orientation / scale / grounding, T- to A-pose rebind (vertices exact), winding after the Z mirror, weight limits, IK chains, morph name matching, capsule orientation against Babylon, VRM spring chains, static (non-humanoid) conversion and manual mapping overrides.
   - **Clip timeline:** clip segments match the motion tools, split continuity at any speed and inside loops, ops (move / trim / split / duplicate / reorder / paste), overlap and adjacent crossfades, root continuity, camera cut / blend, face overrides, snapping, timeline serialisation, SRT and LRC parsing. 3D text: closed, outward-facing meshes (signed volume and normal checks) for Latin, kana, kanji, digits and symbols with real fonts, holes with either winding, font fallback and missing-glyph reports, multi-line layout and alignment, glyph caching, and every in / out / idle animation.
+  - **Looks (NPR):**
+    - auto-assign rules for Japanese, English, dictionary and texture names;
+    - preset ranges, distinct presets, clamped overrides, global controls;
+    - tier selection and feature sets;
+    - JSON, project and `.mmdstudio.zip` round trips with validation.
   - **Model Editor:** full PMX 2.0 round trip (SDEF / QDEF, extra UVs, every morph type, custom toon, external parent) against a procedural humanoid with fingers, IK, skirt physics and outfit materials. Also: op list and undo / redo (coalescing, depth); hands-only scaling with no seam; long legs with planted feet, IK, bodies and joints following; head morphs; whole-body and presets; outfit grouping, skirt hiding with its physics, body under clothes, hole warnings; bone rename / add / delete / reparent / IK / mirror; group morphs, reorder, delete, scale, mirror; physics presets, auto physics, NaN checks; attach-to-bone; clothes swap and the refusal message for different skeletons; texture recolour maths.
   - **English names:** dictionary integrity, resolution order, left / right and full-width pattern rules, bilingual search, per-model name tables, label overrides and their `.mmdstudio.zip` round-trip.
 - **E2E (Playwright):**
+  - **Looks (NPR):** a procedural humanoid with skin, face, hair, cloth, knee socks, metal and eyes (`e2e/fixtures/LookTest`). The test checks:
+    - Default matches the renderer with NPR switched off;
+    - every preset compiles at every tier and changes the image (pixel diffs, distinct per preset);
+    - a deliberately broken variant falls back with a message;
+    - skinning and morphs still work with looks applied;
+    - see-through hair over eyes, per-material and post-process outlines;
+    - tiers follow the render quality;
+    - context loss keeps looks;
+    - three models with looks;
+    - the UI flow: auto-assign, live tweak, before / after, undo, save and reload;
+    - phones use the Low tier with 44 px targets.
   - **Model Editor:** procedural model + same-skeleton jacket donor (`e2e/fixtures/EditTest`, `EditDonor`; regenerate with `GEN_FIXTURES=1 pnpm vitest run src/lib/model-edit/genFixtures.test.ts`). It drags the hand slider, lengthens the legs, hides the skirt, recolours the top and its texture, builds a group morph, swaps in the jacket, then undoes and redoes, saves the ZIP and reloads with every edit restored. Phone and tablet variants check 44 px targets and layout.
   - **English names:** a generated PMX with Japanese bones, morphs and materials (`e2e/fixtures/NameTest`): labels in every panel, EN / 日本語 / Both, search in both languages, renaming and resetting labels, reload persistence while the motion still plays, and a phone variant with long-press rename.
   - **Motion Editor:** loads the Mannequin rig with a generated dance VMD and camera, drags keys, undo / redo, keys a pose, edits curves in the graph editor, smooths and mirrors, drags an IK target and keys it, bakes IK → FK and fits IK back (checking the target error), pins a foot (the ankle stays put), builds a two-shot camera with a cut, an orbit preset on the beat grid and a look-at, turns on PiP, exports both VMDs and checks they're restored after a reload. Phone and tablet variants check touch selection, 44 px targets and layout.

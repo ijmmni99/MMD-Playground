@@ -157,3 +157,33 @@ describe('name labels in projects', () => {
     expect(parseProjectDoc({ ...JSON.parse(JSON.stringify(doc)), labels: undefined }).labels).toBeUndefined();
   });
 });
+
+describe('NPR looks in projects', () => {
+  it('survive JSON and .mmdstudio.zip round trips and are cleaned on restore', async () => {
+    const { cleanModelLooks, cleanSettings, DEFAULT_NPR_SETTINGS } = await import('./npr/looks');
+    const doc = sampleDoc();
+    doc.looks = {
+      models: {
+        m1: {
+          seeThroughEyes: false,
+          materials: { 髪: { look: 'animeHair', params: { rimStrength: 0.9 } }, 目: { look: 'eye' } },
+        },
+      },
+      settings: { ...DEFAULT_NPR_SETTINGS, tier: 'medium', shadowWarmth: 0.4, outlineMode: 'post' },
+    };
+    expect(parseProjectDoc(JSON.parse(JSON.stringify(doc))).looks).toEqual(doc.looks);
+    const blobs: Record<string, Blob> = Object.fromEntries(
+      ['aaa', 'bbb', 'ccc', 'ddd', 'eee'].map((k) => [k, new Blob([k])]),
+    );
+    const { doc: imported } = await importProjectZip(await exportProjectZip(doc, async (id) => blobs[id]));
+    expect(imported.looks).toEqual(doc.looks);
+    // Restore validates whatever the file holds.
+    expect(cleanModelLooks(imported.looks!.models.m1)).toEqual(doc.looks.models.m1);
+    expect(cleanSettings(imported.looks!.settings)).toEqual(doc.looks.settings);
+    const tampered = parseProjectDoc({
+      ...JSON.parse(JSON.stringify(doc)),
+      looks: { models: { m1: { materials: { x: { look: 'evil' } } } } },
+    });
+    expect(cleanModelLooks(tampered.looks!.models.m1)!.materials).toEqual({});
+  });
+});
