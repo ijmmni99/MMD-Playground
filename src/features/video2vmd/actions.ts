@@ -625,16 +625,19 @@ export async function applyToModel(): Promise<void> {
   }
   const { writeParts } = await import('@/engine/video2vmd/convert');
   const { ct } = await import('@/store/clipTimeline');
-  const timeline = ct.get().doc.tracks.length > 0;
+  const timeline = ct.get().open || ct.get().doc.tracks.length > 0;
   const base = stem(s.pose?.video.name ?? 'video');
   const parts = s.result.parts;
   const name = s.result.skeletonName;
   const body = writeParts(name, parts, { body: true, fingers: true, eyes: true, face: !timeline });
   await assignMotion(modelId, { path: `${base}.vmd`, blob: new Blob([body]) });
-  if (timeline && parts.morphs.length) {
-    const face = writeParts(name, parts, { body: false, fingers: false, eyes: false, face: true });
-    const { addMotionFiles } = await import('@/features/clip-timeline/actions');
-    await addMotionFiles([{ path: `${base}-face.vmd`, blob: new Blob([face]) }], modelId);
+  if (timeline) {
+    const clips = await import('@/features/clip-timeline/actions');
+    if (parts.morphs.length) {
+      // addMotionFiles first puts the just-assigned dance on the timeline (when the model has none yet).
+      const face = writeParts(name, parts, { body: false, fingers: false, eyes: false, face: true });
+      await clips.addMotionFiles([{ path: `${base}-face.vmd`, blob: new Blob([face]) }], modelId);
+    } else await clips.importLoaded();
   }
   v2v.set({ appliedTo: modelId });
   const engine = await whenEngine();

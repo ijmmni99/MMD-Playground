@@ -280,7 +280,7 @@ export function VideoStage({ view = 'front', compact = false }: { view?: ViewId;
         className="absolute inset-0 h-full w-full object-contain"
         muted
         playsInline
-        controls={!cropping && !live && view === 'front'}
+        controls={!cropping && !live && view === 'front' && !compact}
         preload="auto"
         onLoadedMetadata={(e) => {
           if (trim[0] > 0) e.currentTarget.currentTime = trim[0];

@@ -34,7 +34,7 @@ export function syntheticView(cfg: SyntheticViewConfig, timeSec: number): ViewFr
   let v = cache.get(key);
   if (!v) {
     const [front, side] = fixtureCameras(cfg.sideYawDeg, cfg.size);
-    v = viewFrame(syntheticScene(t, { depthHeavy: cfg.depthHeavy }), {
+    v = viewFrame(syntheticScene(t, { depthHeavy: cfg.depthHeavy, hops: true }), {
       camera: cfg.role === 'side' ? side : front,
     });
     if (cache.size > 256) cache.clear();
