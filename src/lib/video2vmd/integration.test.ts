@@ -6,6 +6,7 @@ import { standardSkeleton } from '@/engine/video2vmd/skeleton';
 import { DEFAULT_SETTINGS, type PoseSequence } from '@/engine/video2vmd/types';
 import { fixtureCameras, handPoseAt, syntheticScene, viewFrame } from './synthetic';
 import { DEFAULT_FACE_SETTINGS } from './face';
+import { lipSyncVowels } from './lipsync';
 
 function frontSequence(seconds = 4, fps = 30): PoseSequence {
   const [front] = fixtureCameras();
@@ -98,7 +99,17 @@ describe('face + fingers through the conversion', () => {
       seq,
       sk,
       { ...SETTINGS, face: { ...DEFAULT_FACE_SETTINGS, lipSync: true } },
-      { modelMorphs: null, audio: { samples, sampleRate: sr } },
+      {
+        modelMorphs: null,
+        lipSync: {
+          fps: 30,
+          vowels: lipSyncVowels(
+            samples,
+            sr,
+            Array.from({ length: 120 }, (_, k) => k / 30),
+          ),
+        },
+      },
     );
     const i = ls.face!.morphs.get('い')!;
     expect(Math.max(...i.slice(0, 50))).toBeLessThan(0.05);

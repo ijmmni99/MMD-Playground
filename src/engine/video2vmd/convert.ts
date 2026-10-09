@@ -13,7 +13,6 @@ import {
   handDirections,
   type FingerTrackResult,
 } from '@/lib/video2vmd/hands';
-import { lipSyncVowels } from '@/lib/video2vmd/lipsync';
 import type { HandSettings } from '@/lib/video2vmd/types';
 import { cleanSequence, type CleanTrack } from './clean';
 import { LANDMARK_COUNT, LM, PART_NAME } from './landmarks';
@@ -57,8 +56,8 @@ export interface ConversionResult {
 export interface ConversionContext {
   /** Morph names of the target model (null = no model: standard names). */
   modelMorphs?: string[] | null;
-  /** Mono audio aligned with the video (time 0 = video time 0), for audio lip-sync. */
-  audio?: { samples: Float32Array; sampleRate: number } | null;
+  /** Audio lip-sync vowels sampled every 1/fps seconds of video time (see lipsync.ts). */
+  lipSync?: { fps: number; vowels: Record<Vowel, number[]> } | null;
 }
 
 /** Write a VMD with a subset of the parts. */
@@ -97,8 +96,14 @@ export function convertPoses(
   let face: FaceTrackResult | null = null;
   if (hasFace) {
     let lipSync: Record<Vowel, number[]> | null = null;
-    if (faceSettings.lipSync && ctx.audio)
-      lipSync = lipSyncVowels(ctx.audio.samples, ctx.audio.sampleRate, track.times);
+    const ls = ctx.lipSync;
+    if (faceSettings.lipSync && ls) {
+      const at = (series: number[], t: number): number =>
+        series[Math.max(0, Math.min(series.length - 1, Math.round(t * ls.fps)))] ?? 0;
+      lipSync = Object.fromEntries(
+        (Object.keys(ls.vowels) as Vowel[]).map((v) => [v, track.times.map((t) => at(ls.vowels[v], t))]),
+      ) as Record<Vowel, number[]>;
+    }
     face = computeFaceTracks(seq.frames, track.times, faceSettings, {
       mirror: settings.mirror,
       modelMorphs: ctx.modelMorphs ?? null,

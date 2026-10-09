@@ -32,15 +32,22 @@ import {
   extractAudio,
   importPoseJson,
   importVideo,
+  needsRedetect,
+  setExportPart,
   setStep,
   setTargetModel,
   setTrim,
   startDetection,
   updateSettings,
 } from './actions';
+import { FaceOptions, HandOptions } from './FaceHandPanels';
 import { QualityReportView } from './QualityReportView';
 import { stageVideo } from './stage';
+import { ABToggle, FeaturePicker, OverlayToggles, SideSlot, SyncPanel } from './TwoViewPanels';
 import { VideoStage } from './VideoStage';
+
+const NO_FEATURES = { twoView: false, face: false, fingers: false };
+const useFeatures = () => useV2V((s) => s.settings.features) ?? NO_FEATURES;
 
 const VIDEO_ACCEPT = 'video/*,.mp4,.m4v,.mov,.webm,.mkv';
 
@@ -134,13 +141,23 @@ function Notice({ tone = 'info', children }: { tone?: 'info' | 'warn'; children:
 }
 
 function Limitations() {
+  const f = useFeatures();
   return (
-    <Notice>
-      Works best with <b className="text-fg">one dancer, full body in frame</b>, a mostly static camera
-      (tripod), plain background and good lighting. Fingers are not tracked, and depth (toward / away from the
-      camera) is estimated, so forward-back moves are approximate. Everything runs on your device; you are
-      responsible for the rights to the videos and music you use.
-    </Notice>
+    <>
+      <Notice>
+        Works best with <b className="text-fg">one dancer, full body in frame</b>, a mostly static camera
+        (tripod), plain background and good lighting. With one video, depth (toward / away from the camera) is
+        estimated, so forward-back moves are approximate. Everything runs on your device; you are responsible
+        for the rights to the videos and music you use.
+      </Notice>
+      {f.twoView && (
+        <Notice>
+          <b className="text-fg">Two-view:</b> both cameras static (two phones on tripods, about 90° apart),
+          the same dancer fully visible in both, similar lighting. Clap once at the start so the audio sync
+          finds the offset.
+        </Notice>
+      )}
+    </>
   );
 }
 
@@ -150,9 +167,11 @@ function ImportStep() {
   const crop = useV2V((s) => s.crop);
   const downscale = useV2V((s) => s.downscale);
   const [drag, setDrag] = useState(false);
+  const f = useFeatures();
   if (!video) {
     return (
       <div className="flex flex-col gap-3 p-3">
+        <FeaturePicker />
         <div
           className={cn(
             'flex flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center',
@@ -173,7 +192,9 @@ function ImportStep() {
           }}
         >
           <FileVideo size={28} className="text-accent" />
-          <div className="text-[14px] font-medium">Choose a dance video</div>
+          <div className="text-[14px] font-medium">
+            {f.twoView ? 'Choose the front video' : 'Choose a dance video'}
+          </div>
           <div className="text-[12px] text-fg-muted">MP4, WebM or MOV · drop it here or pick a file</div>
           <Button variant="primary" onClick={pickVideo} data-testid="v2v-choose-video">
             <Upload size={14} /> Choose video
@@ -197,8 +218,11 @@ function ImportStep() {
   const big = Math.max(info.width, info.height) > 1920;
   const lowMemory = isLowMemoryDevice();
   const set = (i: 0 | 1, v: number): void => setTrim(i === 0 ? [v, trim[1]] : [trim[0], v]);
+  const lowRes = (f.face || f.fingers) && Math.min(info.width, info.height) < 1080;
   return (
     <div className="flex flex-col gap-3 p-3">
+      <FeaturePicker />
+      {f.twoView && <div className="text-[12px] font-semibold">Front video</div>}
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]" data-testid="v2v-info">
         <dt className="text-fg-muted">File</dt>
         <dd className="truncate" title={info.name}>
@@ -229,7 +253,14 @@ function ImportStep() {
       )}
       {big && (
         <Notice tone="warn">
-          This video is larger than 1080p. Downscaling speeds up analysis without hurting accuracy.
+          This video is larger than 1080p. Downscaling speeds up body analysis; face and finger crops still
+          use the full resolution.
+        </Notice>
+      )}
+      {lowRes && (
+        <Notice tone="warn">
+          Face and finger tracking work best with 1080p or higher video, filmed close enough that the face and
+          hands are clearly visible.
         </Notice>
       )}
       <ToggleRow
@@ -279,6 +310,7 @@ function ImportStep() {
           </Button>
         )}
       </div>
+      {f.twoView && <SideSlot />}
       <div className="flex gap-2">
         <Button
           variant="primary"
@@ -286,12 +318,15 @@ function ImportStep() {
           onClick={() => void startDetection()}
           data-testid="v2v-detect"
         >
-          Detect poses
+          {f.twoView ? 'Detect both views' : 'Detect poses'}
         </Button>
         <Button variant="ghost" onClick={pickVideo}>
           Change video
         </Button>
       </div>
+      {f.twoView && !v2v.get().side && (
+        <Notice tone="warn">Add the side video, or the front video alone is analysed (single-view).</Notice>
+      )}
       <Limitations />
     </div>
   );
@@ -343,7 +378,7 @@ function DetectStep() {
         ) : (
           <>
             {d.status === 'cancelled' && (
-              <Button variant="primary" onClick={() => void startDetection()}>
+              <Button variant="primary" onClick={() => void startDetection({ resume: true })}>
                 <Play size={12} /> Resume
               </Button>
             )}
@@ -402,8 +437,32 @@ function PresetButtons() {
 function CleanStep() {
   const s = useV2V((st) => st.settings);
   const result = useV2V((st) => st.result);
+  const f = useFeatures();
+  useV2V((st) => st.pose);
+  useV2V((st) => st.sidePose);
+  const redetect = needsRedetect();
   return (
     <div className="flex flex-col gap-1">
+      {redetect && (
+        <div className="px-3 pt-2">
+          <Notice tone="warn">
+            The analysed data doesn&apos;t include everything you turned on (face, fingers or the side view).{' '}
+            <button
+              type="button"
+              className="text-accent underline"
+              onClick={() => void startDetection({ resume: true })}
+            >
+              Detect again
+            </button>{' '}
+            to add it.
+          </Notice>
+        </div>
+      )}
+      {f.twoView && (
+        <div className="pt-2">
+          <SyncPanel />
+        </div>
+      )}
       <div className="p-3 pb-1">
         <PresetButtons />
       </div>
@@ -454,6 +513,8 @@ function CleanStep() {
           onChange={(v) => updateSettings({ mirror: v }, 0)}
         />
       </Section>
+      {f.face && <FaceOptions />}
+      {f.fingers && <HandOptions />}
       <div className="p-3">
         <Button variant="primary" className="w-full" onClick={() => setStep('retarget')}>
           Continue
@@ -588,6 +649,7 @@ function PreviewStep() {
           Load a model first (Models → Add model, or try the built-in sample) to preview the motion on it.
         </Notice>
       )}
+      <ABToggle />
       <Button
         variant="primary"
         disabled={!result || !hasModel}
@@ -645,13 +707,40 @@ function PreviewStep() {
   );
 }
 
+const PART_LABELS: { key: 'body' | 'fingers' | 'face' | 'eyes'; label: string }[] = [
+  { key: 'body', label: 'Body' },
+  { key: 'fingers', label: 'Fingers' },
+  { key: 'face', label: 'Face morphs' },
+  { key: 'eyes', label: 'Eye bones' },
+];
+
 function ExportStep() {
   const result = useV2V((st) => st.result);
   const tol = useV2V((st) => st.settings.reduceTolerance);
   const pose = useV2V((st) => st.pose);
+  const parts = useV2V((st) => st.exportParts);
   const jsonInput = useRef<HTMLInputElement>(null);
+  const count = (k: (typeof PART_LABELS)[number]['key']): number =>
+    !result ? 0 : k === 'face' ? result.parts.morphs.length : result.parts[k].length;
   return (
     <div className="flex flex-col gap-3 p-3">
+      <fieldset className="flex flex-col gap-1" data-testid="v2v-parts">
+        <legend className="mb-1 text-[12px] font-medium">Include in the .vmd</legend>
+        {PART_LABELS.map((p) => (
+          <label key={p.key} className="flex items-center gap-2 text-[12px] coarse:min-h-[40px]">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[#6d8bff]"
+              checked={parts[p.key]}
+              disabled={!count(p.key)}
+              data-testid={`v2v-part-${p.key}`}
+              onChange={(e) => setExportPart(p.key, e.target.checked)}
+            />
+            {p.label}
+            <span className="text-fg-dim">({count(p.key).toLocaleString()} keys)</span>
+          </label>
+        ))}
+      </fieldset>
       <SliderRow
         label="Keyframe reduction"
         value={tol}
@@ -678,7 +767,7 @@ function ExportStep() {
         <Download size={14} /> Download .vmd
       </Button>
       <Button disabled={!pose} onClick={downloadPoseJson} data-testid="v2v-pose-json">
-        <FileJson size={14} /> Download pose data (JSON)
+        <FileJson size={14} /> Download landmark data (JSON)
       </Button>
       <Button variant="ghost" onClick={() => jsonInput.current?.click()}>
         <Upload size={14} /> Load pose JSON
@@ -695,9 +784,9 @@ function ExportStep() {
         }}
       />
       <Notice>
-        The .vmd is a standard bone motion (Shift-JIS bone names, 30 fps) and loads in MikuMikuDance and other
-        MMD tools. Pose JSON keeps the raw landmarks so you can re-run retargeting without analysing the video
-        again.
+        The .vmd is a standard motion (Shift-JIS bone and morph names, 30 fps) and loads in MikuMikuDance and
+        other MMD tools. The landmark JSON keeps the raw body, face and hand landmarks (both views, sync and
+        calibration) so you can re-run retargeting without analysing the videos again.
       </Notice>
     </div>
   );
@@ -727,6 +816,7 @@ export default function Video2VmdPanel({ embedded = false }: { embedded?: boolea
             <VideoStage />
           </div>
         )}
+        {video && <OverlayToggles />}
         {step === 'import' && <ImportStep />}
         {step === 'detect' && <DetectStep />}
         {step === 'clean' && <CleanStep />}

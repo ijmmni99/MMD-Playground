@@ -391,3 +391,23 @@ function fuseHands(
   }
   return out;
 }
+
+/** Both views sampled on the shared 30 fps timeline over their overlap (front times). */
+export function alignedFrames(
+  front: PoseSequence,
+  side: PoseSequence,
+  offset: number,
+): { front: PoseFrame[]; side: PoseFrame[] } {
+  const ff = front.frames;
+  const sf = side.frames;
+  const start = Math.max(ff[0]?.time ?? 0, (sf[0]?.time ?? 0) - offset);
+  const end = Math.min(ff[ff.length - 1]?.time ?? 0, (sf[sf.length - 1]?.time ?? 0) - offset);
+  const n = Math.max(0, Math.floor((end - start) * SHARED_FPS + 1e-6) + 1);
+  const out = { front: [] as PoseFrame[], side: [] as PoseFrame[] };
+  for (let k = 0; k < n; k++) {
+    const t = start + k / SHARED_FPS;
+    out.front.push(sampleFrame(ff, t));
+    out.side.push(sampleFrame(sf, t + offset));
+  }
+  return out;
+}

@@ -1,7 +1,8 @@
 import type { PoseFrame, PoseSequence } from '@/engine/video2vmd/types';
 
-/** The stage's <video> element, for trim controls that read or set the current time. */
+/** The stages' <video> elements, for trim controls that read or set the current time. */
 export const stageVideo: { current: HTMLVideoElement | null } = { current: null };
+export const stageVideoSide: { current: HTMLVideoElement | null } = { current: null };
 
 /** Pose frame nearest to a source time (binary search). */
 export function frameAt(seq: PoseSequence, time: number): PoseFrame | null {

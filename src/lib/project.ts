@@ -172,6 +172,8 @@ export function projectBlobIds(doc: ProjectDoc): Set<string> {
   if (doc.hdr) ids.add(doc.hdr.blobId);
   if (doc.video2vmd?.video) ids.add(doc.video2vmd.video.blobId);
   if (doc.video2vmd?.pose) ids.add(doc.video2vmd.pose.blobId);
+  if (doc.video2vmd?.side) ids.add(doc.video2vmd.side.blobId);
+  if (doc.video2vmd?.sidePose) ids.add(doc.video2vmd.sidePose.blobId);
   for (const m of Object.values(doc.motionEditor?.models ?? {})) {
     ids.add(m.base.blobId);
     ids.add(m.original.blobId);
@@ -238,6 +240,15 @@ function parseVideo2Vmd(v: unknown): Video2VmdDoc | undefined {
     downscale: v.downscale === true,
     targetModelId: typeof v.targetModelId === 'string' ? v.targetModelId : null,
     step: typeof v.step === 'string' && steps.includes(v.step) ? (v.step as Video2VmdDoc['step']) : 'import',
+    side: isFileRef(v.side) ? v.side : null,
+    sideInfo: isObj(v.sideInfo) ? (v.sideInfo as unknown as Video2VmdDoc['videoInfo']) : null,
+    sidePose: isFileRef(v.sidePose) ? v.sidePose : null,
+    sideTrim:
+      Array.isArray(v.sideTrim) && v.sideTrim.length === 2 ? (v.sideTrim as [number, number]) : undefined,
+    sideCrop: isObj(v.sideCrop) ? (v.sideCrop as unknown as Video2VmdDoc['crop']) : null,
+    twoView: isObj(v.twoView) ? (v.twoView as unknown as Video2VmdDoc['twoView']) : undefined,
+    sync: isObj(v.sync) ? (v.sync as unknown as Video2VmdDoc['sync']) : null,
+    exportParts: isObj(v.exportParts) ? (v.exportParts as unknown as Video2VmdDoc['exportParts']) : undefined,
   };
 }
 
