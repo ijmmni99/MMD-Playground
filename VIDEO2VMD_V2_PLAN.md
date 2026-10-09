@@ -205,8 +205,10 @@ project and combinable with video blinks and expressions: the video mouth morphs
 ## Fingers
 
 **Hand Landmarker** (21 points, handedness) runs on each wrist crop, with two Landmarker instances, one per
-crop, in VIDEO mode. The side comes from the crop's body wrist, not the handedness label. When the label
-disagrees on more than 70 % of frames, the report suggests the mirror toggle.
+crop, in VIDEO mode. The side comes from the crop's body wrist, not the handedness label. The label is judged
+from the hand's appearance exactly like the body's left / right, so mirroring cannot flip one without the
+other; the mirror toggle swaps both together. When labels disagree with the crop's side on more than 30 % of
+frames, the report warns that crops may be catching the other hand (crossed or overlapping hands).
 
 **Features per frame**, rotation invariant, from the hand world points:
 
@@ -314,8 +316,8 @@ wrist moves more than 1.5 crop widths per second while the detection is lost.
 
 - [x] a. Morph writer + round-trip tests; synthetic two-camera fixture
 - [x] b. Crop pass infrastructure
-- [ ] c. Face tracking + morph mapping + eye / head
-- [ ] d. Hand tracking + finger retargeting
+- [x] c. Face tracking + morph mapping + eye / head
+- [x] d. Hand tracking + finger retargeting
 - [ ] e. Two-view import + time sync
 - [ ] f. Auto-calibration + fusion
 - [ ] g. Quality reports, presets, A/B preview

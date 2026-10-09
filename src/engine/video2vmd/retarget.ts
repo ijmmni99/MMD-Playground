@@ -31,6 +31,17 @@ import { oneEuroSeries } from './oneEuro';
 import { BONE, SIDES, SkeletonIndex, type Side, type Skeleton } from './skeleton';
 import type { ConversionSettings } from './types';
 import type { BoneKey, PropertyKey } from './vmdWriter';
+import { twistAbout } from '@/lib/video2vmd/hands';
+
+/** Optional per-frame inputs from face and hand tracking. */
+export interface RetargetExtras {
+  /** Head world rotation from the face, with a blend weight (0 = body pose only). */
+  head?: ({ q: Quat; w: number } | null)[];
+  /** Hand direction (wrist → middle MCP) and thumb-side vectors per side [左, 右], world MMD axes. */
+  hands?: [({ dir: Vec3; side: Vec3; w: number } | null)[], ({ dir: Vec3; side: Vec3; w: number } | null)[]];
+  /** Move half the hand's twist about the forearm into 手捩 (when the model has it). */
+  wristTwist?: boolean;
+}
 
 const DEG = Math.PI / 180;
 const UP: Vec3 = [0, 1, 0];
@@ -122,6 +133,7 @@ export function retarget(
   track: CleanTrack,
   skeleton: Skeleton,
   settings: ConversionSettings,
+  extras: RetargetExtras = {},
 ): RetargetResult {
   const sk = new SkeletonIndex(skeleton);
   const bones = skeleton.bones;
@@ -210,7 +222,7 @@ export function retarget(
     }),
   ) as Record<Side, number>;
 
-  const solveFrame = (P: Vec3[]): FrameSolve => {
+  const solveFrame = (P: Vec3[], frame: number): FrameSolve => {
     const hipMid = mid(P[LM.leftHip], P[LM.rightHip]);
     const shMid = mid(P[LM.leftShoulder], P[LM.rightShoulder]);
     const spineUp = normalize(sub(shMid, hipMid), UP);
@@ -218,12 +230,15 @@ export function retarget(
     const shLat = normalize(sub(P[LM.leftShoulder], P[LM.rightShoulder]), [1, 0, 0]);
     const upperFull = frameRotation(restShLat, restSpine, shLat, spineUp);
     const earMid = mid(P[LM.leftEar], P[LM.rightEar]);
-    const headWorld = frameRotation(
+    const bodyHead = frameRotation(
       [1, 0, 0],
       FORWARD,
       sub(P[LM.leftEar], P[LM.rightEar]),
       sub(P[LM.nose], earMid),
     );
+    const faceHead = extras.head?.[frame];
+    const headWorld =
+      faceHead && faceHead.w > 0 ? slerp(bodyHead, faceHead.q, Math.min(1, faceHead.w)) : bodyHead;
     const hasUpper2 = sk.has(BONE.upper2);
 
     const drivers = new Map<string, Driver>();
@@ -259,11 +274,25 @@ export function retarget(
       drivers.set(BONE.elbow(s), (wp) => ({
         local: hinge(qmul(qconj(wp), elbowWorld), R.armHinge, -5 * DEG, 165 * DEG),
       }));
-      const handDir = sub(mid(P[L.index], P[L.pinky]), P[L.wrist]);
-      const handSide = sub(P[L.index], P[L.pinky]);
+      let handDir = normalize(sub(mid(P[L.index], P[L.pinky]), P[L.wrist]));
+      let handSide = normalize(sub(P[L.index], P[L.pinky]));
+      const hx = extras.hands?.[s === '左' ? 0 : 1]?.[frame];
+      if (hx && hx.w > 0) {
+        handDir = blendDir(handDir, hx.dir, hx.w);
+        handSide = blendDir(handSide, hx.side, hx.w);
+      }
       const handWorld = frameRotation(R.handP, R.handS, handDir, handSide);
+      const twistBone = `${s}手捩`;
+      if (extras.wristTwist && sk.has(twistBone)) {
+        drivers.set(twistBone, (wp) => ({
+          local: clampAngle(slerp(QI, twistAbout(qmul(qconj(wp), handWorld), R.fore), 0.5), 80 * DEG),
+        }));
+      }
       drivers.set(BONE.wrist(s), (wp) => ({
-        local: clampAngle(damp(qmul(qconj(wp), handWorld), 0.6), 70 * DEG),
+        local: clampAngle(
+          damp(qmul(qconj(wp), handWorld), hx && hx.w > 0 ? 0.6 + 0.3 * hx.w : 0.6),
+          70 * DEG,
+        ),
       }));
 
       if (settings.lowerBody) {
@@ -307,7 +336,7 @@ export function retarget(
   };
 
   // ---- per-frame FK --------------------------------------------------------------------------------
-  const solves: FrameSolve[] = track.world.map((P) => solveFrame(P));
+  const solves: FrameSolve[] = track.world.map((P, f) => solveFrame(P, f));
 
   // Rotation continuity (no quaternion sign flips) + light zero-lag slerp smoothing.
   const driven = new Set<number>();

@@ -1,4 +1,4 @@
-import type { FaceObs, HandPair } from '@/lib/video2vmd/types';
+import type { FaceObs, FaceSettings, FeatureFlags, HandPair, HandSettings } from '@/lib/video2vmd/types';
 
 /** Landmark values per frame: 33 × [x, y, z, visibility]. */
 export type LandmarkArray = Float32Array | number[];
@@ -80,6 +80,10 @@ export interface ConversionSettings {
   lowerBody: boolean;
   /** Keyframe reduction tolerance (degrees for rotations; MMD units ×10 for positions). 0 = keep all. */
   reduceTolerance: number;
+  /** v2 features (two-view, face, fingers); absent = body only. */
+  features?: FeatureFlags;
+  face?: FaceSettings;
+  hands?: HandSettings;
 }
 
 export const DEFAULT_SETTINGS: ConversionSettings = {
@@ -125,7 +129,16 @@ export function presetSettings(
   id: PresetId,
   base: ConversionSettings = DEFAULT_SETTINGS,
 ): ConversionSettings {
-  return { ...DEFAULT_SETTINGS, ...PRESETS[id].settings, mirror: base.mirror, scale: base.scale, preset: id };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...PRESETS[id].settings,
+    mirror: base.mirror,
+    scale: base.scale,
+    features: base.features,
+    face: base.face,
+    hands: base.hands,
+    preset: id,
+  };
 }
 
 export interface QualityWarning {
@@ -148,4 +161,19 @@ export interface QualityReport {
   keysOriginal: number;
   keysReduced: number;
   warnings: QualityWarning[];
+  /** Face tracking (when on). */
+  face?: { detectedPct: number; written: string[]; missing: string[]; cropPx: number };
+  /** Finger tracking (when on): detection per hand [left, right]. */
+  hands?: { detectedPct: [number, number]; rejected: number; cropPx: number; labelAgreement: number };
+  /** Two-view (when on). */
+  twoView?: {
+    detectedPct: [number, number];
+    calibrationConfidence: number;
+    yawDeg: number;
+    /** Fraction of joint samples fused from both views. */
+    fusedPct: number;
+    syncOffsetMs: number;
+    syncConfidence: number;
+    syncMethod: string;
+  };
 }

@@ -10,7 +10,6 @@ import {
   cross,
   mid,
   normalize,
-  qconj,
   qmul,
   rotate,
   scale,
@@ -321,7 +320,8 @@ const wobble = (t: number, i: number, k: number): number =>
 /** MediaPipe face transformation matrix (column-major; camera space x right, y up, z toward the viewer). */
 function faceMatrix(camYawDeg: number, headYaw: number, pos: Vec3): number[] {
   // Head rotation in the camera's MMD-axis frame, then S·R·S with S = diag(1, 1, −1).
-  const qCam = qmul(qconj(axisAngle([0, 1, 0], camYawDeg * RAD)), axisAngle([0, 1, 0], headYaw));
+  // Camera rotation R_y(θ) is −θ about +Y; its inverse (world → camera) is +θ.
+  const qCam = qmul(axisAngle([0, 1, 0], camYawDeg * RAD), axisAngle([0, 1, 0], headYaw));
   const col = (v: Vec3): Vec3 => {
     const r = rotate(qCam, [v[0], v[1], -v[2]]);
     return [r[0], r[1], -r[2]];
@@ -373,7 +373,8 @@ export function viewFrame(scene: SyntheticScene, o: ViewOptions): ViewFrame {
     image.set([u, v, z - toCameraFrame(cam, hip)[2], vis], i * 4);
   }
   // Face: visible when it turns toward the camera.
-  const faceYawToCam = scene.headYaw - cam.yawDeg * RAD;
+  // Facing a camera at yaw θ means a head yaw of −θ.
+  const faceYawToCam = scene.headYaw + cam.yawDeg * RAD;
   const frontal = Math.cos(faceYawToCam);
   let face: FaceObs | null = null;
   if (frontal > 0.35) {
