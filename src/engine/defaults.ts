@@ -39,7 +39,7 @@ export const DEFAULT_SETTINGS: SceneSettings = {
     ssao: false,
     outlineScale: 1,
   },
-  physics: { enabled: true, gravity: 98, substeps: 5, fixedTimeStep: 1 / 60 },
+  physics: { enabled: true, gravity: 98, substeps: 6, fixedTimeStep: 1 / 120 },
 };
 
 export const DEFAULT_CAMERA: CameraState = {
@@ -67,7 +67,6 @@ export function deviceDefaultSettings(coarse: boolean): SceneSettings {
   s.postfx.ssao = false;
   s.postfx.dof = false;
   s.postfx.bloom = false;
-  s.physics.substeps = 3;
   return s;
 }
 

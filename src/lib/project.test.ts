@@ -52,6 +52,21 @@ describe('project serialization', () => {
     expect(parsed.settings.background).toEqual(DEFAULT_SETTINGS.background);
   });
 
+  it('upgrades the old physics defaults and keeps custom ones', () => {
+    for (const substeps of [5, 3]) {
+      const doc = sampleDoc();
+      doc.settings.physics = { ...doc.settings.physics, substeps, fixedTimeStep: 1 / 60 };
+      const parsed = parseProjectDoc(JSON.parse(JSON.stringify(doc)));
+      expect(parsed.settings.physics.substeps).toBe(6);
+      expect(parsed.settings.physics.fixedTimeStep).toBeCloseTo(1 / 120);
+    }
+    const custom = sampleDoc();
+    custom.settings.physics = { ...custom.settings.physics, substeps: 10, fixedTimeStep: 1 / 60 };
+    const parsed = parseProjectDoc(JSON.parse(JSON.stringify(custom)));
+    expect(parsed.settings.physics.substeps).toBe(10);
+    expect(parsed.settings.physics.fixedTimeStep).toBeCloseTo(1 / 60);
+  });
+
   it('rejects invalid or future documents', () => {
     expect(() => parseProjectDoc(null)).toThrow();
     expect(() => parseProjectDoc({ version: 99 })).toThrow(/Unsupported/);

@@ -267,3 +267,47 @@ test('move model: drag the on-screen move gizmo, then undo', async ({ page }) =>
   await expect.poll(async () => (await position()).every((v, i) => Math.abs(v - start[i]) < 1e-6)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('follow model: the camera tracks the model as it moves', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?engine=1');
+  await waitForEngine(page);
+  await page.getByLabel('Render quality').selectOption('low');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Open files / ZIP…' }).click();
+  await (
+    await chooser
+  ).setFiles(
+    ['Blocky/blocky.pmx', 'Blocky/tex/skin.png', 'Blocky/tex/hair.png'].map((f) => join(fixtures, f)),
+  );
+  await expect(page.getByTestId('model-list').getByRole('option')).toHaveCount(1);
+  await page.getByTestId('follow-model').click();
+  await expect(page.getByTestId('follow-model')).toHaveAttribute('aria-pressed', 'true');
+
+  type Eng = {
+    listModels(): string[];
+    setModelTransform(id: string, t: { position: number[]; rotation: number[]; scale: number }): void;
+    getCameraState(): { target: number[] };
+  };
+  const targetX = (): Promise<number> =>
+    page.evaluate(() => (window as unknown as { __studio: Eng }).__studio.getCameraState().target[0]);
+  const before = await targetX();
+  await page.evaluate(() => {
+    const e = (window as unknown as { __studio: Eng }).__studio;
+    e.setModelTransform(e.listModels()[0], { position: [10, 0, 0], rotation: [0, 0, 0], scale: 1 });
+  });
+  await expect.poll(targetX, { timeout: 10_000 }).toBeGreaterThan(before + 9);
+
+  // Off: the camera stays put.
+  await page.getByTestId('follow-model').click();
+  await expect(page.getByTestId('follow-model')).toHaveAttribute('aria-pressed', 'false');
+  const stopped = await targetX();
+  await page.evaluate(() => {
+    const e = (window as unknown as { __studio: Eng }).__studio;
+    e.setModelTransform(e.listModels()[0], { position: [-10, 0, 0], rotation: [0, 0, 0], scale: 1 });
+  });
+  await page.waitForTimeout(500);
+  expect(Math.abs((await targetX()) - stopped)).toBeLessThan(0.01);
+  expect(errors).toEqual([]);
+});

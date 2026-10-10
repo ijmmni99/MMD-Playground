@@ -1,7 +1,7 @@
 import { useNameText } from '@/features/names/text';
 import { Button, Row, Section, Select, SliderRow } from '@/components/ui/controls';
 import type { CameraMode, CameraPreset } from '@/engine/types';
-import { cameraPreset, focusSelected, setCameraMode, setFollow, setFov } from '@/store/actions';
+import { FOLLOW_BONES, cameraPreset, focusSelected, setCameraMode, setFollow, setFov } from '@/store/actions';
 import { useStudio } from '@/store/studio';
 
 const PRESETS: { id: CameraPreset; label: string }[] = [
@@ -13,7 +13,7 @@ const PRESETS: { id: CameraPreset; label: string }[] = [
   { id: 'full', label: 'Full body ¾' },
 ];
 
-const FOLLOW_BONES = ['センター', '上半身', '頭', '下半身', '全ての親'];
+const PANEL_FOLLOW_BONES = [...FOLLOW_BONES, '頭'];
 
 export function CameraPanel() {
   const camera = useStudio((s) => s.camera);
@@ -21,7 +21,7 @@ export function CameraPanel() {
   const model = useStudio((s) => s.models.find((m) => m.id === s.selectedModelId) ?? null);
   const nameText = useNameText(model?.id);
   const followBones = model
-    ? model.info.bones.filter((b) => FOLLOW_BONES.includes(b.name)).map((b) => b.name)
+    ? model.info.bones.filter((b) => PANEL_FOLLOW_BONES.includes(b.name)).map((b) => b.name)
     : [];
   return (
     <div>
@@ -90,7 +90,8 @@ export function CameraPanel() {
               </select>
             </Row>
             <p className="text-[11px] text-fg-dim">
-              The orbit camera target smoothly tracks the bone while you orbit/zoom freely.
+              The camera smoothly tracks the bone while you orbit / zoom freely (also the viewport's Follow
+              model button).
             </p>
           </>
         )}

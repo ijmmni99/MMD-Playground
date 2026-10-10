@@ -4,6 +4,7 @@ import {
   Camera,
   Focus,
   Grid3x3,
+  LocateFixed,
   Move,
   Move3D,
   Plane,
@@ -23,6 +24,7 @@ import {
   tapSelect,
   setCameraMode,
   setGizmoMode,
+  toggleFollowModel,
   updateSettings,
 } from '@/store/actions';
 import { TapDetector } from '@/lib/gestures';
@@ -110,7 +112,9 @@ export function Viewport({ compact = false }: { compact?: boolean }) {
       <div ref={hostRef} className="absolute inset-0 overscroll-none" />
       {ready && (!compact || hasModels) && <ViewportToolbar compact={compact} />}
       {ready && <StatsOverlay />}
-      {(ready || !booting || fromWelcome) && !hasModels && !restoring && taskList.length === 0 && <EmptyState />}
+      {(ready || !booting || fromWelcome) && !hasModels && !restoring && taskList.length === 0 && (
+        <EmptyState />
+      )}
       {booting && !ready && !error && fromWelcome && !hasModels && (
         <div
           className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-bg-panel/95 px-3 py-1.5 text-[12px] text-fg-muted shadow"
@@ -189,6 +193,8 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
   const gizmo = useStudio((s) => s.gizmoMode);
   const hasModel = useStudio((s) => s.selectedModelId !== null);
   const coarse = useLayout((s) => s.coarse);
+  const following = useStudio((s) => s.camera.follow !== null);
+  const anyModel = useStudio((s) => s.models.length > 0);
   const modes: { mode: CameraMode; label: string; icon: React.ReactNode; disabled?: boolean }[] = [
     { mode: 'orbit', label: 'Orbit camera', icon: <Rotate3D size={15} /> },
     { mode: 'fly', label: 'Free-fly camera (WASD + Q/E)', icon: <Plane size={15} /> },
@@ -222,6 +228,15 @@ function ViewportToolbar({ compact }: { compact: boolean }) {
       <div className="mx-1 h-5 w-px shrink-0 bg-line" />
       <IconButton label="Focus selected model (F, or double-tap)" onClick={focusSelected}>
         <Focus size={15} />
+      </IconButton>
+      <IconButton
+        label={following ? 'Stop following the model' : 'Follow model (camera tracks its movement)'}
+        active={following}
+        disabled={!anyModel || cameraMode === 'vmd'}
+        data-testid="follow-model"
+        onClick={toggleFollowModel}
+      >
+        <LocateFixed size={15} />
       </IconButton>
       {!compact && (
         <>

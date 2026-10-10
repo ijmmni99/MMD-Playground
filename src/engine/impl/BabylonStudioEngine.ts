@@ -197,6 +197,8 @@ export class BabylonStudioEngine implements StudioEngine {
   private loop = false;
   private speed = 1;
   private follow: { modelId: string; bone: string } | null = null;
+  /** Smoothed followed point (the camera moves by its change, so manual orbit / pan stays free). */
+  private followLast: Vector3 | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private lastStats = 0;
   private lastPlaybackEmit = 0;
@@ -528,10 +530,7 @@ export class BabylonStudioEngine implements StudioEngine {
       if (!m.physics || !this.settings.physics.enabled) m.model.rigidBodyStates.fill(0);
     }
 
-    if (this.follow) {
-      const pos = this.boneWorldPosition(this.follow.modelId, this.follow.bone);
-      if (pos) Vector3.LerpToRef(this.orbit.target, pos, 0.2, this.orbit.target);
-    }
+    if (this.follow && this.cameraMode !== 'vmd') this.updateFollow();
     if (this.selected && !this.dragging) this.syncProxyToBone();
 
     // Live clocks read getPlayback() per frame; the store only needs coarse updates while playing.
@@ -608,7 +607,12 @@ export class BabylonStudioEngine implements StudioEngine {
       const sun = hexColor(l.dirColor).scale(Math.min(1.4, 0.35 + l.dirIntensity * 0.8));
       const sky = hexColor(l.ambientColor).scale(l.ambientIntensity);
       const ground = hexColor(l.groundColor).scale(l.ambientIntensity);
-      setNprLight([-dir.x, -dir.y, -dir.z], [sun.r, sun.g, sun.b], [sky.r, sky.g, sky.b], [ground.r, ground.g, ground.b]);
+      setNprLight(
+        [-dir.x, -dir.y, -dir.z],
+        [sun.r, sun.g, sun.b],
+        [sky.r, sky.g, sky.b],
+        [ground.r, ground.g, ground.b],
+      );
     }
     this.shadowGen.setDarkness(l.shadowDarkness);
     this.shadowGen.usePercentageCloserFiltering = l.softShadows;
@@ -909,7 +913,10 @@ export class BabylonStudioEngine implements StudioEngine {
         baseOutlineColor,
         npr: [],
         outlineFactor: 1,
-        height: Math.max(1, mesh.getHierarchyBoundingVectors(true).max.y - mesh.getHierarchyBoundingVectors(true).min.y),
+        height: Math.max(
+          1,
+          mesh.getHierarchyBoundingVectors(true).max.y - mesh.getHierarchyBoundingVectors(true).min.y,
+        ),
         materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
         transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
         restPositions: model.runtimeBones.map((b) => b.linkedBone.position.clone()),
@@ -988,7 +995,12 @@ export class BabylonStudioEngine implements StudioEngine {
     const ikEnabled = old.ikEnabled;
     const selectedBone = this.selected?.modelId === id ? this.selected.bone : null;
     const tmp = `${id}~${newId()}`;
-    await this.loadModel(files, mainPath, { id: tmp, name: old.name, singleMesh: options.singleMesh, quiet: true });
+    await this.loadModel(files, mainPath, {
+      id: tmp,
+      name: old.name,
+      singleMesh: options.singleMesh,
+      quiet: true,
+    });
     const entry = this.models.get(tmp)!;
     // Drop the old one quietly (no modelRemoved: the id lives on).
     if (this.selected?.modelId === id) this.selectBone(null, null);
@@ -1019,7 +1031,8 @@ export class BabylonStudioEngine implements StudioEngine {
     this.updateDuration();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
     if (this.activeModelId === id || this.activeModelId === null) this.setActiveModel(this.activeModelId);
-    if (selectedBone !== null && selectedBone < entry.model.runtimeBones.length) this.selectBone(id, selectedBone);
+    if (selectedBone !== null && selectedBone < entry.model.runtimeBones.length)
+      this.selectBone(id, selectedBone);
     this.events.emit('modelAdded', entry.info);
     return entry.info;
   }
@@ -1060,7 +1073,6 @@ export class BabylonStudioEngine implements StudioEngine {
       this.applyMaterials(m);
     }
   }
-
 
   private need(id: string): ModelEntry {
     const m = this.models.get(id);
@@ -1154,7 +1166,10 @@ export class BabylonStudioEngine implements StudioEngine {
         const look = m.npr[i];
         const scale = this.settings.postfx.outlineScale * (look?.outlineScale ?? 1) * m.outlineFactor;
         mat.renderOutline =
-          st.outline && this.settings.postfx.outlineScale > 0 && scale > 0 && this.npr.settings.outlineMode === 'hull';
+          st.outline &&
+          this.settings.postfx.outlineScale > 0 &&
+          scale > 0 &&
+          this.npr.settings.outlineMode === 'hull';
         mat.outlineWidth = m.baseOutline[i] * scale;
         const c = look?.outlineColor ?? m.baseOutlineColor[i];
         if (c) mat.outlineColor.set(c[0], c[1], c[2]);
@@ -1186,7 +1201,8 @@ export class BabylonStudioEngine implements StudioEngine {
     this.npr.tier = selectTier(settings.tier, this.settings.viewport.quality);
     if (tierChanged) this.npr.clearFailures();
     if (!settings.outlineFalloff) for (const m of this.models.values()) m.outlineFactor = 1;
-    if (settings.outlineMode === 'post' && !this.postOutline) this.postOutline = new PostOutline(this.scene, this.viewCamera());
+    if (settings.outlineMode === 'post' && !this.postOutline)
+      this.postOutline = new PostOutline(this.scene, this.viewCamera());
     this.applyNprAll();
   }
 
@@ -1656,7 +1672,14 @@ export class BabylonStudioEngine implements StudioEngine {
   private text!: TextLayer;
   private previewMesh: Mesh | null = null;
 
-  setPreviewMesh(data: { positions: Float32Array; indices: Uint32Array; colors: Float32Array; offset: [number, number, number] } | null): void {
+  setPreviewMesh(
+    data: {
+      positions: Float32Array;
+      indices: Uint32Array;
+      colors: Float32Array;
+      offset: [number, number, number];
+    } | null,
+  ): void {
     this.previewMesh?.dispose(false, true);
     this.previewMesh = null;
     if (!data) return;
@@ -1923,6 +1946,29 @@ export class BabylonStudioEngine implements StudioEngine {
 
   setFollow(follow: { modelId: string; bone: string } | null): void {
     this.follow = follow;
+    this.followLast = follow ? this.boneWorldPosition(follow.modelId, follow.bone) : null;
+  }
+
+  /**
+   * Follow camera: the orbit target (or the free-fly camera, keeping its offset) tracks the bone. Smoothing is
+   * frame-rate independent; height follows more softly so jumps and bounces don't shake the view.
+   */
+  private updateFollow(): void {
+    const pos = this.boneWorldPosition(this.follow!.modelId, this.follow!.bone);
+    if (!pos) return;
+    const dt = Math.min(0.1, this.engine.getDeltaTime() / 1000);
+    const kXZ = 1 - Math.exp(-dt * 6);
+    const kY = 1 - Math.exp(-dt * 2.5);
+    const prev = this.followLast ?? pos.clone();
+    const next = new Vector3(
+      prev.x + (pos.x - prev.x) * kXZ,
+      prev.y + (pos.y - prev.y) * kY,
+      prev.z + (pos.z - prev.z) * kXZ,
+    );
+    this.followLast = next;
+    const delta = next.subtract(prev);
+    if (this.cameraMode === 'fly') this.fly.position.addInPlace(delta);
+    else this.orbit.target.addInPlace(delta);
   }
 
   focusModel(id?: string): void {
@@ -1959,6 +2005,7 @@ export class BabylonStudioEngine implements StudioEngine {
     o.radius = s.radius;
     this.setFov(s.fov);
     this.follow = s.follow;
+    this.followLast = null;
     this.setCameraMode(s.mode === 'vmd' && !this.cameraMotion ? 'orbit' : s.mode);
   }
 

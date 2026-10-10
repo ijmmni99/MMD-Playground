@@ -642,6 +642,30 @@ export function setFollow(follow: { modelId: string; bone: string } | null): voi
   set({ camera: { ...get().camera, follow } });
 }
 
+/** Bones a follow camera prefers, best first (センター tracks the whole body without head bob). */
+export const FOLLOW_BONES = ['センター', 'グルーブ', '下半身', '上半身', '全ての親'];
+
+/** Viewport "Follow model" toggle: the camera tracks the selected (or first) model as it moves. */
+export function toggleFollowModel(): void {
+  if (get().camera.follow) {
+    setFollow(null);
+    return;
+  }
+  const s = get();
+  const model =
+    s.models.find((m) => m.id === s.selectedModelId) ?? s.models.find((m) => !m.stage) ?? s.models[0];
+  if (!model) {
+    toast('info', 'Load a model to follow.');
+    return;
+  }
+  const bone =
+    FOLLOW_BONES.find((b) => model.info.bones.some((x) => x.name === b)) ?? model.info.bones[0]?.name;
+  if (!bone) return;
+  if (s.camera.mode === 'vmd') setCameraMode('orbit');
+  engineOrNull()?.focusModel(model.id);
+  setFollow({ modelId: model.id, bone });
+}
+
 export function focusSelected(): void {
   engineOrNull()?.focusModel(selectedModel()?.id);
 }

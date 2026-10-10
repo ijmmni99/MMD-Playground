@@ -101,6 +101,18 @@ export function mergeDefaults<T>(defaults: T, value: unknown): T {
   return out as T;
 }
 
+/** Projects saved with the old physics defaults (1/60 s, 5 or 3 substeps) get the new ones (1/120 s, 6). */
+function upgradePhysics(s: SceneSettings): SceneSettings {
+  const p = s.physics;
+  if (Math.abs(p.fixedTimeStep - 1 / 60) < 1e-9 && (p.substeps === 5 || p.substeps === 3))
+    s.physics = {
+      ...p,
+      fixedTimeStep: DEFAULT_SETTINGS.physics.fixedTimeStep,
+      substeps: DEFAULT_SETTINGS.physics.substeps,
+    };
+  return s;
+}
+
 function isFileRef(v: unknown): v is FileRef {
   return isObj(v) && typeof v.blobId === 'string' && typeof v.path === 'string';
 }
@@ -149,7 +161,7 @@ export function parseProjectDoc(json: unknown): ProjectDoc {
     id: typeof json.id === 'string' ? json.id : base.id,
     createdAt: typeof json.createdAt === 'number' ? json.createdAt : base.createdAt,
     updatedAt: typeof json.updatedAt === 'number' ? json.updatedAt : base.updatedAt,
-    settings: mergeDefaults(DEFAULT_SETTINGS, json.settings),
+    settings: upgradePhysics(mergeDefaults(DEFAULT_SETTINGS, json.settings)),
     camera: { ...mergeDefaults({ ...DEFAULT_CAMERA, follow: null }, json.camera), follow: null },
     playback: mergeDefaults(base.playback, json.playback),
     audio,
@@ -329,12 +341,16 @@ function parseModelEditor(v: unknown): ModelEditorDoc | undefined {
         modelId: s.modelId,
         mainPath: s.mainPath,
         files: s.files.filter(isFileRef),
-        ops: Array.isArray(s.ops) ? (s.ops.filter(isObj) as unknown as ModelEditorDoc['sessions'][number]['ops']) : [],
+        ops: Array.isArray(s.ops)
+          ? (s.ops.filter(isObj) as unknown as ModelEditorDoc['sessions'][number]['ops'])
+          : [],
         assets: Array.isArray(s.assets) ? s.assets.filter(isFileRef) : [],
         donors: Array.isArray(s.donors)
           ? s.donors
               .filter(isObj)
-              .filter((d) => typeof d.id === 'string' && typeof d.mainPath === 'string' && Array.isArray(d.files))
+              .filter(
+                (d) => typeof d.id === 'string' && typeof d.mainPath === 'string' && Array.isArray(d.files),
+              )
               .map((d) => ({
                 id: d.id as string,
                 label: typeof d.label === 'string' ? d.label : 'Clothes',
