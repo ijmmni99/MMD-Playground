@@ -24,7 +24,7 @@ interface Pmx {
   materials: { name: string; diffuse: number[]; texture: number }[];
   bones: { name: string; position: [number, number, number] }[];
   morphs: { name: string; kind: string }[];
-  rigidBodies: { name: string }[];
+  rigidBodies: { name: string; mode: number; group: number; collidesWith: number }[];
   textures: string[];
 }
 interface Editor {
@@ -213,6 +213,18 @@ test('model editor: hands, legs, outfit, recolour, group morph, clothes swap, un
   await settled(page);
   expect((await page.evaluate(() => (window as W).__modelEditor!.ops())).length).toBe(opsNow);
   expect((await pmx(page)).materials.some((x) => x.name === 'ジャケット')).toBe(true);
+
+  // 7b. One tap: hair / skirt collide with the body.
+  await page.getByTestId('me-tab-physics').click();
+  await page.getByTestId('me-body-collisions').click();
+  await settled(page);
+  expect((await page.evaluate(() => (window as W).__modelEditor!.ops())).at(-1)!.type).toBe('bodyCollisions');
+  m = await pmx(page);
+  // Body colliders share one group and collide with the physics parts (this outfit has none left after the
+  // skirt swap, which applies after physics edits, so the colliders keep the skirt's group).
+  const colliders = m.rigidBodies.filter((b) => b.mode === 0 && b.collidesWith);
+  expect(colliders.length).toBeGreaterThan(8);
+  expect(new Set(colliders.map((b) => b.group)).size).toBe(1);
 
   // 8. Save a PMX ZIP.
   await page.getByTestId('me-tab-info').click();

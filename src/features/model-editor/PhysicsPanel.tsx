@@ -1,4 +1,4 @@
-import { Play, RefreshCw, Wand2 } from 'lucide-react';
+import { Play, RefreshCw, Shield, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, ToggleRow } from '@/components/ui/controls';
 import { cn } from '@/components/ui/cn';
@@ -62,6 +62,22 @@ export function PhysicsPanel() {
         <Button size="sm" onClick={() => engineOrNull()?.resetPhysics()}>
           <RefreshCw size={13} /> Reset physics
         </Button>
+      </div>
+      <div className="mt-2 rounded-md border border-line p-2">
+        <Button
+          size="sm"
+          variant="primary"
+          data-testid="me-body-collisions"
+          onClick={() =>
+            commitOp({ type: 'bodyCollisions' }, { label: 'Hair / skirt collide with the body' })
+          }
+        >
+          <Shield size={13} /> Stop hair & skirt passing through the body
+        </Button>
+        <p className="mt-1 text-[11px] text-fg-dim">
+          Adds missing body colliders (head, torso, hips, arms, legs) and makes every physics part collide
+          with them. Also repairs models converted before this fix.
+        </p>
       </div>
       {warnings.length > 0 && (
         <div className="mt-2">

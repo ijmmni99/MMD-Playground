@@ -15,7 +15,12 @@ import type {
   V3,
   V4,
 } from '@/lib/convert/pmx/types';
-import { applyAutoPhysics, applyPhysicsPreset, type PhysicsPresetName } from './physicsEdit';
+import {
+  applyAutoPhysics,
+  applyPhysicsPreset,
+  fixBodyCollisions,
+  type PhysicsPresetName,
+} from './physicsEdit';
 import { applyProportions, type ProportionState } from './proportions';
 import { applyOutfit, type OutfitState } from './outfit';
 import { applyMerge, type DonorModel } from './merge';
@@ -114,6 +119,7 @@ export type Op =
   | { type: 'joint'; index: number; patch: Partial<PmxJoint> }
   | { type: 'physicsPreset'; bodies: number[]; preset: PhysicsPresetName; sway: number }
   | { type: 'autoPhysics'; bones: string[]; preset: PhysicsPresetName; sway: number }
+  | { type: 'bodyCollisions' }
   /** Weight every vertex of these materials fully to one bone (fix for unweighted accessories). */
   | { type: 'attach'; materials: number[]; bone: string }
   | { type: 'merge'; donor: string; materials: number[]; label: string }
@@ -437,6 +443,9 @@ function applyOne(m: PmxModel, op: Op, res: ApplyResult, ctx: ApplyContext): voi
       applyAutoPhysics(m, chain, op.preset, op.sway);
       return;
     }
+    case 'bodyCollisions':
+      fixBodyCollisions(m);
+      return;
     case 'attach': {
       const b = bone(op.bone);
       if (b < 0) return;
@@ -561,6 +570,8 @@ export function describeOp(op: Op): string {
       return `Physics preset ${op.preset} on ${op.bodies.length} bodies`;
     case 'autoPhysics':
       return `Auto physics for ${op.bones[0]}… (${op.bones.length} bones)`;
+    case 'bodyCollisions':
+      return 'Hair / skirt collide with the body';
     case 'attach':
       return `Attach ${op.materials.length} material(s) to ${op.bone}`;
     case 'merge':

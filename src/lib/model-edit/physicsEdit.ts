@@ -131,6 +131,133 @@ export function applyAutoPhysics(
   }
 }
 
+/** Capsule axis (rest pose) of a rigid body: R·ŷ with R = Ry·Rx·Rz (PMX / Babylon Euler order). */
+function bodyAxis(rot: V3): V3 {
+  const [x, y, z] = rot;
+  const v: V3 = [-Math.sin(z), Math.cos(z) * Math.cos(x), Math.cos(z) * Math.sin(x)];
+  return [v[0] * Math.cos(y) + v[2] * Math.sin(y), v[1], -v[0] * Math.sin(y) + v[2] * Math.cos(y)];
+}
+
+/** A body as a segment + radius (sphere: zero-length segment; box: along its longest side). */
+function bodySegment(r: PmxModel['rigidBodies'][number]): { a: V3; b: V3; radius: number } {
+  const p = r.position;
+  if (r.shape === 0) return { a: p, b: p, radius: r.size[0] };
+  if (r.shape === 2) {
+    const ax = bodyAxis(r.rotation);
+    const h = r.size[1] / 2;
+    return {
+      a: [p[0] - ax[0] * h, p[1] - ax[1] * h, p[2] - ax[2] * h],
+      b: [p[0] + ax[0] * h, p[1] + ax[1] * h, p[2] + ax[2] * h],
+      radius: r.size[0],
+    };
+  }
+  const half = r.size;
+  return {
+    a: p,
+    b: p,
+    radius: Math.min(half[0], half[1], half[2]) + 0.5 * (Math.max(...half) - Math.min(...half)),
+  };
+}
+
+/** Closest distance between segments ab and cd. */
+function segmentDistance(a: V3, b: V3, c: V3, d: V3): number {
+  const sub3 = (u: V3, v: V3): V3 => [u[0] - v[0], u[1] - v[1], u[2] - v[2]];
+  const dot3 = (u: V3, v: V3): number => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const d1 = sub3(b, a);
+  const d2 = sub3(d, c);
+  const r = sub3(a, c);
+  const aa = dot3(d1, d1);
+  const ee = dot3(d2, d2);
+  const f = dot3(d2, r);
+  let sN = 0;
+  let tN = 0;
+  if (aa < 1e-12 && ee < 1e-12) return Math.hypot(...r);
+  if (aa < 1e-12) tN = Math.min(1, Math.max(0, f / ee));
+  else {
+    const cc = dot3(d1, r);
+    if (ee < 1e-12) sN = Math.min(1, Math.max(0, -cc / aa));
+    else {
+      const bb = dot3(d1, d2);
+      const den = aa * ee - bb * bb;
+      sN = den > 1e-12 ? Math.min(1, Math.max(0, (bb * f - cc * ee) / den)) : 0;
+      tN = (bb * sN + f) / ee;
+      if (tN < 0) {
+        tN = 0;
+        sN = Math.min(1, Math.max(0, -cc / aa));
+      } else if (tN > 1) {
+        tN = 1;
+        sN = Math.min(1, Math.max(0, (bb - cc) / aa));
+      }
+    }
+  }
+  const p: V3 = [a[0] + d1[0] * sN, a[1] + d1[1] * sN, a[2] + d1[2] * sN];
+  const q: V3 = [c[0] + d2[0] * tN, c[1] + d2[1] * tN, c[2] + d2[2] * tN];
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
+
+/**
+ * Make every physics body (hair, skirt, bust, accessories) collide with the body: body parts without a
+ * collider get one, the body colliders share a group, and each physics body collides with that group only
+ * (not with other hair, which tangles). Bodies that already sit deep inside a collider at rest (a chain's
+ * first segment at the head, bust inside the chest) are left without body collisions so they can't explode.
+ * Also repairs models whose masks were inverted. Returns counts for the UI.
+ */
+export function fixBodyCollisions(m: PmxModel): {
+  colliders: number;
+  added: number;
+  bodies: number;
+  skipped: number;
+} {
+  const isCollider = (i: number): boolean =>
+    m.rigidBodies[i].mode === 0 && BODY_BONE.test(m.bones[m.rigidBodies[i].bone]?.name ?? '');
+  const dynamic = m.rigidBodies.map((r, i) => (r.mode !== 0 ? i : -1)).filter((i) => i >= 0);
+  const dynGroups = new Set(dynamic.map((i) => m.rigidBodies[i].group));
+  // Body group: the colliders' most common group if no physics body uses it, else a free one.
+  const existing = m.rigidBodies.map((_, i) => i).filter(isCollider);
+  const counts = new Map<number, number>();
+  for (const i of existing) counts.set(m.rigidBodies[i].group, (counts.get(m.rigidBodies[i].group) ?? 0) + 1);
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+  const bodyGroup =
+    ranked.find((g) => !dynGroups.has(g)) ??
+    [...Array(16).keys()].find((g) => !dynGroups.has(g) && !m.rigidBodies.some((r) => r.group === g)) ??
+    [...Array(16).keys()].find((g) => !dynGroups.has(g)) ??
+    0;
+  // Generated colliders for body parts that have none.
+  const height = Math.max(1, ...m.bones.map((b) => b.position[1]));
+  const gen = buildPhysics(
+    m.bones,
+    [],
+    { enabled: true, sway: 0.5, colliders: true },
+    Math.max(10, height * 1.15),
+  );
+  const covered = new Set(existing.map((i) => m.rigidBodies[i].bone));
+  let added = 0;
+  for (const r of gen.rigidBodies) {
+    if (covered.has(r.bone)) continue;
+    m.rigidBodies.push({ ...r, group: bodyGroup });
+    added++;
+  }
+  const colliders = m.rigidBodies.map((_, i) => i).filter(isCollider);
+  const segs = colliders.map((i) => bodySegment(m.rigidBodies[i]));
+  let dynMask = 0;
+  for (const i of dynamic) dynMask |= 1 << m.rigidBodies[i].group;
+  for (const i of colliders) {
+    const r = m.rigidBodies[i];
+    r.group = bodyGroup;
+    r.collidesWith = dynMask;
+  }
+  let skipped = 0;
+  for (const i of dynamic) {
+    const r = m.rigidBodies[i];
+    const s = bodySegment(r);
+    // Sitting deep inside a collider at rest: no body collisions for this body.
+    const deep = segs.some((c) => segmentDistance(s.a, s.b, c.a, c.b) < (s.radius + c.radius) * 0.6);
+    if (deep) skipped++;
+    r.collidesWith = deep ? 0 : 1 << bodyGroup;
+  }
+  return { colliders: colliders.length, added, bodies: dynamic.length - skipped, skipped };
+}
+
 /** Plain-language physics problems: NaN / infinite numbers, zero sizes, joints to themselves. */
 export function physicsWarnings(m: PmxModel): string[] {
   const out: string[] = [];

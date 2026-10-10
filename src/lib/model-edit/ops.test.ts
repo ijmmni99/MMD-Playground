@@ -471,6 +471,29 @@ describe('physics', () => {
     expect(tip2.collidesWith & (1 << hips.group)).toBeTruthy();
   });
 
+  it('body collisions: physics bodies collide with the body, inverted masks are repaired', () => {
+    // Like a model converted before the mask fix: hair / skirt collide with everything except the body.
+    const m0: PmxModel = structuredClone(base);
+    for (const r of m0.rigidBodies) r.collidesWith = ~r.collidesWith & 0xffff;
+    // Drop the leg colliders: they must be generated.
+    const legs = new Set(['左ひざ', '右ひざ'].map((n) => bi(m0, n)));
+    m0.rigidBodies = m0.rigidBodies.filter((r) => !(r.mode === 0 && legs.has(r.bone)));
+    m0.joints = [];
+    const r = applyOps(m0, [{ type: 'bodyCollisions' }]).pmx;
+    const colliders = r.rigidBodies.filter((b) => b.mode === 0 && b.collidesWith);
+    const group = colliders[0].group;
+    expect(colliders.every((b) => b.group === group)).toBe(true);
+    expect(r.rigidBodies.some((b) => b.mode === 0 && b.bone === bi(r, '左ひざ'))).toBe(true);
+    const dyn = r.rigidBodies.filter((b) => b.mode !== 0);
+    const colliding = dyn.filter((b) => b.collidesWith);
+    expect(colliding.length).toBeGreaterThan(dyn.length / 2);
+    for (const b of colliding) {
+      expect(b.collidesWith).toBe(1 << group);
+      expect(b.group).not.toBe(group);
+      for (const c of colliders) expect(c.collidesWith & (1 << b.group)).toBeTruthy();
+    }
+  });
+
   it('rigid body and joint patches; NaN is reported', () => {
     const r = applyOps(base, [
       { type: 'rigidBody', index: 0, patch: { mass: 3, mode: 1 } },
