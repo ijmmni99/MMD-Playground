@@ -52,7 +52,15 @@ export function applyPhysicsPreset(
   }
 }
 
-/** Generate rigid bodies and joints for a chain of bones (root → tip) and append them. */
+/** Bones whose bone-following bodies count as the body the generated chain must not pass through. */
+const BODY_BONE =
+  /^(頭|首|上半身\d?|下半身|[左右](足|ひざ|足首|腕|ひじ|手首|肩))$|^(head|neck|spine|chest|hips|pelvis)/i;
+
+/**
+ * Generate rigid bodies and joints for a chain of bones (root → tip) and append them. The chain collides with
+ * the model's own body colliders (whatever collision groups the model uses); body parts that have no collider
+ * get a generated one, so the chain can't swing through the head, torso, hips, arms or legs.
+ */
 export function applyAutoPhysics(
   m: PmxModel,
   chain: number[],
@@ -77,12 +85,50 @@ export function applyAutoPhysics(
   const gen = buildPhysics(
     m.bones,
     [c],
-    { enabled: true, sway, colliders: false },
+    { enabled: true, sway, colliders: true },
     Math.max(10, height * 1.15),
   );
+
+  // The model's body colliders: bone-following bodies on body bones.
+  const colliders = m.rigidBodies
+    .map((r, i) => (r.mode === 0 && BODY_BONE.test(m.bones[r.bone]?.name ?? '') ? i : -1))
+    .filter((i) => i >= 0);
+  const bodyGroups = new Set(colliders.map((i) => m.rigidBodies[i].group));
+  const bodyGroup = bodyGroups.size ? Math.min(...bodyGroups) : 0;
+  bodyGroups.add(bodyGroup);
+  // The chain's group: one no body uses (else any that isn't a body group).
+  const used = new Set(m.rigidBodies.map((r) => r.group));
+  const free = [...Array(16).keys()].filter((g) => !bodyGroups.has(g));
+  const chainGroup = free.find((g) => !used.has(g)) ?? free[0] ?? 15;
+  const chainBit = 1 << chainGroup;
+  let bodyMask = 0;
+  for (const g of bodyGroups) bodyMask |= 1 << g;
+  for (const i of colliders) m.rigidBodies[i].collidesWith |= chainBit;
+
+  const covered = new Set(colliders.map((i) => m.rigidBodies[i].bone));
+  const remap = new Map<number, number>();
   const base = m.rigidBodies.length;
-  m.rigidBodies.push(...gen.rigidBodies);
-  m.joints.push(...gen.joints.map((j) => ({ ...j, a: j.a + base, b: j.b + base })));
+  gen.rigidBodies.forEach((r, i) => {
+    const isCollider = r.mode === 0 && r.collidesWith !== 0 && !onChain.has(r.bone);
+    if (isCollider) {
+      // Generated collider only where the model has none on that bone.
+      if (covered.has(r.bone)) return;
+      r.group = bodyGroup;
+      r.collidesWith = chainBit;
+    } else {
+      r.group = chainGroup;
+      // The first segment starts at the attachment (often inside the head or torso collider): no collisions.
+      const first = r.bone === chain[0];
+      r.collidesWith = r.collidesWith === 0 || first ? 0 : bodyMask;
+    }
+    remap.set(i, base + remap.size);
+    m.rigidBodies.push(r);
+  });
+  for (const j of gen.joints) {
+    const a = remap.get(j.a);
+    const b = remap.get(j.b);
+    if (a !== undefined && b !== undefined) m.joints.push({ ...j, a, b });
+  }
 }
 
 /** Plain-language physics problems: NaN / infinite numbers, zero sizes, joints to themselves. */

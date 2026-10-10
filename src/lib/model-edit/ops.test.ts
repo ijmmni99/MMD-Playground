@@ -441,6 +441,36 @@ describe('physics', () => {
     await valid(r);
   });
 
+  it('auto physics collides with the model body, whatever collision groups the model uses', () => {
+    // Real models often keep body colliders in another group that doesn't list the hair group.
+    const m0: PmxModel = structuredClone(base);
+    const colliders = m0.rigidBodies
+      .map((r, i) => (r.mode === 0 && r.collidesWith ? i : -1))
+      .filter((i) => i >= 0);
+    for (const i of colliders) Object.assign(m0.rigidBodies[i], { group: 5, collidesWith: 1 << 5 });
+    const tail: Op[] = [
+      { type: 'boneAdd', name: '尻尾1', nameEn: 'tail1', parent: '下半身', position: [0, 9.5, 1.2] },
+      { type: 'boneAdd', name: '尻尾2', nameEn: 'tail2', parent: '尻尾1', position: [0, 8.5, 2] },
+      { type: 'boneAdd', name: '尻尾3', nameEn: 'tail3', parent: '尻尾2', position: [0, 7.5, 2.5] },
+      { type: 'autoPhysics', bones: ['尻尾1', '尻尾2', '尻尾3'], preset: 'soft', sway: 0.5 },
+    ];
+    const r = applyOps(m0, tail).pmx;
+    const tip = r.rigidBodies.find((b) => b.bone === bi(r, '尻尾3'))!;
+    expect(tip.group).not.toBe(5);
+    expect(tip.collidesWith & (1 << 5)).toBeTruthy();
+    for (const i of colliders) expect(r.rigidBodies[i].collidesWith & (1 << tip.group)).toBeTruthy();
+    // No body colliders at all: they're generated for the body parts.
+    const bare: PmxModel = structuredClone(base);
+    bare.joints = [];
+    bare.rigidBodies = [];
+    const g = applyOps(bare, tail).pmx;
+    const tip2 = g.rigidBodies.find((b) => b.bone === bi(g, '尻尾3'))!;
+    const hips = g.rigidBodies.find((b) => b.bone === bi(g, '下半身') && b.mode === 0 && b.collidesWith)!;
+    expect(hips).toBeDefined();
+    expect(hips.collidesWith & (1 << tip2.group)).toBeTruthy();
+    expect(tip2.collidesWith & (1 << hips.group)).toBeTruthy();
+  });
+
   it('rigid body and joint patches; NaN is reported', () => {
     const r = applyOps(base, [
       { type: 'rigidBody', index: 0, patch: { mass: 3, mode: 1 } },
