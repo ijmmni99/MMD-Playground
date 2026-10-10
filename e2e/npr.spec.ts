@@ -73,10 +73,15 @@ async function boot(page: Page, query = ''): Promise<string> {
   await (await chooser).setFiles(MODEL);
   await expect.poll(() => page.evaluate(() => (window as W).__studio!.listModels().length)).toBe(1);
   const id = await page.evaluate(() => (window as W).__studio!.listModels()[0]);
-  // Still model, fixed camera: renders are comparable.
-  await page.evaluate((m) => {
+  // Still model: physics off through the app (the store re-applies it, e.g. after a context loss).
+  const physics = page.getByRole('switch', { name: 'Simulate hair / skirt' });
+  if (!(await physics.isVisible().catch(() => false)))
+    await page.getByRole('button', { name: 'Physics' }).click();
+  await physics.click();
+  await expect(physics).not.toBeChecked();
+  // Fixed camera: renders are comparable.
+  await page.evaluate(() => {
     const s = (window as W).__studio!;
-    s.setModelPhysics(m, false);
     s.setCameraState({
       ...s.getCameraState(),
       mode: 'orbit',
@@ -86,7 +91,7 @@ async function boot(page: Page, query = ''): Promise<string> {
       radius: 26,
       fov: 40,
     });
-  }, id);
+  });
   return id;
 }
 
