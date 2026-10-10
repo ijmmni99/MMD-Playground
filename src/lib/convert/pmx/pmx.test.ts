@@ -137,7 +137,8 @@ describe('PMX writer', () => {
         ['頭', 0, 0, 0],
         ['髪1', 2, 1, 1],
       ]);
-      expect(pmx.rigidBodies[1].collisionMask).toBe(1 << 1);
+      // babylon-mmd passes this straight to Bullet as the collide mask: everything but its own hair group.
+      expect(pmx.rigidBodies[1].collisionMask).toBe(0xffff & ~(1 << 1));
       expect(pmx.joints.map((j) => [j.name, j.rigidbodyIndexA, j.rigidbodyIndexB])).toEqual([['髪1J', 0, 1]]);
       expect(pmx.joints[0].springRotation).toEqual([50, 50, 50]);
     });

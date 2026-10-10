@@ -133,7 +133,7 @@ export interface PmxRigidBody {
   nameEn: string;
   bone: number;
   group: number;
-  /** Bit i set = collides with group i (PMX stores the inverted "no collision" mask). */
+  /** Bit i set = collides with group i (stored as is; editors show the inverse as "no collision" groups). */
   collidesWith: number;
   shape: 0 | 1 | 2; // sphere, box, capsule
   size: V3;

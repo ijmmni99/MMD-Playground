@@ -230,7 +230,7 @@ export function fromPmxObject(o: PmxObject): PmxModel {
       nameEn: r.englishName,
       bone: r.boneIndex,
       group: r.collisionGroup,
-      collidesWith: ~r.collisionMask & 0xffff,
+      collidesWith: r.collisionMask & 0xffff,
       shape: r.shapeType as 0 | 1 | 2,
       size: v3(r.shapeSize),
       position: v3(r.shapePosition),

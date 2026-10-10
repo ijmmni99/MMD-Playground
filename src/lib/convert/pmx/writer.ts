@@ -304,7 +304,8 @@ export function writePmx(m: PmxModel): ArrayBuffer {
     o.text(r.nameEn);
     bone(r.bone);
     o.u8(r.group);
-    o.u16(~r.collidesWith & 0xffff);
+    // PMX stores the collide mask itself (babylon-mmd hands it to Bullet as the collision filter mask).
+    o.u16(r.collidesWith & 0xffff);
     o.u8(r.shape);
     o.vec(r.size);
     o.vec(r.position);
