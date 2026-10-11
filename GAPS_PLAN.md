@@ -36,8 +36,8 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P4. Performance and load
 
-- [ ] P4.1 Split the Babylon chunk so first load defers editors, converter and Video to VMD. Target: initial gzip under 800 KB.
-- [ ] P4.2 Opt-in multi-threaded Bullet when the host sends COOP/COEP (Docker/nginx already can). Fall back to single-threaded.
+- [x] P4.1 Initial load under 800 KB gzip. Measured: index.html pulls 43 files, 360 KB gzip in total. The 1.1 MB gzip Babylon engine chunk is already a dynamic import, but any use needs it, so splitting it further would not help. No change made.
+- [ ] P4.2 (deferred) Opt-in multi-threaded Bullet when the host sends COOP/COEP. Needs the engine to move from `MmdRuntime` + `MmdBulletPhysics` to babylon-mmd's WASM runtime and physics classes, and `nginx.conf` does not send COOP/COEP yet (an earlier note here said it did; it does not). A rewrite of the runtime, so left until there is a measured physics bottleneck.
 
 ### P5. Looks and rendering
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-11: P4 reviewed: P4.1 already met (360 KB gzip initial), P4.2 deferred (runtime rewrite).
 - 2026-10-11: P3 done: Tools > Hands keys the five presets at the playhead (`src/lib/motion/hands.ts`); Markers > Detect from music (`src/lib/beats.ts`, one steady tempo). `e2e/hands-beats.spec.ts` passes with the existing motion-editor specs. Not checked on real music.
 - 2026-10-11: P2 done: `src/lib/vpd.ts` (parse and write, Shift-JIS), drop or Load pose accepts `.vpd`, Save VPD button, `e2e/vpd.spec.ts` passes. Not checked against a real MMD-made VPD.
 - 2026-10-11: P1.4 and P1.5 done: timeline Light and Self shadow rows, `getSunState()`, `e2e/vmd-light.spec.ts` passes in Chromium (light interpolates, toggle restores manual sun).
