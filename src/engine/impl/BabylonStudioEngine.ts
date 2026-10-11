@@ -99,6 +99,7 @@ import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
 import { NprManager, outlineFalloff, type NprMaterialState, type NprStats } from '../npr/NprManager';
 import { setNprLight } from '../npr/globals';
+import { readVmdLightTracks, sampleLight, sampleSelfShadow, type VmdLightTracks } from '@/lib/vmdLight';
 import { PostOutline } from '../npr/postOutline';
 import { selectTier, type ModelLooks, type NprSettings } from '@/lib/npr/looks';
 import { TextLayer, type TextPointerHandlers } from './TextLayer';
@@ -169,6 +170,9 @@ export class BabylonStudioEngine implements StudioEngine {
   private cameraMode: CameraMode = 'orbit';
   private cameraMotion: { animation: MmdAnimation; handle: MmdRuntimeAnimationHandle } | null = null;
   private dirLight!: DirectionalLight;
+  /** Light and self-shadow tracks of loaded VMDs, keyed by source (`model:<id>` or `camera`). */
+  private motionLights = new Map<string, VmdLightTracks>();
+  private motionLightActive = false;
   private hemiLight!: HemisphericLight;
   private shadowGen!: ShadowGenerator;
   private shadowGround!: Mesh;
@@ -530,6 +534,8 @@ export class BabylonStudioEngine implements StudioEngine {
       if (!m.physics || !this.settings.physics.enabled) m.model.rigidBodyStates.fill(0);
     }
 
+    this.updateMotionLight();
+
     if (this.follow && this.cameraMode !== 'vmd') this.updateFollow();
     if (this.selected && !this.dragging) this.syncProxyToBone();
 
@@ -543,6 +549,63 @@ export class BabylonStudioEngine implements StudioEngine {
         activeMeshes: this.scene.getActiveMeshes().length,
         frameTimeMs: Math.round(this.instrumentation.frameTimeCounter.lastSecAverage * 10) / 10,
       });
+    }
+  }
+
+  /** Remember (or forget) the light tracks of one VMD source. Empty tracks count as none. */
+  private setMotionLight(key: string, tracks: VmdLightTracks | null): void {
+    if (tracks && (tracks.light.length > 0 || tracks.selfShadow.length > 0))
+      this.motionLights.set(key, tracks);
+    else this.motionLights.delete(key);
+    if (this.motionLightActive && this.motionLights.size === 0) {
+      this.motionLightActive = false;
+      this.applySettings(this.settings);
+    }
+  }
+
+  /** Drive the sun and shadow darkness from the VMD light and self-shadow tracks while "Use motion light" is on. */
+  private updateMotionLight(): void {
+    const enabled = this.settings.lighting.useMotionLight && this.motionLights.size > 0;
+    if (!enabled) {
+      if (this.motionLightActive) {
+        this.motionLightActive = false;
+        this.applySettings(this.settings);
+      }
+      return;
+    }
+    const frame = this.runtime.currentFrameTime;
+    let sun = null;
+    let shadow = null;
+    for (const t of this.motionLights.values()) {
+      sun ??= sampleLight(t.light, frame);
+      shadow ??= sampleSelfShadow(t.selfShadow, frame);
+    }
+    this.motionLightActive = true;
+    const l = this.settings.lighting;
+    if (sun) {
+      const [r, g, b] = sun.color;
+      const color = new Color3(r, g, b);
+      this.dirLight.diffuse = color;
+      this.dirLight.specular = color.scale(0.3);
+      const dir = new Vector3(sun.direction[0], sun.direction[1], -sun.direction[2]);
+      if (dir.lengthSquared() > 1e-6) {
+        dir.normalize();
+        this.dirLight.direction = dir;
+        this.dirLight.position = dir.scale(-80);
+        const sky = hexColor(l.ambientColor).scale(l.ambientIntensity);
+        const ground = hexColor(l.groundColor).scale(l.ambientIntensity);
+        const tint = color.scale(Math.min(1.4, 0.35 + l.dirIntensity * 0.8));
+        setNprLight(
+          [-dir.x, -dir.y, -dir.z],
+          [tint.r, tint.g, tint.b],
+          [sky.r, sky.g, sky.b],
+          [ground.r, ground.g, ground.b],
+        );
+      }
+    }
+    if (shadow) {
+      // Mode 0 is "off": fade the shadow out. Otherwise keep the user's darkness.
+      this.shadowGen.setDarkness(shadow.mode === 0 ? 1 : l.shadowDarkness);
     }
   }
 
@@ -968,6 +1031,7 @@ export class BabylonStudioEngine implements StudioEngine {
     if (this.follow?.modelId === id) this.follow = null;
     if (this.activeModelId === id) this.setActiveModel(null);
     if (m.motion) m.model.destroyRuntimeAnimation(m.motion.handle);
+    this.setMotionLight(`model:${id}`, null);
     for (const mesh of m.container.meshes) this.shadowGen.removeShadowCaster(mesh, false);
     this.runtime.destroyMmdModel(m.model);
     m.container.removeAllFromScene();
@@ -1314,6 +1378,7 @@ export class BabylonStudioEngine implements StudioEngine {
       m.motion = null;
     }
     if (!file) {
+      this.setMotionLight(`model:${modelId}`, null);
       this.updateDuration();
       this.events.emit('motionChanged', { modelId, motion: null });
       return null;
@@ -1323,6 +1388,7 @@ export class BabylonStudioEngine implements StudioEngine {
     const handle = m.model.createRuntimeAnimation(animation);
     m.model.setRuntimeAnimation(handle);
     m.motion = { animation, handle };
+    this.setMotionLight(`model:${modelId}`, readVmdLightTracks(buffer));
     this.updateDuration();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
     const info = this.motionInfo(animation, basename(file.path));
@@ -1624,6 +1690,7 @@ export class BabylonStudioEngine implements StudioEngine {
       this.cameraMotion = null;
     }
     if (!file) {
+      this.setMotionLight('camera', null);
       if (this.cameraMode === 'vmd') this.setCameraMode('orbit');
       this.updateDuration();
       this.applyPip();
@@ -1635,6 +1702,7 @@ export class BabylonStudioEngine implements StudioEngine {
     const handle = this.mmdCamera.createRuntimeAnimation(animation);
     this.mmdCamera.setRuntimeAnimation(handle);
     this.cameraMotion = { animation, handle };
+    this.setMotionLight('camera', readVmdLightTracks(buffer));
     this.updateDuration();
     this.applyPip();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);

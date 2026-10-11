@@ -220,7 +220,7 @@ type CameraPreset = 'front' | 'back' | 'left' | 'right' | 'face' | 'full';
 interface LightingSettings {
   dirIntensity: number; dirColor: string; dirAzimuth: number; dirElevation: number;
   ambientIntensity: number; ambientColor: string; groundColor: string;
-  shadows: boolean; softShadows: boolean; shadowDarkness: number;
+  shadows: boolean; softShadows: boolean; shadowDarkness: number; useMotionLight: boolean;
 }
 interface SceneSettings {
   viewport: { quality: 'low' | 'medium' | 'high'; showGrid: boolean; showAxes: boolean; showStats: boolean };

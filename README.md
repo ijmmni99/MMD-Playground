@@ -61,11 +61,11 @@ No assets? Click **Try the built-in sample**. It's a procedurally generated bloc
 | **Video to VMD**    | Convert a dance video into a VMD motion in the browser: MediaPipe pose detection, cleaning, retargeting onto your PMX with foot IK, then .vmd export. See [Video to VMD](#video-to-vmd)                                                                                                      |
 | **Playback**        | Play/pause/stop/seek, loop, 0.25×–2× speed, frame stepping in 30 fps MMD frames, audio offset (ms) and volume                                                                                                                                                                                |
 | **Timeline**        | Canvas ruler, playhead scrubbing, Ctrl+wheel zoom and Shift+wheel pan. Keyframe ticks per model, with expandable bone and morph groups down to individual tracks. Camera track and audio waveform                                                                                            |
-| **Physics**         | Bullet (WASM) via babylon-mmd: per-model toggle, gravity, substeps, fixed step (default 1/120 s × 6 substeps, so skirts keep up with fast legs), reset. If the WASM fails to load, models still load and play without physics                                                                                                                                 |
+| **Physics**         | Bullet (WASM) via babylon-mmd: per-model toggle, gravity, substeps, fixed step (default 1/120 s × 6 substeps, so skirts keep up with fast legs), reset. If the WASM fails to load, models still load and play without physics                                                                |
 | **Inspector**       | Morph sliders grouped into eyebrows/eyes/mouth/other with search and reset. Bone tree with search; selecting a bone shows a rotate/move gizmo. Per-material visibility, outline and alpha. Position/rotation/scale                                                                           |
 | **Scene**           | Directional light (azimuth, elevation, colour, intensity), hemispheric ambient light, soft PCF shadows. Background: solid, gradient, HDR/ENV skybox or transparent                                                                                                                           |
 | **Post-processing** | Bloom, depth of field (with _focus on model head_), FXAA, MSAA, tone mapping (Standard/ACES/Khronos), exposure/contrast, vignette, SSAO, outline/toon strength                                                                                                                               |
-| **Camera tools**    | FOV, presets (front/back/left/right/face close-up/¾), follow a bone or the **Follow model** viewport button (the camera tracks the dancer's movement, smoothed, while you still orbit / zoom), switch between the camera VMD and the manual camera                                                                                                                                                                     |
+| **Camera tools**    | FOV, presets (front/back/left/right/face close-up/¾), follow a bone or the **Follow model** viewport button (the camera tracks the dancer's movement, smoothed, while you still orbit / zoom), switch between the camera VMD and the manual camera                                           |
 | **Pose & capture**  | Save/load `.pose.json`, reset pose. PNG up to 4K with optional transparency. Video: frame-stepped WebCodecs MP4 (H.264+AAC) or WebM (VP9+Opus) with no dropped frames, or realtime MediaRecorder capture                                                                                     |
 | **Projects**        | Debounced autosave to IndexedDB. File blobs are content-addressed and deduplicated. Recent-projects dialog with thumbnails, New project, and `.mmdstudio.zip` export/import                                                                                                                  |
 | **Playground**      | Monaco TypeScript editor (bundled, no CDN) with a typed `studio` API, a console and 5 examples: auto blink, morph sequencer, camera orbit, bone wiggle and lighting colour cycle                                                                                                             |
@@ -432,15 +432,15 @@ Bones, morphs and materials keep Japanese MMD names as their real IDs; the studi
 
 Edit a loaded PMX / PMD model in the browser and save it back as a PMX: **Model Editor** tab (phones: More → Model Editor). Pick the model at the top. Edits are a non-destructive list on top of the untouched original. Undo / Redo (≥ 200 steps), **Revert** and the **Edited / Original** A/B switch are always visible, and the session is saved with the project (and in `.mmdstudio.zip`).
 
-| Section | What you can do |
-|---|---|
-| Proportions | Scale head, neck, torso, chest, hips, upper arm, forearm, hands, fingers, thigh, shin, feet or the whole body: overall / length / thickness, 0.5–2× (a warning shows outside it). Left and right can be linked. Tap the model to jump to a part. Presets: Chibi, Long legs, Bigger head, Reset, plus your own, which you can save and load as JSON. Test pose. "Attach" fixes accessories that only follow the root bone. |
-| Outfit | Materials are auto-grouped into Hair / Face / Body / Top / Bottom / Shoes / Gloves / Accessories / Other; you can move them or add groups. Hiding a group also removes its physics. You get a hole warning, and "Hide body under it" for clothing. Outfit presets. Recolour: diffuse colour, texture HSV / tint, and uploaded image, logo or pattern (always saved as new files). Clothes from another model with the same skeleton. |
-| Materials | Every PMX material field, visibility, solo and outline. Texture list with size and missing flags, preview, replace, and batch downscale to 2048 / 1024. |
-| Bones | Searchable tree. Position (numbers or a gizmo), parent, flags and display frame. IK target / chain / loop / angle limits, a knee X-limit button and a knee-flip warning. Add, delete (weights go to the parent) and rename (with a VMD warning and "restore standard name"). Mirror left → right. |
-| Morphs | Bilingual search by panel; slider mix → new group morph. Edit members, rename, panel, strength, mirror left → right, reorder and delete. No sculpting. |
-| Physics | Rigid body and joint overlay. Edit shape, size, mass, damping, bounce, friction, mode, group, mask, limits and springs. Soft / Skirt / Stiff presets with sway, generate physics for a bone chain, test motion, reset, and a NaN / explosion warning. |
-| Info & save | Names and comments (JA / EN), checks, edit history. **Apply to scene** (the model's files become the edited PMX). **Save as PMX ZIP**. Export / import the edit list as JSON. |
+| Section     | What you can do                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Proportions | Scale head, neck, torso, chest, hips, upper arm, forearm, hands, fingers, thigh, shin, feet or the whole body: overall / length / thickness, 0.5–2× (a warning shows outside it). Left and right can be linked. Tap the model to jump to a part. Presets: Chibi, Long legs, Bigger head, Reset, plus your own, which you can save and load as JSON. Test pose. "Attach" fixes accessories that only follow the root bone.            |
+| Outfit      | Materials are auto-grouped into Hair / Face / Body / Top / Bottom / Shoes / Gloves / Accessories / Other; you can move them or add groups. Hiding a group also removes its physics. You get a hole warning, and "Hide body under it" for clothing. Outfit presets. Recolour: diffuse colour, texture HSV / tint, and uploaded image, logo or pattern (always saved as new files). Clothes from another model with the same skeleton. |
+| Materials   | Every PMX material field, visibility, solo and outline. Texture list with size and missing flags, preview, replace, and batch downscale to 2048 / 1024.                                                                                                                                                                                                                                                                              |
+| Bones       | Searchable tree. Position (numbers or a gizmo), parent, flags and display frame. IK target / chain / loop / angle limits, a knee X-limit button and a knee-flip warning. Add, delete (weights go to the parent) and rename (with a VMD warning and "restore standard name"). Mirror left → right.                                                                                                                                    |
+| Morphs      | Bilingual search by panel; slider mix → new group morph. Edit members, rename, panel, strength, mirror left → right, reorder and delete. No sculpting.                                                                                                                                                                                                                                                                               |
+| Physics     | Rigid body and joint overlay. Edit shape, size, mass, damping, bounce, friction, mode, group, mask, limits and springs. Soft / Skirt / Stiff presets with sway, generate physics for a bone chain, test motion, reset, and a NaN / explosion warning.                                                                                                                                                                                |
+| Info & save | Names and comments (JA / EN), checks, edit history. **Apply to scene** (the model's files become the edited PMX). **Save as PMX ZIP**. Export / import the edit list as JSON.                                                                                                                                                                                                                                                        |
 
 ```mermaid
 flowchart LR
@@ -455,6 +455,7 @@ flowchart LR
 ```
 
 **Rules**
+
 - Japanese bone / morph / material names stay the real IDs (motions use them). English labels come from the English names layer.
 - Proportions blend each vertex by its bone weights, so joints don't tear. Parts further down a chain move with it. Bones, IK handles, rigid bodies, joints and morph offsets follow, and the feet stay on the floor.
 - Clothes swap maps standard bones by name. Extra bones (skirt chains…) are added under collision-free names, with their physics. A standard bone missing in the target refuses the merge with a message. There is no weight transfer.
@@ -466,26 +467,28 @@ flowchart LR
 ## Anime / toon looks (NPR)
 
 Give PMX materials an anime look: **Inspector → Looks (anime / toon)**.
+
 - Click **Auto-assign looks**, or pick a look per material.
 - Open a material's look (▸) to tweak it live; each slider has a number field and a reset to the preset value.
 - **Before / after** switches between the PMX original and the looks.
 
 Looks are saved per model in the project and in `.mmdstudio.zip`, and can be exported and imported as JSON.
 
-| Look | What it does |
-|---|---|
-| Default (PMX original) | unchanged; it renders exactly as before (tested pixel-for-pixel) |
-| Anime Skin | soft toon ramp, warm shadow tint, subtle rim |
-| Anime Face | very soft shading (no hard terminator), optional cheek blush |
-| Anime Hair | toon ramp, ring-shaped highlight band, rim |
-| Cloth Smooth / Cloth Rough | crisp or soft ramp; Rough adds a bump-noise grain |
-| Stockings | sheer centre, opaque edges by view angle, sheen, alpha-hash transparency |
-| Metal | tight highlight, strong rim, sparkle, partly realistic shading |
-| Eye | flat, slightly emissive |
-| Flat Unlit | texture colour only |
+| Look                       | What it does                                                             |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Default (PMX original)     | unchanged; it renders exactly as before (tested pixel-for-pixel)         |
+| Anime Skin                 | soft toon ramp, warm shadow tint, subtle rim                             |
+| Anime Face                 | very soft shading (no hard terminator), optional cheek blush             |
+| Anime Hair                 | toon ramp, ring-shaped highlight band, rim                               |
+| Cloth Smooth / Cloth Rough | crisp or soft ramp; Rough adds a bump-noise grain                        |
+| Stockings                  | sheer centre, opaque edges by view angle, sheen, alpha-hash transparency |
+| Metal                      | tight highlight, strong rim, sparkle, partly realistic shading           |
+| Eye                        | flat, slightly emissive                                                  |
+| Flat Unlit                 | texture colour only                                                      |
 
 **Auto-assign** reads the material name, its English name, the dictionary label and the texture file name. Eye,
 stockings and metal rules are checked first. Everything else uses the Model Editor's outfit groups:
+
 - hair → Hair;
 - face → Face;
 - body → Skin;
@@ -495,6 +498,7 @@ stockings and metal rules are checked first. Everything else uses the Model Edit
 Anything unrecognised stays Default, and materials you set yourself are kept.
 
 **Parameters** (per material):
+
 - shadow colour and saturation;
 - ramp softness and shadow line, PMX toon texture as a custom ramp;
 - cast-shadow strength, flatten;
@@ -510,11 +514,11 @@ depth-edge post-process), thinner outlines far away, and "See-through hair over 
 
 **Quality tiers:**
 
-| Tier | What's included |
-|---|---|
-| High | everything, including the realistic (GGX) blend and sparkle |
-| Medium | no realistic blend or sparkle |
-| Low | flat toon ramp, shadow tint and outline; alpha-hash becomes a cut-out |
+| Tier   | What's included                                                       |
+| ------ | --------------------------------------------------------------------- |
+| High   | everything, including the realistic (GGX) blend and sparkle           |
+| Medium | no realistic blend or sparkle                                         |
+| Low    | flat toon ramp, shadow tint and outline; alpha-hash becomes a cut-out |
 
 "Auto" follows the render quality: phones start on Low, and adaptive quality steps it down on slow devices. A cost
 badge shows when heavy looks are on. If a look fails to compile, its materials fall back to the PMX original with a
@@ -525,6 +529,7 @@ Skinning, SDEF, morphs, shadows, the MMD outline and post-processing (bloom, ton
 Each preset and tier compiles one shader variant, lazily, and it's cached.
 
 **Known limits:**
+
 - An approximation of anime shading on top of standard lighting: one sun, hemispheric ambient. The HDR environment
   isn't used by looks.
 - The hair band and cheek blush are computed from normals, not from UVs or tangents.
@@ -731,7 +736,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
   - OBJ, Collada, .blend and other model formats (FBX, VRM and glTF go through the Model Converter)
   - VPD poses (use the JSON pose format)
   - Accessories (.x)
-  - Rendering VMD light and self-shadow tracks (they are kept and re-exported, not shown)
+  - Self-shadow tracks only switch shadow darkness (mode 0 = full darkness); shadow range is not applied. VMD light colour and direction do play (toggle **Use motion light (VMD)** in the Scene panel)
 - Clip timeline: face clips use standard MMD morph names (まばたき, あいうえお, 笑い…); models without them show no change (you're warned when adding one). One audio file plays at a time (adding music replaces the audio clip); text doesn't cast shadows from captions, and per-letter animations update vertex positions on the CPU while they run.
 - Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks (no dedicated hand-pose tools); BPM is set by hand or tap tempo (no audio beat detection); depth of field is a preview only and isn't stored in the VMD.
 - Model scaling combined with physics can behave oddly because rigid-body sizes don't scale. Use scale 1 for physics-heavy models.

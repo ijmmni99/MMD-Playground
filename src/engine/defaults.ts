@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: SceneSettings = {
     shadows: true,
     softShadows: true,
     shadowDarkness: 0.35,
+    useMotionLight: true,
   },
   background: {
     mode: 'gradient',

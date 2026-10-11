@@ -96,6 +96,8 @@ export interface LightingSettings {
   shadows: boolean;
   softShadows: boolean;
   shadowDarkness: number;
+  /** Follow the light and self-shadow tracks of the loaded VMD instead of the manual sun. */
+  useMotionLight: boolean;
 }
 
 export interface BackgroundSettings {

@@ -62,6 +62,11 @@ export function ScenePanel() {
           onChange={(v) => updateSettings((d) => void (d.lighting.dirColor = v))}
         />
         <ToggleRow
+          label="Use motion light (VMD)"
+          checked={l.useMotionLight}
+          onChange={(v) => updateSettings((d) => void (d.lighting.useMotionLight = v))}
+        />
+        <ToggleRow
           label="Shadows"
           checked={l.shadows}
           onChange={(v) => updateSettings((d) => void (d.lighting.shadows = v))}
