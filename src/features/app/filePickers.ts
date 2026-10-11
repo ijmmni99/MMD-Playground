@@ -33,7 +33,7 @@ export function acceptFor(kind: PickKind, ios = isIOS): string {
     case 'zip':
       return '.zip,application/zip,application/x-zip-compressed';
     case 'pose':
-      return ios ? 'application/json' : '.json,application/json';
+      return ios ? 'application/json' : '.json,.vpd,application/json';
     case 'model':
       return ios ? '' : '.pmx,.pmd,.bpmx,.zip,image/*,.tga,.dds,.sph,.spa';
     case 'motion':

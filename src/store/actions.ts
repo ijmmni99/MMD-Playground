@@ -13,6 +13,7 @@ import type { BoneLocalTransform, GizmoMode } from '@/engine/StudioEngine';
 import { registerFile, registerFiles, resolveRef, resolveRefs } from '@/lib/assets';
 import { collectFromDataTransfer, collectFromFileList, expandZips, planImport } from '@/lib/ingest';
 import { basename, stripExt } from '@/lib/paths';
+import { parseVpd, poseToVpd, vpdToPose, writeVpd } from '@/lib/vpd';
 import { isLowMemoryDevice, LARGE_MODEL_BYTES } from '@/lib/device';
 import type { FileRef, ProjectModel } from '@/lib/project';
 import { engineOrNull, whenEngine } from './engineRef';
@@ -478,15 +479,32 @@ export function isPoseData(v: unknown): v is PoseData {
   return p.version === 1 && Array.isArray(p.bones) && typeof p.morphs === 'object' && p.morphs !== null;
 }
 
+/** Load a `.pose.json` or an MMD `.vpd` (told apart by content) onto a model. */
 export async function loadPoseFile(id: string, blob: Blob): Promise<void> {
   try {
-    const json: unknown = JSON.parse(await blob.text());
-    if (!isPoseData(json)) throw new Error('Not an MMD Studio pose file');
-    applyPose(id, json);
-    toast('success', `Applied pose (${json.bones.length} bones)`);
+    const bytes = await blob.arrayBuffer();
+    const isVpd = new TextDecoder('ascii').decode(bytes.slice(0, 23)) === 'Vocaloid Pose Data file';
+    let pose: PoseData;
+    if (isVpd) {
+      pose = vpdToPose(parseVpd(bytes));
+    } else {
+      const json: unknown = JSON.parse(new TextDecoder().decode(bytes));
+      if (!isPoseData(json)) throw new Error('Not an MMD Studio pose file');
+      pose = json;
+    }
+    applyPose(id, pose);
+    toast('success', `Applied pose (${pose.bones.length} bones)`);
   } catch (e) {
     toast('error', `Could not load pose: ${errMsg(e)}`);
   }
+}
+
+/** The model's current pose as an MMD `.vpd` (Shift-JIS). Bones at rest are left out. */
+export function exportVpd(id: string): Blob | null {
+  const pose = poseSnapshot(id);
+  return pose
+    ? new Blob([writeVpd(poseToVpd(pose)) as BlobPart], { type: 'application/octet-stream' })
+    : null;
 }
 
 export function exportPose(id: string): Blob | null {

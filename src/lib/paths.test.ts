@@ -72,6 +72,7 @@ describe('classify', () => {
     expect(classify('sky.hdr')).toBe('hdr');
     expect(classify('t.spa')).toBe('texture');
     expect(classify('x.pose.json')).toBe('pose');
+    expect(classify('pose/Dance1.VPD')).toBe('pose');
     expect(classify('readme.txt')).toBe('other');
   });
 });

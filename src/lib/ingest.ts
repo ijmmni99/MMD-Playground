@@ -148,7 +148,7 @@ export async function planImport(files: VFile[]): Promise<ImportPlan> {
       case 'texture':
         break;
       default:
-        if (!/\.(txt|md|url|ini|db|psd|x|vac|vpd|csv|pdf|html?)$/i.test(f.path)) plan.ignored.push(f.path);
+        if (!/\.(txt|md|url|ini|db|psd|x|vac|csv|pdf|html?)$/i.test(f.path)) plan.ignored.push(f.path);
     }
   }
   // Sort motions so assignment order matches model order when names correspond.

@@ -25,9 +25,9 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P2. VPD pose import
 
-- [ ] P2.1 Parse `.vpd` (Shift-JIS, bone and morph entries) in `src/lib/`. Unit tests with a procedural sample.
-- [ ] P2.2 Drop or Open of a `.vpd` applies the pose to the selected model.
-- [ ] P2.3 Export the current pose as `.vpd` next to `.pose.json`.
+- [x] P2.1 Parse `.vpd` (Shift-JIS, bone and morph entries) in `src/lib/`. Unit tests with a procedural sample.
+- [x] P2.2 Drop or Open of a `.vpd` applies the pose to the selected model.
+- [x] P2.3 Export the current pose as `.vpd` next to `.pose.json`.
 
 ### P3. Motion Editor: hand poses and beat detection
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-11: P2 done: `src/lib/vpd.ts` (parse and write, Shift-JIS), drop or Load pose accepts `.vpd`, Save VPD button, `e2e/vpd.spec.ts` passes. Not checked against a real MMD-made VPD.
 - 2026-10-11: P1.4 and P1.5 done: timeline Light and Self shadow rows, `getSunState()`, `e2e/vmd-light.spec.ts` passes in Chromium (light interpolates, toggle restores manual sun).
 - 2026-10-11: P1.1, P1.2 and part of P1.3 done (`src/lib/vmdLight.ts`, engine `updateMotionLight`, Scene toggle). Unit tests pass (406). Not yet checked in a real browser.
 - 2026-10-11: plan created.

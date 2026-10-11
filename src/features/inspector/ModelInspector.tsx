@@ -32,6 +32,7 @@ import type { BoneInfo, MorphCategory, MorphInfo, TransformState, Vec3 } from '@
 import { downloadBlob, pickFiles } from '@/features/app/filePickers';
 import {
   exportPose,
+  exportVpd,
   loadPoseFile,
   resetMorphs,
   resetPose,
@@ -618,8 +619,17 @@ function PoseSection({ model }: { model: ModelUI }) {
         </Button>
         <Button
           size="sm"
+          onClick={() => {
+            const blob = exportVpd(model.id);
+            if (blob) downloadBlob(blob, `${model.name.replace(/[\\/:*?"<>|]+/g, '_')}.vpd`);
+          }}
+        >
+          <Download size={12} /> Save VPD
+        </Button>
+        <Button
+          size="sm"
           onClick={async () => {
-            const [f] = await pickFiles('.json,application/json');
+            const [f] = await pickFiles('.json,.vpd,application/json');
             if (f) await loadPoseFile(model.id, f.blob);
           }}
         >
@@ -629,7 +639,7 @@ function PoseSection({ model }: { model: ModelUI }) {
           <RotateCcw size={12} /> Reset to default
         </Button>
       </div>
-      <Row label="Poses store bone rotations/offsets + morphs as JSON.">
+      <Row label="Poses store bone rotations/offsets + morphs as JSON. VPD (MMD pose) files load and save too.">
         <span />
       </Row>
     </Section>

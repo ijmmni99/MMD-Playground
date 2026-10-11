@@ -117,6 +117,8 @@ export function classify(path: string): AssetKind {
     case 'hdr':
     case 'env':
       return 'hdr';
+    case 'vpd':
+      return 'pose';
     case 'json':
       return lower.endsWith('.pose.json') ? 'pose' : 'other';
     default:
