@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { parseKeyId, type MotionClip } from '@/lib/motion/types';
+import { keyHandPreset, type HandSide } from '@/lib/motion/hands';
 import { readVmd } from '@/lib/motion/vmd';
+import { PRESET_LABEL, type HandPresetId } from '@/lib/video2vmd/handPose';
+import { engineOrNull } from '@/store/engineRef';
 import {
   additive,
   autoBlink,
@@ -78,6 +81,7 @@ export default function ToolsPanel() {
   const [fade, setFade] = useState(20);
   const [weight, setWeight] = useState(1);
   const [blinkEvery, setBlinkEvery] = useState(90);
+  const [handSide, setHandSide] = useState<HandSide>('both');
 
   const scope = (): Scope => (onlySelected ? selectedScope() : {});
   const run = (
@@ -91,6 +95,17 @@ export default function ToolsPanel() {
   };
   const timeRun = (label: string, fn: (c: MotionClip, r: [number, number]) => MotionClip): void =>
     run(label, fn);
+
+  const keyHands = (preset: HandPresetId): void => {
+    const id = me.get().modelId;
+    const skeleton = id ? engineOrNull()?.getSkeleton(id) : null;
+    if (!skeleton) return;
+    const f = playhead();
+    const label = `${PRESET_LABEL[preset]} hand`;
+    const ok = commitClips(label, (c) => keyHandPreset(c, skeleton.bones, handSide, preset, f));
+    if (ok) toast('info', `${label} keyed at frame ${f}`);
+    else toast('info', 'This model has no finger bones to key.');
+  };
 
   return (
     <div className="flex flex-col" data-testid="me-tools-panel">
@@ -274,6 +289,30 @@ export default function ToolsPanel() {
             Add layer…
           </Btn>
         </Row>
+      </Section>
+
+      <Section title="Hands" open={false}>
+        <div className="flex flex-wrap gap-1">
+          {(['both', 'left', 'right'] as const).map((side) => (
+            <Btn
+              key={side}
+              title={`Key ${side === 'both' ? 'both hands' : `the ${side} hand`}`}
+              onClick={() => setHandSide(side)}
+            >
+              {handSide === side ? `● ${side}` : side}
+            </Btn>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(PRESET_LABEL) as HandPresetId[]).map((id) => (
+            <Btn key={id} testid={`hand-${id}`} onClick={() => keyHands(id)}>
+              {PRESET_LABEL[id]}
+            </Btn>
+          ))}
+        </div>
+        <p className="text-[11px] text-fg-dim">
+          Keys all finger bones at the playhead. Needs 左/右 finger bones.
+        </p>
       </Section>
 
       <Section title="Face" open={false}>

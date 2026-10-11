@@ -19,8 +19,10 @@ import {
 } from '@/lib/motion/camera';
 import { sampleCamera } from '@/lib/motion/evaluate';
 import { bpmFromTaps } from '@/lib/motion/timing';
+import { estimateBeats } from '@/lib/beats';
 import {
   CAMERA_TRACK,
+  FPS,
   parseKeyId,
   type CameraKey,
   type Marker,
@@ -32,7 +34,7 @@ import {
 import { engineOrNull } from '@/store/engineRef';
 import { useHistory } from '@/store/history';
 import { me } from '@/store/motionEditor';
-import { toast } from '@/store/studio';
+import { studio, toast } from '@/store/studio';
 import { commit, ensureCameraClip, newId, scheduleApply, scheduleSave } from './actions';
 import { playhead } from './view';
 
@@ -334,6 +336,25 @@ export function removeMarker(id: string): void {
 
 export function setGrid(patch: Partial<TimingGrid>): void {
   setMeta('grid', { ...me.get().grid, ...patch }, 'Timing grid');
+}
+
+/**
+ * Find the tempo of the loaded music and set the beat grid from it. Returns the BPM, or 0 when there is
+ * no music or no clear rhythm.
+ */
+export function detectTempo(): number {
+  const engine = engineOrNull();
+  const audio = engine?.getAudioSamples();
+  if (!engine || !audio) return 0;
+  const est = estimateBeats(audio.samples, audio.sampleRate);
+  if (!est || est.confidence < 0.2) return 0;
+  const bpm = Math.round(est.bpm * 10) / 10;
+  const beat = (60 / bpm) * FPS;
+  // Music time to timeline time: the audio plays offset seconds ahead of the animation.
+  let offset = (est.firstBeat - studio.get().audioOffsetMs / 1000) * FPS;
+  offset = ((offset % beat) + beat) % beat;
+  setGrid({ bpm, offset: Math.round(offset * 2) / 2 });
+  return bpm;
 }
 
 let taps: number[] = [];

@@ -737,7 +737,7 @@ Headless Chromium renders WebGL with SwiftShader (CPU), so the e2e tests switch 
   - Accessories (.x)
   - Self-shadow tracks only switch shadow darkness (mode 0 = full darkness); shadow range is not applied. VMD light colour and direction do play (toggle **Use motion light (VMD)** in the Scene panel)
 - Clip timeline: face clips use standard MMD morph names (まばたき, あいうえお, 笑い…); models without them show no change (you're warned when adding one). One audio file plays at a time (adding music replaces the audio clip); text doesn't cast shadows from captions, and per-letter animations update vertex positions on the CPU while they run.
-- Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks (no dedicated hand-pose tools); BPM is set by hand or tap tempo (no audio beat detection); depth of field is a preview only and isn't stored in the VMD.
+- Motion Editor: no physics editing (hair / skirt follow the simulation); fingers are ordinary tracks, with five preset hand poses (Hands tools) but no per-finger posing tools; BPM is set by hand, tap tempo or **Detect from music** (a single steady tempo, no tempo changes); depth of field is a preview only and isn't stored in the VMD.
 - Model scaling combined with physics can behave oddly because rigid-body sizes don't scale. Use scale 1 for physics-heavy models.
 - Very large PMX files (50 MB+) parse asynchronously with a progress bar. They're stored once in IndexedDB, deduplicated by content hash, so watch the browser's storage quota.
 - The bone gizmo rotates in world space around the bone's pivot. Append/IK constraints are then solved by the runtime, so constrained bones may not follow the gizmo exactly.

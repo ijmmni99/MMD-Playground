@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { framesPerBeat } from '@/lib/motion/timing';
 import { engineOrNull } from '@/store/engineRef';
+import { toast } from '@/store/studio';
 import { useMotionEditor, me } from '@/store/motionEditor';
-import { addMarker, removeMarker, setGrid, tapTempo, updateMarker } from './directorActions';
+import { addMarker, detectTempo, removeMarker, setGrid, tapTempo, updateMarker } from './directorActions';
 import { Btn, Check, Num, Row, Section } from './panelUi';
 import { playhead } from './view';
 
@@ -44,6 +45,19 @@ export default function MarkersPanel() {
             title="Tap along with the music (4+ taps)"
           >
             Tap tempo
+          </Btn>
+          <Btn
+            testid="bpm-detect"
+            onClick={() => {
+              const bpm = detectTempo();
+              if (bpm > 0) {
+                setTapBpm(bpm);
+                toast('success', `Detected ${bpm.toFixed(1)} BPM`);
+              } else toast('info', 'Could not find a steady beat. Load music, or tap the tempo.');
+            }}
+            title="Estimate BPM and the first beat from the loaded music"
+          >
+            Detect from music
           </Btn>
           <Btn onClick={() => setGrid({ offset: playhead() })} title="The current frame is a downbeat">
             Downbeat at playhead

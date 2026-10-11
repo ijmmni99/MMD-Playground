@@ -31,8 +31,8 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P3. Motion Editor: hand poses and beat detection
 
-- [ ] P3.1 Hand-pose presets (open, fist, point, peace, relaxed) applied to the finger bones at the playhead, reusing the Video to VMD finger presets.
-- [ ] P3.2 Audio beat detection (onset energy on the decoded waveform) that sets BPM and snaps keys to beats.
+- [x] P3.1 Hand-pose presets (open, fist, point, peace, relaxed) applied to the finger bones at the playhead, reusing the Video to VMD finger presets.
+- [x] P3.2 Audio beat detection (onset energy on the decoded waveform) that sets BPM and snaps keys to beats.
 
 ### P4. Performance and load
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-11: P3 done: Tools > Hands keys the five presets at the playhead (`src/lib/motion/hands.ts`); Markers > Detect from music (`src/lib/beats.ts`, one steady tempo). `e2e/hands-beats.spec.ts` passes with the existing motion-editor specs. Not checked on real music.
 - 2026-10-11: P2 done: `src/lib/vpd.ts` (parse and write, Shift-JIS), drop or Load pose accepts `.vpd`, Save VPD button, `e2e/vpd.spec.ts` passes. Not checked against a real MMD-made VPD.
 - 2026-10-11: P1.4 and P1.5 done: timeline Light and Self shadow rows, `getSunState()`, `e2e/vmd-light.spec.ts` passes in Chromium (light interpolates, toggle restores manual sun).
 - 2026-10-11: P1.1, P1.2 and part of P1.3 done (`src/lib/vmdLight.ts`, engine `updateMotionLight`, Scene toggle). Unit tests pass (406). Not yet checked in a real browser.

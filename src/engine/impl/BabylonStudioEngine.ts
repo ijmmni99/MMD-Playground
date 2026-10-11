@@ -99,6 +99,7 @@ import { AudioSync } from './AudioSync';
 import { prepareModelFiles } from './modelFiles';
 import { NprManager, outlineFalloff, type NprMaterialState, type NprStats } from '../npr/NprManager';
 import { setNprLight } from '../npr/globals';
+import { toMono } from '@/lib/beats';
 import { readVmdLightTracks, sampleLight, sampleSelfShadow, type VmdLightTracks } from '@/lib/vmdLight';
 import { PostOutline } from '../npr/postOutline';
 import { selectTier, type ModelLooks, type NprSettings } from '@/lib/npr/looks';
@@ -1298,6 +1299,13 @@ export class BabylonStudioEngine implements StudioEngine {
 
   setMorph(id: string, name: string, weight: number): void {
     this.models.get(id)?.model.morph.setMorphWeight(name, weight);
+  }
+
+  getAudioSamples(): { samples: Float32Array; sampleRate: number } | null {
+    const buf = this.audio.buffer;
+    if (!buf) return null;
+    const channels = Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i));
+    return { samples: toMono(channels), sampleRate: buf.sampleRate };
   }
 
   getSunState(): { color: [number, number, number]; direction: [number, number, number] } {

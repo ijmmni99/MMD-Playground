@@ -142,6 +142,8 @@ export interface StudioEngine {
   setMorph(id: string, name: string, weight: number): void;
   getMorphWeights(id: string): Record<string, number>;
   /** Current sun colour (0..1 per channel) and direction, after any VMD light track. */
+  /** Mono samples of the loaded music (for beat detection), or null when none is loaded. */
+  getAudioSamples(): { samples: Float32Array; sampleRate: number } | null;
   getSunState(): { color: [number, number, number]; direction: [number, number, number] };
   resetMorphs(id: string): void;
   getModelState(id: string): ModelRuntimeState | null;
