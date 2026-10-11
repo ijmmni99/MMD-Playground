@@ -150,6 +150,14 @@ interface ModelEntry {
 let idCounter = 0;
 const newId = (): string => `m${Date.now().toString(36)}${(idCounter++).toString(36)}`;
 
+/** Light and shadow key frames for the timeline; empty tracks are left out. */
+function lightFrameInfo(t: VmdLightTracks): { lightFrames?: number[]; shadowFrames?: number[] } {
+  return {
+    ...(t.light.length ? { lightFrames: t.light.map((k) => k.frame) } : {}),
+    ...(t.selfShadow.length ? { shadowFrames: t.selfShadow.map((k) => k.frame) } : {}),
+  };
+}
+
 function hexColor(hex: string): Color3 {
   return Color3.FromHexString(hex.length === 7 ? hex : '#ffffff');
 }
@@ -1292,6 +1300,12 @@ export class BabylonStudioEngine implements StudioEngine {
     this.models.get(id)?.model.morph.setMorphWeight(name, weight);
   }
 
+  getSunState(): { color: [number, number, number]; direction: [number, number, number] } {
+    const c = this.dirLight.diffuse;
+    const d = this.dirLight.direction;
+    return { color: [c.r, c.g, c.b], direction: [d.x, d.y, d.z] };
+  }
+
   getMorphWeights(id: string): Record<string, number> {
     const m = this.models.get(id);
     if (!m) return {};
@@ -1388,10 +1402,11 @@ export class BabylonStudioEngine implements StudioEngine {
     const handle = m.model.createRuntimeAnimation(animation);
     m.model.setRuntimeAnimation(handle);
     m.motion = { animation, handle };
-    this.setMotionLight(`model:${modelId}`, readVmdLightTracks(buffer));
+    const tracks = readVmdLightTracks(buffer);
+    this.setMotionLight(`model:${modelId}`, tracks);
     this.updateDuration();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
-    const info = this.motionInfo(animation, basename(file.path));
+    const info = { ...this.motionInfo(animation, basename(file.path)), ...lightFrameInfo(tracks) };
     this.events.emit('motionChanged', { modelId, motion: info });
     return info;
   }
@@ -1702,7 +1717,8 @@ export class BabylonStudioEngine implements StudioEngine {
     const handle = this.mmdCamera.createRuntimeAnimation(animation);
     this.mmdCamera.setRuntimeAnimation(handle);
     this.cameraMotion = { animation, handle };
-    this.setMotionLight('camera', readVmdLightTracks(buffer));
+    const tracks = readVmdLightTracks(buffer);
+    this.setMotionLight('camera', tracks);
     this.updateDuration();
     this.applyPip();
     await this.runtime.seekAnimation(this.runtime.currentFrameTime, true);
@@ -1710,6 +1726,7 @@ export class BabylonStudioEngine implements StudioEngine {
       name: basename(file.path),
       frameCount: animation.endFrame,
       frames: Array.from(animation.cameraTrack.frameNumbers),
+      ...lightFrameInfo(tracks),
     };
     this.events.emit('cameraMotionChanged', info);
     return info;

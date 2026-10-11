@@ -67,12 +67,20 @@ export interface MotionInfo {
   frameCount: number;
   /** Keyframe frame numbers grouped for the timeline. */
   groups: { name: string; kind: 'bone' | 'morph'; frames: number[] }[];
+  /** Frames of VMD light keys, when the file has a light track. */
+  lightFrames?: number[];
+  /** Frames of VMD self-shadow keys, when the file has that track. */
+  shadowFrames?: number[];
 }
 
 export interface CameraMotionInfo {
   name: string;
   frameCount: number;
   frames: number[];
+  /** Frames of VMD light keys, when the file has a light track. */
+  lightFrames?: number[];
+  /** Frames of VMD self-shadow keys, when the file has that track. */
+  shadowFrames?: number[];
 }
 
 export interface AudioInfo {

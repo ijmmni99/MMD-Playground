@@ -59,7 +59,9 @@ function toggleMotionEditor(): void {
 
 /** Open or close the clip timeline (loaded on demand). */
 function toggleClips(): void {
-  void import('@/features/clip-timeline/actions').then((a) => (ct.get().open ? a.closeClips() : a.openClips()));
+  void import('@/features/clip-timeline/actions').then((a) =>
+    ct.get().open ? a.closeClips() : a.openClips(),
+  );
 }
 
 /** Phones and tablets start in the clip timeline (once per session). */
@@ -77,7 +79,8 @@ export function Timeline() {
   useEffect(() => {
     // Phone: a peek / half sheet is too short for the editor (drag it down to see the model).
     const sheet = useLayout.getState().sheet;
-    if ((editorOpen || clipsOpen) && sheet.tab === 'timeline' && sheet.snap === 'peek') setSheetSnap(editorOpen ? 'full' : 'half');
+    if ((editorOpen || clipsOpen) && sheet.tab === 'timeline' && sheet.snap === 'peek')
+      setSheetSnap(editorOpen ? 'full' : 'half');
     else if (editorOpen && sheet.tab === 'timeline' && sheet.snap !== 'full') setSheetSnap('full');
   }, [editorOpen, clipsOpen]);
   if (!editorOpen && clipsOpen)
@@ -87,7 +90,9 @@ export function Timeline() {
           onFit={() => ct.set({ scroll: 0 })}
           onZoom={(f) => ct.set((s) => ({ ppf: Math.min(40, Math.max(0.2, s.ppf * f)) }))}
         />
-        <Suspense fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading clips…</div>}>
+        <Suspense
+          fallback={<div className="grid flex-1 place-items-center text-fg-muted">Loading clips…</div>}
+        >
           <ClipDock />
         </Suspense>
       </div>
@@ -126,7 +131,7 @@ const LABEL_W = 168;
 interface Row {
   key: string;
   label: string;
-  kind: 'audio' | 'camera' | 'model' | 'bones' | 'morphs' | 'track';
+  kind: 'audio' | 'camera' | 'light' | 'shadow' | 'model' | 'bones' | 'morphs' | 'track';
   frames?: number[];
   color: string;
   depth: number;
@@ -171,6 +176,32 @@ function PlaybackTimeline() {
         kind: 'camera',
         frames: cameraMotion.info.frames,
         color: '#f5b84a',
+        depth: 0,
+      });
+    const lightFrames = mergeFrames([
+      cameraMotion?.info.lightFrames ?? [],
+      ...models.map((m) => m.motion?.lightFrames ?? []),
+    ]);
+    if (lightFrames.length)
+      out.push({
+        key: 'light',
+        label: 'Light',
+        kind: 'light',
+        frames: lightFrames,
+        color: '#ffe066',
+        depth: 0,
+      });
+    const shadowFrames = mergeFrames([
+      cameraMotion?.info.shadowFrames ?? [],
+      ...models.map((m) => m.motion?.shadowFrames ?? []),
+    ]);
+    if (shadowFrames.length)
+      out.push({
+        key: 'shadow',
+        label: 'Self shadow',
+        kind: 'shadow',
+        frames: shadowFrames,
+        color: '#9aa4b2',
         depth: 0,
       });
     for (const m of models) {
@@ -631,10 +662,14 @@ function ClipsToggle() {
       }}
       aria-pressed={on}
       data-testid="open-clips"
-      title={on ? 'Back to the playback timeline' : 'Clip timeline (arrange motions, camera, audio and 3D text)'}
+      title={
+        on ? 'Back to the playback timeline' : 'Clip timeline (arrange motions, camera, audio and 3D text)'
+      }
       className={cn(
         'mr-1 flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] coarse:h-10 coarse:px-3',
-        on ? 'border-accent bg-accent-soft text-fg' : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
+        on
+          ? 'border-accent bg-accent-soft text-fg'
+          : 'border-line text-fg-muted hover:bg-bg-hover hover:text-fg',
       )}
     >
       <Film size={13} /> <span className="max-[480px]:sr-only">Clips</span>

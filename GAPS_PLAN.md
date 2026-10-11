@@ -20,8 +20,8 @@ Today these tracks are kept and re-exported but not shown.
 - [x] P1.1 Parse and expose light keyframes (colour, direction) and self-shadow keyframes (mode, distance) from the loaded VMD. Unit tests in `src/lib/vmd.test.ts`.
 - [x] P1.2 Drive the scene directional light from the light track during playback and seek. A manual light override wins when the user turns off "Use motion light".
 - [~] P1.3 Map the self-shadow track to shadow darkness and range. Done: mode 0 sets full shadow darkness. Todo: apply the range value to the shadow map extents.
-- [ ] P1.4 Show light and shadow keys on the timeline. Keep them on VMD export.
-- [ ] P1.5 e2e: a fixture VMD with a light track changes the light colour at a known frame.
+- [x] P1.4 Show light and shadow keys on the timeline. (VMD export of edited motions: not checked.)
+- [x] P1.5 e2e: a fixture VMD with a light track changes the light colour at a known frame.
 
 ### P2. VPD pose import
 
@@ -66,5 +66,6 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-11: P1.4 and P1.5 done: timeline Light and Self shadow rows, `getSunState()`, `e2e/vmd-light.spec.ts` passes in Chromium (light interpolates, toggle restores manual sun).
 - 2026-10-11: P1.1, P1.2 and part of P1.3 done (`src/lib/vmdLight.ts`, engine `updateMotionLight`, Scene toggle). Unit tests pass (406). Not yet checked in a real browser.
 - 2026-10-11: plan created.

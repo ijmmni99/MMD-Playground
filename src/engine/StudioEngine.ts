@@ -113,7 +113,12 @@ export interface StudioEngine {
    * Swap a model's files for new ones under the same id (model editor rebuild). Transform, visibility,
    * physics, material states, morph weights, motion, selection and gizmos carry over.
    */
-  replaceModel(id: string, files: VFile[], mainPath: string, options?: { singleMesh?: boolean }): Promise<ModelInfo>;
+  replaceModel(
+    id: string,
+    files: VFile[],
+    mainPath: string,
+    options?: { singleMesh?: boolean },
+  ): Promise<ModelInfo>;
   /** Rewrite rest-pose vertex positions (and normals) in place; false when the model isn't a single mesh. */
   setModelVertices(id: string, positions: Float32Array, normals?: Float32Array): boolean;
   /** NPR looks for a model (null = PMX original everywhere). */
@@ -136,6 +141,8 @@ export interface StudioEngine {
   ): void;
   setMorph(id: string, name: string, weight: number): void;
   getMorphWeights(id: string): Record<string, number>;
+  /** Current sun colour (0..1 per channel) and direction, after any VMD light track. */
+  getSunState(): { color: [number, number, number]; direction: [number, number, number] };
   resetMorphs(id: string): void;
   getModelState(id: string): ModelRuntimeState | null;
   /** Current world positions of a model's bones (by name), as rendered. */
@@ -200,7 +207,14 @@ export interface StudioEngine {
     screen: [number, number];
   } | null;
   /** A static, vertex-coloured mesh (model converter "original" preview); null removes it. */
-  setPreviewMesh(data: { positions: Float32Array; indices: Uint32Array; colors: Float32Array; offset: [number, number, number] } | null): void;
+  setPreviewMesh(
+    data: {
+      positions: Float32Array;
+      indices: Uint32Array;
+      colors: Float32Array;
+      offset: [number, number, number];
+    } | null,
+  ): void;
   /** Minimum playback length in frames (clip timeline end). */
   setMinDuration(frames: number): void;
   /** Editor overlay lines (world space, drawn on top). Null removes the overlay. */
