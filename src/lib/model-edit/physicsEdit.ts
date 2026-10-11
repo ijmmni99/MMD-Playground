@@ -52,6 +52,16 @@ export function applyPhysicsPreset(
   }
 }
 
+/**
+ * Model height for collider sizes: from the head bone (about 89 % of the height) when there is one; the highest
+ * bone is often a hair tip, ribbon or accessory far above the head.
+ */
+function modelHeight(m: PmxModel): number {
+  const head = m.bones.find((b) => b.name === '頭');
+  if (head && head.position[1] > 1) return head.position[1] / 0.89;
+  return Math.max(1, ...m.bones.map((b) => b.position[1]));
+}
+
 /** Bones whose bone-following bodies count as the body the generated chain must not pass through. */
 const BODY_BONE =
   /^(頭|首|上半身\d?|下半身|[左右](足|ひざ|足首|腕|ひじ|手首|肩))$|^(head|neck|spine|chest|hips|pelvis)/i;
@@ -72,7 +82,7 @@ export function applyAutoPhysics(
   // Bodies already on these bones are replaced.
   const onChain = new Set(chain);
   removeBodies(m, new Set(m.rigidBodies.map((r, i) => (onChain.has(r.bone) ? i : -1)).filter((i) => i >= 0)));
-  const height = Math.max(1, ...m.bones.map((b) => b.position[1]));
+  const height = modelHeight(m);
   const c: PhysicsChain = {
     id: 'auto',
     name: m.bones[chain[0]].name,
@@ -82,12 +92,7 @@ export function applyAutoPhysics(
     source: 'name',
     enabled: true,
   };
-  const gen = buildPhysics(
-    m.bones,
-    [c],
-    { enabled: true, sway, colliders: true },
-    Math.max(10, height * 1.15),
-  );
+  const gen = buildPhysics(m.bones, [c], { enabled: true, sway, colliders: true }, Math.max(10, height));
 
   // The model's body colliders: bone-following bodies on body bones.
   const colliders = m.rigidBodies
@@ -197,7 +202,7 @@ function segmentDistance(a: V3, b: V3, c: V3, d: V3): number {
 
 /**
  * Make every physics body (hair, skirt, bust, accessories) collide with the body: body parts without a
- * collider get one, the body colliders share a group, and each physics body collides with that group only
+ * collider of a useful size get one, the body colliders share a group, and each physics body collides with that group only
  * (not with other hair, which tangles). Bodies that already sit deep inside a collider at rest (a chain's
  * first segment at the head, bust inside the chest) are left without body collisions so they can't explode.
  * Also repairs models whose masks were inverted. Returns counts for the UI.
@@ -223,22 +228,43 @@ export function fixBodyCollisions(m: PmxModel): {
     [...Array(16).keys()].find((g) => !dynGroups.has(g)) ??
     0;
   // Generated colliders for body parts that have none.
-  const height = Math.max(1, ...m.bones.map((b) => b.position[1]));
   const gen = buildPhysics(
     m.bones,
     [],
     { enabled: true, sway: 0.5, colliders: true },
-    Math.max(10, height * 1.15),
+    Math.max(10, modelHeight(m)),
   );
-  const covered = new Set(existing.map((i) => m.rigidBodies[i].bone));
+  // A body part counts as covered only by colliders of a useful size and length (some models have a tiny
+  // sphere at the elbow and nothing along the forearm).
+  const extent = (g: { a: V3; b: V3; radius: number }): number =>
+    Math.hypot(g.b[0] - g.a[0], g.b[1] - g.a[1], g.b[2] - g.a[2]) + 2 * g.radius;
+  // Generated colliders are shrunk to fit the rest-pose gap to the physics bodies around them, so hair and
+  // skirts never start inside one (they'd be shoved out and float). Bodies that sit inside even a thin one
+  // (a chain's first segment, a bust) get no body collisions instead.
+  const dynSegs = dynamic.map((i) => bodySegment(m.rigidBodies[i]));
+  const margin = 0.005 * modelHeight(m);
+  const generated = new Set<number>();
   let added = 0;
   for (const r of gen.rigidBodies) {
-    if (covered.has(r.bone)) continue;
-    m.rigidBodies.push({ ...r, group: bodyGroup });
+    const want = bodySegment(r);
+    const have = existing
+      .filter((i) => m.rigidBodies[i].bone === r.bone)
+      .map((i) => bodySegment(m.rigidBodies[i]))
+      .filter((g) => g.radius >= 0.6 * want.radius);
+    if (have.reduce((sum, g) => sum + extent(g), 0) >= 0.5 * extent(want)) continue;
+    const minR = 0.4 * want.radius;
+    let radius = want.radius;
+    for (const d of dynSegs) {
+      const gap = segmentDistance(want.a, want.b, d.a, d.b) - d.radius - margin;
+      if (gap >= minR) radius = Math.min(radius, gap);
+    }
+    const size: V3 = [...r.size];
+    size[0] = radius;
+    generated.add(m.rigidBodies.length);
+    m.rigidBodies.push({ ...r, size, group: bodyGroup });
     added++;
   }
   const colliders = m.rigidBodies.map((_, i) => i).filter(isCollider);
-  const segs = colliders.map((i) => bodySegment(m.rigidBodies[i]));
   let dynMask = 0;
   for (const i of dynamic) dynMask |= 1 << m.rigidBodies[i].group;
   for (const i of colliders) {
@@ -247,14 +273,18 @@ export function fixBodyCollisions(m: PmxModel): {
     r.collidesWith = dynMask;
   }
   let skipped = 0;
-  for (const i of dynamic) {
+  dynamic.forEach((i, k) => {
     const r = m.rigidBodies[i];
-    const s = bodySegment(r);
-    // Sitting deep inside a collider at rest: no body collisions for this body.
-    const deep = segs.some((c) => segmentDistance(s.a, s.b, c.a, c.b) < (s.radius + c.radius) * 0.6);
-    if (deep) skipped++;
-    r.collidesWith = deep ? 0 : 1 << bodyGroup;
-  }
+    const s = dynSegs[k];
+    // Inside a generated collider, or deep inside one of the model's own: no body collisions.
+    const inside = colliders.some((c) => {
+      const g = bodySegment(m.rigidBodies[c]);
+      const d = segmentDistance(s.a, s.b, g.a, g.b);
+      return d < (s.radius + g.radius) * (generated.has(c) ? 1 : 0.6);
+    });
+    if (inside) skipped++;
+    r.collidesWith = inside ? 0 : 1 << bodyGroup;
+  });
   return { colliders: colliders.length, added, bodies: dynamic.length - skipped, skipped };
 }
 
