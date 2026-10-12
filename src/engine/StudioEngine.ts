@@ -144,6 +144,8 @@ export interface StudioEngine {
   /** Current sun colour (0..1 per channel) and direction, after any VMD light track. */
   /** Mono samples of the loaded music (for beat detection), or null when none is loaded. */
   getAudioSamples(): { samples: Float32Array; sampleRate: number } | null;
+  /** Sky and ground ambient the toon looks currently use (0..1+ per channel). */
+  getNprAmbient(): { sky: [number, number, number]; ground: [number, number, number] };
   getSunState(): { color: [number, number, number]; direction: [number, number, number] };
   resetMorphs(id: string): void;
   getModelState(id: string): ModelRuntimeState | null;

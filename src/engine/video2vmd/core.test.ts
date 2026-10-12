@@ -293,6 +293,17 @@ describe('retargeting', () => {
     expect(worst).toBeLessThan(12);
   });
 
+  it('drives the shoulders a little, never past their limit, without moving the arms', () => {
+    const { skeleton, result } = run();
+    const angles = result.keys
+      .filter((k) => k.bone === '左肩' || k.bone === '右肩')
+      .map((k) => 2 * Math.acos(Math.min(1, Math.abs(k.rotation[3]))) * (180 / Math.PI));
+    expect(angles.length).toBeGreaterThan(0);
+    expect(Math.max(...angles)).toBeGreaterThan(0.5);
+    expect(Math.max(...angles)).toBeLessThanOrEqual(25.01);
+    expect(skeleton.bones.some((b) => b.name === '左肩')).toBe(true);
+  });
+
   it('keeps hinge joints bending one way', () => {
     const { result } = run({}, { elbow: 2.6 });
     for (const k of result.keys) {

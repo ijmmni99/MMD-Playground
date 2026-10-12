@@ -43,6 +43,9 @@ export interface RetargetExtras {
   wristTwist?: boolean;
 }
 
+/** Share of the arm swing given to 肩, and its limit. */
+const SHOULDER_FOLLOW = 0.2;
+const SHOULDER_MAX = 25 * (Math.PI / 180);
 const DEG = Math.PI / 180;
 const UP: Vec3 = [0, 1, 0];
 const FORWARD: Vec3 = [0, 0, -1];
@@ -291,6 +294,15 @@ export function retarget(
       hingeN = blendDir(prev, hingeN, smoothstep(0.08, 0.35, bend));
       prevArmHinge[s] = hingeN;
       const armWorld = frameRotation(R.upper, R.armHinge, upper, hingeN);
+      // The shoulder follows a fraction of the arm's swing (not its twist), so lifted arms raise it a little.
+      // The arm keeps its absolute world rotation, so this never changes where the arm points.
+      if (sk.has(BONE.shoulder(s))) {
+        drivers.set(BONE.shoulder(s), (wp) => {
+          const rel = qmul(qconj(wp), armWorld);
+          const swing = qmul(rel, qconj(twistAbout(rel, R.upper)));
+          return { local: clampAngle(slerp(QI, swing, SHOULDER_FOLLOW), SHOULDER_MAX) };
+        });
+      }
       drivers.set(BONE.arm(s), () => ({ world: armWorld }));
       const elbowWorld = frameRotation(R.fore, R.armHinge, fore, hingeN);
       drivers.set(BONE.elbow(s), (wp) => ({

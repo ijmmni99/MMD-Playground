@@ -232,7 +232,7 @@ flowchart LR
 - Monocular pose estimation can't see depth well. Moves toward or away from the camera, and the exact feet placement when facing sideways, are approximations.
 - Without the **Face** / **Fingers** options, fingers, facial expressions and eye movement stay at rest (see below).
 - Assumes a single person, the full body in frame and a mostly static camera. Spins, floor work and occlusions reduce quality, and the quality report flags the affected times.
-- 肩 (shoulders) and 腕捩 stay at rest; 手捩 is driven only with **Fingers** on (wrist refinement).
+- 腕捩 stays at rest, and 肩 (shoulders) follow only 20 % of the arm swing (up to 25°); 手捩 is driven only with **Fingers** on (wrist refinement).
 - On phones, analysis runs at up to 720p and 30 fps and is much slower than on a laptop GPU.
 - The open-source Chromium builds used by test runners can't decode H.264. Branded Chrome, Edge and Safari can.
 
@@ -530,8 +530,8 @@ Each preset and tier compiles one shader variant, lazily, and it's cached.
 
 **Known limits:**
 
-- An approximation of anime shading on top of standard lighting: one sun, hemispheric ambient. The HDR environment
-  isn't used by looks.
+- An approximation of anime shading on top of standard lighting: one sun, and ambient from the hemispheric light settings, or from the HDR environment (sky and ground
+  colours, not its detail) when the background is HDR.
 - The hair band and cheek blush are computed from normals, not from UVs or tangents.
 - See-through eyes is a depth bias, so it can also show eyes through very close objects.
 - Looks need WebGL2; with `?webgpu` they're off.

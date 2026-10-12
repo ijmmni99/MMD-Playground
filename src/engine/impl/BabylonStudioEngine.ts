@@ -100,6 +100,7 @@ import { prepareModelFiles } from './modelFiles';
 import { NprManager, outlineFalloff, type NprMaterialState, type NprStats } from '../npr/NprManager';
 import { setNprLight } from '../npr/globals';
 import { toMono } from '@/lib/beats';
+import { skyGroundFromPoly } from '@/lib/shAmbient';
 import { readVmdLightTracks, sampleLight, sampleSelfShadow, type VmdLightTracks } from '@/lib/vmdLight';
 import { PostOutline } from '../npr/postOutline';
 import { selectTier, type ModelLooks, type NprSettings } from '@/lib/npr/looks';
@@ -601,8 +602,7 @@ export class BabylonStudioEngine implements StudioEngine {
         dir.normalize();
         this.dirLight.direction = dir;
         this.dirLight.position = dir.scale(-80);
-        const sky = hexColor(l.ambientColor).scale(l.ambientIntensity);
-        const ground = hexColor(l.groundColor).scale(l.ambientIntensity);
+        const { sky, ground } = this.nprAmbient(this.settings);
         const tint = color.scale(Math.min(1.4, 0.35 + l.dirIntensity * 0.8));
         setNprLight(
           [-dir.x, -dir.y, -dir.z],
@@ -677,8 +677,7 @@ export class BabylonStudioEngine implements StudioEngine {
     this.hemiLight.groundColor = hexColor(l.groundColor);
     {
       const sun = hexColor(l.dirColor).scale(Math.min(1.4, 0.35 + l.dirIntensity * 0.8));
-      const sky = hexColor(l.ambientColor).scale(l.ambientIntensity);
-      const ground = hexColor(l.groundColor).scale(l.ambientIntensity);
+      const { sky, ground } = this.nprAmbient(s);
       setNprLight(
         [-dir.x, -dir.y, -dir.z],
         [sun.r, sun.g, sun.b],
@@ -796,6 +795,24 @@ export class BabylonStudioEngine implements StudioEngine {
     }
   }
 
+  /**
+   * Sky and ground ambient for toon looks. With an HDR background on, they come from the environment map
+   * (scaled by its intensity); otherwise from the hemispheric light settings.
+   */
+  private nprAmbient(s: SceneSettings): { sky: Color3; ground: Color3 } {
+    const poly = s.background.mode === 'hdr' ? this.hdrTexture?.sphericalPolynomial : null;
+    if (poly) {
+      const { sky, ground } = skyGroundFromPoly(poly);
+      const k = s.background.hdrIntensity;
+      return { sky: new Color3(...sky).scale(k), ground: new Color3(...ground).scale(k) };
+    }
+    const l = s.lighting;
+    return {
+      sky: hexColor(l.ambientColor).scale(l.ambientIntensity),
+      ground: hexColor(l.groundColor).scale(l.ambientIntensity),
+    };
+  }
+
   private applyBackground(s: SceneSettings, prev: SceneSettings): void {
     const b = s.background;
     const scene = this.scene;
@@ -877,7 +894,7 @@ export class BabylonStudioEngine implements StudioEngine {
     this.hdrTexture = tex;
     this.scene.environmentTexture = tex;
     this.skybox = this.scene.createDefaultSkybox(tex, false, 1500, 0) ?? null;
-    this.applyBackground(this.settings, this.settings);
+    this.applySettings(this.settings);
   }
 
   // ---------------------------------------------------------------- models
@@ -1306,6 +1323,11 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!buf) return null;
     const channels = Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i));
     return { samples: toMono(channels), sampleRate: buf.sampleRate };
+  }
+
+  getNprAmbient(): { sky: [number, number, number]; ground: [number, number, number] } {
+    const { sky, ground } = this.nprAmbient(this.settings);
+    return { sky: [sky.r, sky.g, sky.b], ground: [ground.r, ground.g, ground.b] };
   }
 
   getSunState(): { color: [number, number, number]; direction: [number, number, number] } {

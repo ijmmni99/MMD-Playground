@@ -41,12 +41,12 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P5. Looks and rendering
 
-- [ ] P5.1 Let toon looks use the HDR environment for ambient colour.
+- [x] P5.1 Let toon looks use the HDR environment for ambient colour.
 - [ ] P5.2 Multiple simultaneous audio clips in the Clip Timeline.
 
 ### P6. Video to VMD quality
 
-- [ ] P6.1 Drive shoulders (肩) and 腕捩 from the pose, not rest.
+- [~] P6.1 Drive shoulders (肩) and 腕捩 from the pose, not rest. Done: 肩 follows 20 % of the arm swing, max 25°, unit-tested on the synthetic dancer. Todo: 腕捩.
 - [ ] P6.2 Improve depth handling for toward/away moves in single view.
 
 ### P7. Model scaling with physics
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P5.1 done (toon ambient from the HDR's spherical polynomial, `src/lib/shAmbient.ts`, `e2e/hdr-ambient.spec.ts` passes). P6.1 partly done (肩 only).
 - 2026-10-11: P4 reviewed: P4.1 already met (360 KB gzip initial), P4.2 deferred (runtime rewrite).
 - 2026-10-11: P3 done: Tools > Hands keys the five presets at the playhead (`src/lib/motion/hands.ts`); Markers > Detect from music (`src/lib/beats.ts`, one steady tempo). `e2e/hands-beats.spec.ts` passes with the existing motion-editor specs. Not checked on real music.
 - 2026-10-11: P2 done: `src/lib/vpd.ts` (parse and write, Shift-JIS), drop or Load pose accepts `.vpd`, Save VPD button, `e2e/vpd.spec.ts` passes. Not checked against a real MMD-made VPD.
