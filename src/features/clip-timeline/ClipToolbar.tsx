@@ -31,6 +31,7 @@ import { ct, useClipTimeline } from '@/store/clipTimeline';
 import { useHistory } from '@/store/history';
 import {
   addAudioFile,
+  addExtraAudioFile,
   addFacePreset,
   addTextClip,
   copySelected,
@@ -158,6 +159,11 @@ export function ClipToolbar() {
             />
           ))}
           <AddItem label="Music / audio" onClick={() => void addAudioFile()} />
+          <AddItem
+            label="Extra sound (plays with the music)"
+            onClick={() => void addExtraAudioFile()}
+            testid="ct-add-extra-audio"
+          />
           <AddItem label="3D text" onClick={() => addTextClip()} testid="ct-add-text" />
           <AddItem
             label="Subtitles / lyrics (.srt, .lrc)"

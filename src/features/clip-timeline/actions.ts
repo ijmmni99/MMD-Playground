@@ -3,6 +3,7 @@ import { pickFiles } from '@/features/app/filePickers';
 import {
   addClip,
   addSource,
+  addTrack,
   deleteClips,
   duplicateClip,
   ensureTrack,
@@ -44,6 +45,7 @@ import {
   addVmdSource,
   facePresetClip,
   FACE_PRESETS,
+  probeAudioDuration,
   type FacePreset,
 } from './sources';
 
@@ -247,6 +249,26 @@ export async function addAudioFile(file?: VFile): Promise<void> {
     const clip = newClip(t.track.id, src, 0, { volume: 1 });
     return { doc: addClip(d, clip), selection: [clip.id] };
   });
+}
+
+/**
+ * Add a second sound that plays together with the music, on its own audio track. It does not become the
+ * studio's main audio: the timeline plays it directly.
+ */
+export async function addExtraAudioFile(file?: VFile): Promise<void> {
+  const f = file ?? (await pickFiles('audio'))[0];
+  if (!f) return;
+  try {
+    const duration = await probeAudioDuration(f.blob);
+    const src = await addAudioSource(f, duration);
+    commit(`Add ${src.name}`, (doc) => {
+      const t = addTrack(addSource(doc, src), 'audio');
+      const clip = newClip(t.track.id, src, playhead(), { volume: 1 });
+      return { doc: addClip(t.doc, clip), selection: [clip.id] };
+    });
+  } catch (e) {
+    toast('error', `Could not read ${f.path}: ${(e as Error).message}`);
+  }
 }
 
 const HEAD_BONES = ['頭', 'head', 'Head'];

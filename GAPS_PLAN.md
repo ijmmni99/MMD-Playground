@@ -42,7 +42,7 @@ Today these tracks are kept and re-exported but not shown.
 ### P5. Looks and rendering
 
 - [x] P5.1 Let toon looks use the HDR environment for ambient colour.
-- [ ] P5.2 Multiple simultaneous audio clips in the Clip Timeline.
+- [x] P5.2 Multiple simultaneous audio clips in the Clip Timeline. Add > Extra sound puts a clip on a new audio track; the first audio track stays the main music. `src/engine/impl/ExtraAudio.ts`, mix-down for frame-stepped exports, `e2e/extra-audio.spec.ts`. Not checked by ear.
 
 ### P6. Video to VMD quality
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P5.2 done (extra sounds on extra audio tracks).
 - 2026-10-12: P8 done (phone playground textarea, folder-picking message). Unit test timeout raised to 20 s because babylon-mmd tests timed out under parallel load.
 - 2026-10-12: P5.1 done (toon ambient from the HDR's spherical polynomial, `src/lib/shAmbient.ts`, `e2e/hdr-ambient.spec.ts` passes). P6.1 partly done (肩 only).
 - 2026-10-11: P4 reviewed: P4.1 already met (360 KB gzip initial), P4.2 deferred (runtime rewrite).

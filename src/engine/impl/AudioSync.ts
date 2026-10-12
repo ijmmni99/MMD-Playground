@@ -167,6 +167,18 @@ export class AudioSync {
     return t + Math.min(0.5, ((now - this.clockStamp) / 1000) * rate);
   }
 
+  /** The shared AudioContext (created on first use). */
+  get context(): AudioContext {
+    return this.ensureGraph();
+  }
+
+  /** Send a node to the speakers and the recording stream, bypassing the main music's volume. */
+  connectOutput(node: AudioNode): void {
+    const ctx = this.ensureGraph();
+    node.connect(ctx.destination);
+    if (this.streamDest) node.connect(this.streamDest);
+  }
+
   get mediaStream(): MediaStream | null {
     return this.streamDest?.stream ?? null;
   }

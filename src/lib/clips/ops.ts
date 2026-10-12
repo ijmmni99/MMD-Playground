@@ -48,6 +48,14 @@ export function ensureTrack(
   return { doc: { ...doc, tracks: [...doc.tracks, track] }, track };
 }
 
+/** Always creates a new track, named "Audio 2", "Audio 3"… for repeats of the same kind. */
+export function addTrack(doc: TimelineDoc, kind: TrackKind): { doc: TimelineDoc; track: Track } {
+  const base = { dance: 'Dance', camera: 'Camera', face: 'Face', audio: 'Audio', text: 'Text' }[kind];
+  const n = doc.tracks.filter((t) => t.kind === kind).length;
+  const track: Track = { id: clipId('t'), kind, name: n ? `${base} ${n + 1}` : base };
+  return { doc: { ...doc, tracks: [...doc.tracks, track] }, track };
+}
+
 export function addSource(doc: TimelineDoc, src: Source): TimelineDoc {
   return doc.sources.some((s) => s.id === src.id) ? doc : { ...doc, sources: [...doc.sources, src] };
 }

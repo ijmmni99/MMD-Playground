@@ -66,6 +66,19 @@ export async function replaceSourceClip(src: Source, clip: MotionClip): Promise<
   return addClipSource(clip, src.name, src.kind, src.id);
 }
 
+/** Length in seconds of an audio file (decodes it once in a throwaway context). */
+export async function probeAudioDuration(blob: Blob): Promise<number> {
+  const Ctx =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new Ctx();
+  try {
+    return (await ctx.decodeAudioData(await blob.arrayBuffer())).duration;
+  } finally {
+    void ctx.close();
+  }
+}
+
 /** Register an audio file as a source (waveform computed in the background). */
 export async function addAudioSource(file: VFile, durationSeconds: number): Promise<Source> {
   const ref = await registerFile(file);

@@ -100,6 +100,7 @@ import { prepareModelFiles } from './modelFiles';
 import { NprManager, outlineFalloff, type NprMaterialState, type NprStats } from '../npr/NprManager';
 import { setNprLight } from '../npr/globals';
 import { toMono } from '@/lib/beats';
+import { ExtraAudio, mixDown, type ExtraAudioLayer } from './ExtraAudio';
 import { skyGroundFromPoly } from '@/lib/shAmbient';
 import { readVmdLightTracks, sampleLight, sampleSelfShadow, type VmdLightTracks } from '@/lib/vmdLight';
 import { PostOutline } from '../npr/postOutline';
@@ -204,6 +205,7 @@ export class BabylonStudioEngine implements StudioEngine {
   private instrumentation!: SceneInstrumentation;
   private readonly models = new Map<string, ModelEntry>();
   private readonly audio = new AudioSync();
+  private readonly extraAudio = new ExtraAudio(this.audio);
   private settings: SceneSettings = structuredClone(DEFAULT_SETTINGS);
   private appliedQuality: QualityPreset | null = null;
   private npr!: NprManager;
@@ -520,6 +522,7 @@ export class BabylonStudioEngine implements StudioEngine {
     this.resizeObserver?.disconnect();
     for (const id of [...this.models.keys()]) this.removeModel(id);
     this.text?.dispose();
+    this.extraAudio.dispose();
     this.audio.dispose();
     this.engine.stopRenderLoop();
     this.runtime.dispose(this.scene);
@@ -537,6 +540,7 @@ export class BabylonStudioEngine implements StudioEngine {
     const playing = this.runtime.isAnimationPlaying;
     // Audio leads; the animation follows by nudging its speed (applies from the next frame).
     const nudge = this.audio.sync(this.runtime.currentTime, playing, this.speed);
+    this.extraAudio.update(this.runtime.currentTime, playing && !this.audio.suspended, this.speed);
     const scale = this.capturing ? this.speed : this.speed * nudge;
     if (this.runtime.timeScale !== scale) this.runtime.timeScale = scale;
 
@@ -1762,6 +1766,31 @@ export class BabylonStudioEngine implements StudioEngine {
     return info;
   }
 
+  /** Sounds that play together with the main music (one per timeline audio clip beyond the first track). */
+  async setExtraAudio(layers: ExtraAudioLayer[]): Promise<void> {
+    await this.extraAudio.setLayers(layers);
+  }
+
+  getExtraAudioStatus(): { layers: number; decoded: number; scheduled: number } {
+    return this.extraAudio.status;
+  }
+
+  /** Audio for a frame-stepped export: the music alone, or a mix-down when extra sounds exist. */
+  private exportAudio(include: boolean): { audioBuffer: AudioBuffer | null; audioOffset: number } {
+    if (!include) return { audioBuffer: null, audioOffset: 0 };
+    if (this.extraAudio.count === 0) {
+      return { audioBuffer: this.audio.buffer, audioOffset: this.audio.offsetSeconds };
+    }
+    const minSeconds = this.runtime.animationFrameTimeDuration / 30;
+    const mixed = mixDown(
+      this.audio.buffer,
+      this.audio.offsetSeconds,
+      this.extraAudio.mixLayers(),
+      minSeconds,
+    );
+    return { audioBuffer: mixed, audioOffset: 0 };
+  }
+
   async loadAudio(file: VFile | null): Promise<AudioInfo | null> {
     if (!file) {
       this.audio.unload();
@@ -2493,8 +2522,7 @@ export class BabylonStudioEngine implements StudioEngine {
           return await recordDeterministic({
             canvas: this.canvas,
             options: o,
-            audioBuffer: o.includeAudio ? this.audio.buffer : null,
-            audioOffset: this.audio.offsetSeconds,
+            ...this.exportAudio(o.includeAudio),
             signal,
             onProgress,
             renderFrame: () => this.scene.render(),

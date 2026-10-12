@@ -9,6 +9,7 @@ import { ct, useClipTimeline } from '@/store/clipTimeline';
 import { engineOrNull } from '@/store/engineRef';
 import { motionHooks } from '@/store/motionEditor';
 import { studio, updateModel } from '@/store/studio';
+import { resolveRef } from '@/lib/assets';
 import { getSourceClip } from './sources';
 
 const BAKE_MS = 60;
@@ -125,6 +126,47 @@ function syncAudio(doc: TimelineDoc): void {
   });
 }
 
+// ---------------------------------------------------------------- extra audio
+
+let extraSig = '';
+
+/**
+ * Audio clips on every audio track after the first play together with the music. They are handed to the
+ * engine as sounds placed in seconds; the first audio track stays the studio's main audio.
+ */
+async function syncExtraAudio(doc: TimelineDoc): Promise<void> {
+  const engine = engineOrNull();
+  if (!engine) return;
+  const tracks = doc.tracks.filter((t) => t.kind === 'audio').slice(1);
+  const clips = tracks.flatMap((t) => trackClips(doc, t.id)).filter((c) => c.sourceId);
+  const volume = studio.get().volume;
+  const sig = JSON.stringify([
+    clips.map((c) => [c.id, c.sourceId, c.startFrame, c.sourceIn, c.sourceOut, c.volume]),
+    volume,
+  ]);
+  if (sig === extraSig) return;
+  extraSig = sig;
+  const layers = [];
+  for (const c of clips) {
+    const src = doc.sources.find((s) => s.id === c.sourceId);
+    if (!src?.ref) continue;
+    try {
+      const file = await resolveRef(src.ref);
+      layers.push({
+        id: c.id,
+        blob: file.blob,
+        start: c.startFrame / 30,
+        inPoint: c.sourceIn / 30,
+        duration: (c.sourceOut - c.sourceIn) / 30,
+        gain: volume * (c.volume ?? 1),
+      });
+    } catch {
+      /* a missing file is reported when the project loads */
+    }
+  }
+  if (extraSig === sig) await engine.setExtraAudio(layers);
+}
+
 // ---------------------------------------------------------------- text (loaded once a text clip exists)
 
 let textLoaded = false;
@@ -139,6 +181,7 @@ useClipTimeline.subscribe((s, prev) => {
   if (s.doc !== prev.doc || s.sourcesRevision !== prev.sourcesRevision || s.editing !== prev.editing) {
     scheduleBake();
     syncAudio(s.doc);
+    void syncExtraAudio(s.doc);
   }
   if (s.doc !== prev.doc) ensureText(s.doc);
 });

@@ -227,6 +227,10 @@ export interface StudioEngine {
     segments:
       { a: [number, number, number]; b: [number, number, number]; color: [number, number, number] }[] | null,
   ): void;
+  /** Sounds that play with the main music, placed on the timeline (seconds). */
+  setExtraAudio(layers: import('./impl/ExtraAudio').ExtraAudioLayer[]): Promise<void>;
+  /** Extra sounds: placed, decoded, and scheduled to play right now. */
+  getExtraAudioStatus(): { layers: number; decoded: number; scheduled: number };
   loadAudio(file: VFile | null): Promise<AudioInfo | null>;
   setAudioOffset(ms: number): void;
   setVolume(volume: number): void;

@@ -8,6 +8,7 @@ import { emptyClip, linearCurves, type MotionClip, type Quat } from '@/lib/motio
 import { applyFace, bakeCamera, bakeDance, LOOP_SEAM, segment } from './bake';
 import {
   addClip,
+  addTrack,
   deleteClips,
   duplicateClip,
   ensureTrack,
@@ -349,5 +350,18 @@ describe('subtitles', () => {
       [3, 4.5, 'Hey'],
       [4.5, 8.5, 'La la'],
     ]);
+  });
+});
+
+describe('addTrack', () => {
+  it('always adds a track and numbers repeats of a kind', () => {
+    const doc = { tracks: [], clips: [], sources: [] } as unknown as Parameters<typeof addTrack>[0];
+    const a = addTrack(doc, 'audio');
+    const b = addTrack(a.doc, 'audio');
+    const c = addTrack(b.doc, 'audio');
+    expect(c.doc.tracks.map((t) => t.name)).toEqual(['Audio', 'Audio 2', 'Audio 3']);
+    expect(new Set(c.doc.tracks.map((t) => t.id)).size).toBe(3);
+    // ensureTrack still reuses the first audio track.
+    expect(ensureTrack(c.doc, 'audio').track.id).toBe(a.track.id);
   });
 });
