@@ -62,10 +62,15 @@ Today these tracks are kept and re-exported but not shown.
 
 Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; `.x` accessories; node-graph shader editor.
 
+### P9. Multiple rows per kind in the Clip Timeline
+
+- [x] P9.1 Several dance, camera, face and audio rows; where rows overlap, the upper row wins (`layerClips`). Drag a clip past the first or last row to make a new row (`moveClipsToNewTrack`), empty rows are tidied (`pruneEmptyTracks`), and a + menu option adds new motions on a new row. `e2e/clip-rows.spec.ts`.
+
 ## Log
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P9 done (multiple rows per kind, layered playback, drag to make a row). Not tried by hand on a phone.
 - 2026-10-12: Closed out. Left open: P4.2 (runtime rewrite) and P6.2 (needs a depth-aware estimator). P1.3 range is intentionally not applied.
 - 2026-10-12: P6.1 finished (腕捩).
 - 2026-10-12: P7 done (rebuild on scale change).

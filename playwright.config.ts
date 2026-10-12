@@ -52,7 +52,7 @@ export default defineConfig({
     {
       name: 'desktop-chromium',
       testMatch:
-        /(smoke|video2vmd|motion-editor|names|clips|converter|modeleditor|npr|mediapipe|vmd-light|vpd|hands-beats|hdr-ambient|playground-phone|extra-audio|scale-physics)\.spec\.ts/,
+        /(smoke|video2vmd|motion-editor|names|clips|converter|modeleditor|npr|mediapipe|vmd-light|vpd|hands-beats|hdr-ambient|playground-phone|extra-audio|scale-physics|clip-rows)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 800 },

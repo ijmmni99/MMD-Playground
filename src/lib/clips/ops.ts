@@ -56,6 +56,140 @@ export function addTrack(doc: TimelineDoc, kind: TrackKind): { doc: TimelineDoc;
   return { doc: { ...doc, tracks: [...doc.tracks, track] }, track };
 }
 
+/**
+ * A new empty row of a kind, above or below all rows. Rows of a kind are layered: a clip on a row above
+ * wins over the same time on a row below. Dance and face rows belong to one model.
+ */
+export function insertTrack(
+  doc: TimelineDoc,
+  kind: TrackKind,
+  where: 'top' | 'bottom',
+  modelId?: string,
+  baseName?: string,
+): { doc: TimelineDoc; track: Track } {
+  const base =
+    baseName ?? { dance: 'Dance', camera: 'Camera', face: 'Face', audio: 'Audio', text: 'Text' }[kind];
+  const n = doc.tracks.filter(
+    (t) => t.kind === kind && (kind === 'dance' || kind === 'face' ? t.modelId === modelId : true),
+  ).length;
+  const track: Track = {
+    id: clipId('t'),
+    kind,
+    ...(modelId ? { modelId } : {}),
+    name: n ? `${base} ${n + 1}` : base,
+  };
+  const tracks = where === 'top' ? [track, ...doc.tracks] : [...doc.tracks, track];
+  return { doc: { ...doc, tracks }, track };
+}
+
+/** Same-kind rows a clip can sit on with it (same model for dance and face). */
+const sameLayer = (a: Track, b: Track): boolean =>
+  a.kind === b.kind && (a.kind === 'dance' || a.kind === 'face' ? a.modelId === b.modelId : true);
+
+/**
+ * Move clips onto a brand-new row above or below the existing rows. Only clips that share the first
+ * clip's kind (and model) go; they keep their start frames. Returns the new row's id.
+ */
+export function moveClipsToNewTrack(
+  doc: TimelineDoc,
+  ids: readonly string[],
+  where: 'top' | 'bottom',
+  baseName?: string,
+): { doc: TimelineDoc; trackId: string | null } {
+  const clips = ids.map((id) => findClip(doc, id)).filter((c): c is Clip => !!c);
+  const from = clips.length ? doc.tracks.find((t) => t.id === clips[0].trackId) : undefined;
+  if (!from) return { doc, trackId: null };
+  const movable = clips.filter((c) => {
+    const t = doc.tracks.find((x) => x.id === c.trackId);
+    return t && sameLayer(t, from);
+  });
+  const made = insertTrack(doc, from.kind, where, from.modelId, baseName);
+  const set = new Set(movable.map((c) => c.id));
+  const next = {
+    ...made.doc,
+    clips: made.doc.clips.map((c) => (set.has(c.id) ? { ...c, trackId: made.track.id } : c)),
+  };
+  return { doc: next, trackId: made.track.id };
+}
+
+/**
+ * Drop rows that have no clips, unless they are the last row of their kind (and model): an empty row
+ * stays only while it is the one place a new clip of that kind would go.
+ */
+export function pruneEmptyTracks(doc: TimelineDoc): TimelineDoc {
+  const used = new Set(doc.clips.map((c) => c.trackId));
+  const kept: Track[] = [];
+  for (const t of doc.tracks) {
+    const empty = !used.has(t.id);
+    const layerHasClips = doc.tracks.some((o) => o.id !== t.id && used.has(o.id) && sameLayer(o, t));
+    const layerKeptEmpty = kept.some((o) => !used.has(o.id) && sameLayer(o, t));
+    if (empty && (layerHasClips || layerKeptEmpty)) continue;
+    kept.push(t);
+  }
+  return kept.length === doc.tracks.length ? doc : { ...doc, tracks: kept };
+}
+
+/**
+ * The clips of several same-kind rows as one non-overlapping list. The first row listed wins: where it
+ * has a clip, clips on later rows are cut away (split at the edges, so each piece keeps its source place).
+ */
+export function layerClips(doc: TimelineDoc, trackIds: readonly string[]): Clip[] {
+  const out: Clip[] = [];
+  let covered: [number, number][] = [];
+  for (const trackId of trackIds) {
+    const own: [number, number][] = [];
+    for (const c of trackClips(doc, trackId)) {
+      own.push([c.startFrame, clipEnd(c)]);
+      // Free parts of this clip: its span minus every interval a higher row covers.
+      let free: [number, number][] = [[c.startFrame, clipEnd(c)]];
+      for (const [a, b] of covered) {
+        free = free.flatMap(([x, y]) => {
+          if (b <= x || a >= y) return [[x, y] as [number, number]];
+          const parts: [number, number][] = [];
+          if (a > x) parts.push([x, a]);
+          if (b < y) parts.push([b, y]);
+          return parts;
+        });
+      }
+      for (const [fa, fb] of free) {
+        if (fa === c.startFrame && fb === clipEnd(c)) {
+          out.push(c);
+          continue;
+        }
+        const scratch: TimelineDoc = { ...doc, clips: [c] };
+        let piece = c.id;
+        let d = scratch;
+        if (fa > c.startFrame) {
+          const r = splitClip(d, piece, fa);
+          d = r.doc;
+          piece = r.ids[r.ids.length - 1];
+        }
+        const cur = findClip(d, piece)!;
+        if (fb < clipEnd(cur)) {
+          const r = splitClip(d, piece, fb);
+          d = r.doc;
+          piece = r.ids[0];
+        }
+        const part = findClip(d, piece);
+        if (part && clipLength(part) > 0) out.push(part);
+      }
+    }
+    covered = mergeIntervals([...covered, ...own]);
+  }
+  return out.sort((a, b) => a.startFrame - b.startFrame);
+}
+
+function mergeIntervals(list: [number, number][]): [number, number][] {
+  const sorted = [...list].sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const [a, b] of sorted) {
+    const last = out[out.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else out.push([a, b]);
+  }
+  return out;
+}
+
 export function addSource(doc: TimelineDoc, src: Source): TimelineDoc {
   return doc.sources.some((s) => s.id === src.id) ? doc : { ...doc, sources: [...doc.sources, src] };
 }

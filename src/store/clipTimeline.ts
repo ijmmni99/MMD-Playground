@@ -27,6 +27,10 @@ export interface ClipTimelineState {
   textQuality: 'auto' | 'low' | 'medium' | 'high';
   /** Characters no font could draw, per text clip. */
   textMissing: Record<string, string[]>;
+  /** While a clip is dragged past the first or last row: where a new row would be made. */
+  dropRow: 'top' | 'bottom' | null;
+  /** New dances, camera motions and face presets get their own row on top instead of joining the last row. */
+  addOnNewRow: boolean;
 }
 
 export const useClipTimeline = create<ClipTimelineState>(() => ({
@@ -44,6 +48,8 @@ export const useClipTimeline = create<ClipTimelineState>(() => ({
   textEditing: null,
   textQuality: 'auto',
   textMissing: {},
+  dropRow: null,
+  addOnNewRow: false,
 }));
 
 export const ct = { get: useClipTimeline.getState, set: useClipTimeline.setState };

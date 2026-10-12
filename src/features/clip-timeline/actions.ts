@@ -9,6 +9,9 @@ import {
   ensureTrack,
   findClip,
   moveClip,
+  insertTrack,
+  moveClipsToNewTrack,
+  pruneEmptyTracks,
   newClip,
   pasteClips,
   reorderClip,
@@ -192,9 +195,14 @@ export async function addMotionFiles(files: VFile[], modelId = selectedModelId()
           toast('warning', 'Load a model first, then add its dances.');
           return doc;
         }
-        const t = ensureTrack(d, kind, kind === 'camera' ? undefined : modelId!, trackName(kind, modelId));
+        const owner = kind === 'camera' ? undefined : modelId!;
+        const t = ct.get().addOnNewRow
+          ? insertTrack(d, kind, 'top', owner, trackName(kind, modelId))
+          : ensureTrack(d, kind, owner, trackName(kind, modelId));
         d = t.doc;
-        const clip = newClip(t.track.id, src, trackEnd(d, t.track.id));
+        // A new row is a layer over the others, so the clip starts at the playhead; otherwise it follows the row's last clip.
+        const at = ct.get().addOnNewRow ? playhead() : trackEnd(d, t.track.id);
+        const clip = newClip(t.track.id, src, at);
         return { doc: addClip(d, clip), selection: [clip.id] };
       });
     } catch (e) {
@@ -228,7 +236,9 @@ export async function addFacePreset(preset: FacePreset, modelId = selectedModelI
   );
   const src = await addClipSource(faceClip, `${label}.vmd`, 'face');
   commit(`Add face: ${label}`, (doc) => {
-    const t = ensureTrack(addSource(doc, src), 'face', modelId, trackName('face', modelId));
+    const t = ct.get().addOnNewRow
+      ? insertTrack(addSource(doc, src), 'face', 'top', modelId, trackName('face', modelId))
+      : ensureTrack(addSource(doc, src), 'face', modelId, trackName('face', modelId));
     const clip = newClip(t.track.id, src, playhead(), { join: { fade: 4, root: 'origin', cut: true } });
     return { doc: addClip(t.doc, clip), selection: [clip.id] };
   });
@@ -392,7 +402,8 @@ export function splitAtPlayhead(): void {
 
 export function deleteSelected(): void {
   const ids = sel();
-  if (ids.length) commit('Delete clips', (d) => ({ doc: deleteClips(d, ids), selection: [] }));
+  if (ids.length)
+    commit('Delete clips', (d) => ({ doc: pruneEmptyTracks(deleteClips(d, ids)), selection: [] }));
 }
 
 export function duplicateSelected(): void {
@@ -447,6 +458,27 @@ export const setClipText = (id: string, patch: Partial<TextSpec>): void =>
 /** Drag gestures commit with a per-drag key so a whole drag is one undo step. */
 export function moveTo(id: string, start: number, trackId: string | undefined, dragKey: string): void {
   commit('Move clip', (d) => moveClip(d, id, start, trackId), dragKey);
+}
+
+/** Move clips onto a new row above or below the existing rows (a clip dragged past the first or last row). */
+export function moveToNewRow(ids: string[], where: 'top' | 'bottom', dragKey?: string): void {
+  commit(
+    'Move to a new row',
+    (d) => {
+      const first = ids.map((id) => findClip(d, id)).find(Boolean);
+      const from = first ? d.tracks.find((t) => t.id === first.trackId) : undefined;
+      if (!from) return d;
+      const r = moveClipsToNewTrack(d, ids, where, trackName(from.kind, from.modelId));
+      if (!r.trackId) return d;
+      return { doc: pruneEmptyTracks(r.doc), selection: ids };
+    },
+    dragKey,
+  );
+}
+
+/** After a drag: drop rows the clips left empty (a row stays while it is the last of its kind). */
+export function tidyRows(dragKey?: string): void {
+  commit('Move clip', (d) => pruneEmptyTracks(d), dragKey);
 }
 
 export function trimTo(id: string, edge: 'start' | 'end', frame: number, dragKey: string): void {

@@ -10,6 +10,10 @@ import {
   addClip,
   addTrack,
   deleteClips,
+  insertTrack,
+  layerClips,
+  moveClipsToNewTrack,
+  pruneEmptyTracks,
   duplicateClip,
   ensureTrack,
   moveClip,
@@ -363,5 +367,99 @@ describe('addTrack', () => {
     expect(new Set(c.doc.tracks.map((t) => t.id)).size).toBe(3);
     // ensureTrack still reuses the first audio track.
     expect(ensureTrack(c.doc, 'audio').track.id).toBe(a.track.id);
+  });
+});
+
+describe('rows of one kind', () => {
+  /** Two dance rows for one model: `top` wins over `bottom`. */
+  function twoRows(bottom: Partial<Clip>, top: Partial<Clip>) {
+    const base = ensureTrack(emptyTimeline(), 'dance', 'm1');
+    const upper = insertTrack(base.doc, 'dance', 'top', 'm1');
+    let d = addClip(upper.doc, newClip(base.track.id, SRC_A, 0, bottom));
+    d = addClip(d, newClip(upper.track.id, SRC_B, 0, top));
+    return { doc: d, bottom: base.track.id, top: upper.track.id };
+  }
+
+  it('insertTrack adds a row at the top or bottom and numbers repeats per model', () => {
+    const a = ensureTrack(emptyTimeline(), 'dance', 'm1', 'Dance · Miku');
+    const top = insertTrack(a.doc, 'dance', 'top', 'm1', 'Dance · Miku');
+    const bottom = insertTrack(top.doc, 'dance', 'bottom', 'm1', 'Dance · Miku');
+    expect(bottom.doc.tracks.map((t) => t.name)).toEqual([
+      'Dance · Miku 2',
+      'Dance · Miku',
+      'Dance · Miku 3',
+    ]);
+    const other = insertTrack(bottom.doc, 'dance', 'bottom', 'm2', 'Dance · Rin');
+    expect(other.track.name).toBe('Dance · Rin');
+    expect(other.track.modelId).toBe('m2');
+  });
+
+  it('a clip on the upper row cuts the clip below it into pieces that keep their source place', () => {
+    const { doc, bottom, top } = twoRows(
+      { startFrame: 0, sourceIn: 0, sourceOut: 100 },
+      { startFrame: 40, sourceOut: 20, sourceIn: 0 },
+    );
+    const layered = layerClips(doc, [top, bottom]);
+    expect(layered.map((c) => [c.startFrame, clipEnd(c), c.sourceId])).toEqual([
+      [0, 40, 'a'],
+      [40, 60, 'b'],
+      [60, 100, 'a'],
+    ]);
+    // The piece after the upper clip resumes the lower clip at source frame 60.
+    expect(layered[2].sourceIn).toBe(60);
+    expect(layered[2].sourceOut).toBe(100);
+  });
+
+  it('keeps whole clips that nothing covers, and drops a clip hidden completely', () => {
+    const { doc, bottom, top } = twoRows(
+      { startFrame: 100, sourceOut: 30 },
+      { startFrame: 0, sourceOut: 50 },
+    );
+    expect(layerClips(doc, [top, bottom]).map((c) => [c.startFrame, clipEnd(c)])).toEqual([
+      [0, 50],
+      [100, 130],
+    ]);
+    const hidden = twoRows({ startFrame: 10, sourceOut: 20 }, { startFrame: 0, sourceOut: 60 });
+    expect(layerClips(hidden.doc, [hidden.top, hidden.bottom]).map((c) => c.sourceId)).toEqual(['b']);
+  });
+
+  it('layered rows bake to the upper clip where it exists and the lower clip elsewhere', () => {
+    const { doc, bottom, top } = twoRows(
+      { startFrame: 0, sourceIn: 0, sourceOut: 100 },
+      { startFrame: 40, sourceIn: 0, sourceOut: 20 },
+    );
+    const baked = bakeDance(layerClips(doc, [top, bottom]), get);
+    const a = trim(motionA, 0, 100);
+    const b = trim(motionB, 0, 20);
+    expect(angle(pose(baked, '左腕', 10).r, pose(a, '左腕', 10).r)).toBeLessThan(1e-5);
+    expect(angle(pose(baked, '左腕', 50).r, pose(b, '左腕', 10).r)).toBeLessThan(1e-3);
+    expect(angle(pose(baked, '左腕', 90).r, pose(a, '左腕', 90).r)).toBeLessThan(1e-3);
+  });
+
+  it('moveClipsToNewTrack puts the clip on a new row of the same kind and model', () => {
+    const { doc, trackId } = doc1({ startFrame: 20 }, { startFrame: 200 });
+    const [first, second] = trackClips(doc, trackId);
+    const r = moveClipsToNewTrack(doc, [first.id], 'top', 'Dance');
+    expect(r.trackId).toBeTruthy();
+    expect(r.doc.tracks[0].id).toBe(r.trackId);
+    expect(r.doc.tracks[0].modelId).toBe('m1');
+    expect(trackClips(r.doc, r.trackId!).map((c) => c.id)).toEqual([first.id]);
+    expect(trackClips(r.doc, r.trackId!)[0].startFrame).toBe(20);
+    expect(trackClips(r.doc, trackId).map((c) => c.id)).toEqual([second.id]);
+  });
+
+  it('pruneEmptyTracks drops an empty row only while another row of its layer remains', () => {
+    const { doc, trackId } = doc1({ startFrame: 0 });
+    const withEmpty = insertTrack(doc, 'dance', 'bottom', 'm1').doc;
+    expect(pruneEmptyTracks(withEmpty).tracks.map((t) => t.id)).toEqual([trackId]);
+    // The last row of a kind stays even when empty.
+    const emptied = deleteClips(
+      doc,
+      doc.clips.map((c) => c.id),
+    );
+    expect(pruneEmptyTracks(emptied).tracks).toHaveLength(1);
+    // Rows of another model are separate layers.
+    const other = insertTrack(doc, 'dance', 'bottom', 'm2').doc;
+    expect(pruneEmptyTracks(other).tracks).toHaveLength(2);
   });
 });

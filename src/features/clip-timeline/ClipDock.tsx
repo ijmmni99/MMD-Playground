@@ -16,10 +16,12 @@ import {
   deleteSelected,
   duplicateSelected,
   moveTo,
+  moveToNewRow,
   pasteAtPlayhead,
   reorderTo,
   select,
   splitAtPlayhead,
+  tidyRows,
   trimTo,
 } from './actions';
 import { ClipToolbar } from './ClipToolbar';
@@ -65,6 +67,7 @@ export default function ClipDock() {
   const ppf = useClipTimeline((s) => s.ppf);
   const center = useClipTimeline((s) => s.centerPlayhead);
   const selection = useClipTimeline((s) => s.selection);
+  const dropRow = useClipTimeline((s) => s.dropRow);
   const coarse = useLayout((s) => s.coarse);
   const rowH = coarse ? 58 : 46;
   const headW = coarse ? 88 : 112;
@@ -275,7 +278,8 @@ export default function ClipDock() {
           onPointerCancel={onAreaUp}
           onWheel={onWheel}
           data-testid="clip-area"
-          style={{ minHeight: RULER_H + Math.max(1, tracks.length) * rowH }}
+          // One spare row below the last, so a clip can be dropped there to make a new row.
+          style={{ minHeight: RULER_H + (Math.max(1, tracks.length) + 1) * rowH }}
         >
           <canvas ref={rulerRef} className="absolute inset-x-0 top-0" style={{ height: RULER_H }} />
           <div ref={contentRef} className="absolute left-0 top-0" style={{ width: end * ppf, top: RULER_H }}>
@@ -301,6 +305,19 @@ export default function ClipDock() {
               </div>
             ))}
           </div>
+          {dropRow && (
+            <div
+              className="pointer-events-none absolute inset-x-0 z-20 grid place-items-center rounded border-2 border-dashed border-accent bg-accent/15 text-[11px] text-fg"
+              style={
+                dropRow === 'top'
+                  ? { top: 0, height: RULER_H + 4 }
+                  : { top: RULER_H + tracks.length * rowH + 2, height: rowH - 4 }
+              }
+              data-testid="drop-row"
+            >
+              Release to make a new row {dropRow === 'top' ? 'on top' : 'below'}
+            </div>
+          )}
           {!tracks.length && (
             <div
               className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-[12px] text-fg-dim"
@@ -475,8 +492,25 @@ const ClipBlock = memo(function ClipBlock({
         .find((el) => (el as HTMLElement).dataset?.trackId) as HTMLElement | undefined;
       const target = rowEl?.dataset.trackId;
       const targetTrack = tracks.find((t) => t.id === target && t.kind === track.kind);
+      // Past the first row (over the ruler) or below the last row: a new row would be made there.
+      const area = document.querySelector<HTMLElement>('[data-testid="clip-area"]');
+      let drop: 'top' | 'bottom' | null = null;
+      if (area) {
+        const r = area.getBoundingClientRect();
+        const firstRow = r.top + RULER_H;
+        if (e.clientY < firstRow) drop = 'top';
+        else if (e.clientY > firstRow + tracks.length * height) drop = 'bottom';
+      }
+      // Near the dock's edge while dragging: scroll the rows, so the spare row below stays reachable.
+      const scroller = area?.parentElement;
+      if (scroller) {
+        const sr = scroller.getBoundingClientRect();
+        if (e.clientY > sr.bottom - 20) scroller.scrollTop += 10;
+        else if (e.clientY < sr.top + 20) scroller.scrollTop -= 10;
+      }
+      if (ct.get().dropRow !== drop) ct.set({ dropRow: drop });
       const s = snapMove(d.start0 + dx / p, len, snapCtx([clip]), clip.id);
-      moveTo(clip.id, s.start, targetTrack?.id, d.key);
+      moveTo(clip.id, s.start, drop ? undefined : targetTrack?.id, d.key);
       return;
     }
     const f = snapPoint(frameAtX(e.clientX), snapCtx([clip]), clip.id).frame;
@@ -489,6 +523,15 @@ const ClipBlock = memo(function ClipBlock({
     if (d?.timer) clearTimeout(d.timer);
     setLifted(false);
     setDropX(null);
+    if (d?.mode === 'move' && d.moved) {
+      const where = ct.get().dropRow;
+      if (where) {
+        const sel = ct.get().selection;
+        // The dragged clip first: its kind (and model) decides which selected clips go along.
+        moveToNewRow([clip.id, ...sel.filter((x) => x !== clip.id)], where, d.key);
+      } else tidyRows(d.key);
+    }
+    if (ct.get().dropRow) ct.set({ dropRow: null });
     if (d?.mode === 'reorder' && d.moved) {
       const f = frameAtX(e.clientX);
       const list = trackClips(ct.get().doc, clip.trackId).filter((c) => c.id !== clip.id);

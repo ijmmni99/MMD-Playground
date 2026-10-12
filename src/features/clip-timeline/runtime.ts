@@ -2,7 +2,7 @@
 // camera's runtime animation, the audio clip under the playhead, and the playback length.
 
 import { applyFace, bakeCamera, bakeDance } from '@/lib/clips/bake';
-import { trackClips, timelineEnd } from '@/lib/clips/ops';
+import { layerClips, trackClips, timelineEnd } from '@/lib/clips/ops';
 import { clipEnd, type Clip, type TimelineDoc } from '@/lib/clips/types';
 import type { MotionClip } from '@/lib/motion/types';
 import { ct, useClipTimeline } from '@/store/clipTimeline';
@@ -22,7 +22,9 @@ export const baked: { models: Map<string, MotionClip>; camera: MotionClip | null
   camera: null,
 };
 
-const sig = (clips: Clip[], rev: number): string => JSON.stringify(clips) + '|' + rev;
+/** Layering cuts clips into pieces with fresh ids, so the signature leaves ids out. */
+const sig = (clips: Clip[], rev: number): string =>
+  JSON.stringify(clips.map(({ id: _id, ...rest }) => rest)) + '|' + rev;
 
 export function scheduleBake(now = false): void {
   if (timer) clearTimeout(timer);
@@ -39,15 +41,19 @@ export function bakeNow(): void {
   const get = (id: string) => getSourceClip(id);
   const models = studio.get().models;
 
+  // Rows of a model are layered: the row nearest the top wins where it has a clip.
+  const seenModels = new Set<string>();
   for (const track of doc.tracks) {
-    if (track.kind !== 'dance' || !track.modelId) continue;
+    if (track.kind !== 'dance' || !track.modelId || seenModels.has(track.modelId)) continue;
     const modelId = track.modelId;
+    seenModels.add(modelId);
     // The keyframe editor owns the model while a clip is open there.
     if (editing?.modelId === modelId) continue;
     if (!models.some((m) => m.id === modelId)) continue;
-    const dance = trackClips(doc, track.id);
-    const faceTrack = doc.tracks.find((t) => t.kind === 'face' && t.modelId === modelId);
-    const face = faceTrack ? trackClips(doc, faceTrack.id) : [];
+    const rowIds = (kind: 'dance' | 'face'): string[] =>
+      doc.tracks.filter((t) => t.kind === kind && t.modelId === modelId).map((t) => t.id);
+    const dance = layerClips(doc, rowIds('dance'));
+    const face = layerClips(doc, rowIds('face'));
     const s = sig([...dance, ...face], sourcesRevision);
     if (lastSig.get(modelId) === s) continue;
     lastSig.set(modelId, s);
@@ -70,9 +76,9 @@ export function bakeNow(): void {
     motionHooks.motionReplaced?.(modelId);
   }
 
-  const camTrack = doc.tracks.find((t) => t.kind === 'camera');
-  if (camTrack && editing?.modelId !== '__camera__') {
-    const cams = trackClips(doc, camTrack.id);
+  const camRows = doc.tracks.filter((t) => t.kind === 'camera').map((t) => t.id);
+  if (camRows.length && editing?.modelId !== '__camera__') {
+    const cams = layerClips(doc, camRows);
     const s = sig(cams, sourcesRevision);
     if (lastSig.get('__camera__') !== s) {
       lastSig.set('__camera__', s);
@@ -106,6 +112,12 @@ function syncAudio(doc: TimelineDoc): void {
   if (!engine || !clips.length) {
     audioOff?.();
     audioOff = null;
+    // An audio row exists but the first one is empty (its clip moved to another row): the main music
+    // stays silent, and the clip plays as an extra sound instead.
+    if (engine && doc.tracks.some((t) => t.kind === 'audio')) {
+      engine.setVolume(0);
+      lastAudio = { offsetMs: NaN, volume: 0 };
+    }
     return;
   }
   if (audioOff) return;

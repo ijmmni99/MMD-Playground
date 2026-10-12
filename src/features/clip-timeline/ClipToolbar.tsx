@@ -112,6 +112,7 @@ export function ClipToolbar() {
   const doc = useClipTimeline((s) => s.doc);
   const center = useClipTimeline((s) => s.centerPlayhead);
   const snap = useClipTimeline((s) => s.snap);
+  const addOnNewRow = useClipTimeline((s) => s.addOnNewRow);
   const canUndo = useHistory((h) => h.past.length > 0);
   const canRedo = useHistory((h) => h.future.length > 0);
   const clip: Clip | undefined = findClip(doc, selection[0] ?? '');
@@ -143,6 +144,15 @@ export function ClipToolbar() {
         }
       >
         <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-2 rounded px-2 py-1.5 text-[12px] coarse:min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={addOnNewRow}
+              onChange={(e) => ct.set({ addOnNewRow: e.target.checked })}
+              data-testid="ct-new-row"
+            />
+            Put new dances, cameras and faces on a new row
+          </label>
           <AddItem
             label="Dance motion (.vmd)"
             onClick={() => void pickAndAddMotion()}
