@@ -83,6 +83,8 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     setupFiles: ['src/test/setup.ts'],
+    // babylon-mmd loads slowly when many test files run at once.
+    testTimeout: 20_000,
     // babylon-mmd ships extensionless ESM imports; let Vite transform it instead of Node.
     server: { deps: { inline: ['babylon-mmd', /@babylonjs/] } },
   },

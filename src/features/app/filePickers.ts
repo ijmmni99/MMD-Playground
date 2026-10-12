@@ -76,7 +76,7 @@ export async function openFolderPicker(): Promise<void> {
   if (!folderPickSupported) {
     toast(
       'info',
-      'Folder picking is not supported on this device — upload a .zip of the model folder instead.',
+      'Folder picking is not supported on this device. Pick the model and its textures together, or upload a .zip of the model folder.',
     );
     return openFilePicker();
   }

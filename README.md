@@ -651,8 +651,8 @@ Rotating the device switches layouts without restarting the 3D engine, so the sc
 - **Recording on iOS:** older iOS Safari can't encode video. The Capture panel then offers a **PNG-sequence ZIP** (frame-stepped, no audio) instead.
 - **iOS audio:** audio starts after the first tap, because iOS requires a user gesture.
 - **Memory:** before loading a PMX larger than 30 MB on a low-memory device, the app asks for confirmation. If the system resets the GPU context, the scene is rebuilt from the autosaved project.
-- **Folder picking** isn't available on phones. Use a ZIP.
-- **Playground on phones** is a read-only runner for the 5 examples. The full Monaco editor is available on tablet and desktop.
+- **Folder picking** isn't available on phones. Use a ZIP, or select the model and its textures together in the file picker.
+- **Playground on phones** runs the 5 examples in a plain text box you can edit (JavaScript, no autocomplete). The full Monaco editor is available on tablet and desktop.
 
 ### Testing on a real phone
 

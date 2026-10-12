@@ -55,8 +55,8 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P8. Mobile
 
-- [ ] P8.1 Folder picking fallback on phones (guided ZIP flow).
-- [ ] P8.2 Full Monaco-free playground editor on phones, or a lighter code field.
+- [x] P8.1 Folder picking fallback on phones. Real folder picking is not available there, so the message now says to pick the model and its textures together or upload a ZIP.
+- [x] P8.2 Phone playground code is editable in a plain text box (`e2e/playground-phone.spec.ts`).
 
 ### Out of scope for now
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P8 done (phone playground textarea, folder-picking message). Unit test timeout raised to 20 s because babylon-mmd tests timed out under parallel load.
 - 2026-10-12: P5.1 done (toon ambient from the HDR's spherical polynomial, `src/lib/shAmbient.ts`, `e2e/hdr-ambient.spec.ts` passes). P6.1 partly done (肩 only).
 - 2026-10-11: P4 reviewed: P4.1 already met (360 KB gzip initial), P4.2 deferred (runtime rewrite).
 - 2026-10-11: P3 done: Tools > Hands keys the five presets at the playhead (`src/lib/motion/hands.ts`); Markers > Detect from music (`src/lib/beats.ts`, one steady tempo). `e2e/hands-beats.spec.ts` passes with the existing motion-editor specs. Not checked on real music.

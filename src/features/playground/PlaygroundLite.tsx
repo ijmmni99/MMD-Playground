@@ -14,15 +14,18 @@ interface Line {
 let seq = 0;
 
 /**
- * Phone playground: pick one of the example scripts, read it, run/stop it. No editor —
- * Monaco is a poor fit for touch keyboards and a heavy download on mobile networks.
+ * Phone playground: pick one of the example scripts, edit it in a plain text box, run/stop it. Monaco is a
+ * poor fit for touch keyboards and a heavy download on mobile networks, so this stays a textarea.
  */
 export default function PlaygroundLite() {
   const [selected, setSelected] = useState(EXAMPLES[0].id);
   const [running, setRunning] = useState<string | null>(null);
   const [logs, setLogs] = useState<Line[]>([]);
+  /** Edited scripts by example id; an example without an entry runs as shipped. */
+  const [edits, setEdits] = useState<Record<string, string>>({});
   const dispose = useRef<(() => void) | null>(null);
   const example = EXAMPLES.find((e) => e.id === selected) ?? EXAMPLES[0];
+  const code = edits[example.id] ?? example.code;
 
   const push = useCallback((level: Line['level'], args: unknown[]) => {
     setLogs((l) => [...l.slice(-100), { id: ++seq, level, text: args.map(formatLog).join(' ') }]);
@@ -50,7 +53,7 @@ export default function PlaygroundLite() {
     push('info', [`▶ ${example.title}`]);
     try {
       // Examples are plain JavaScript, so no TypeScript transpile step is needed here.
-      await new AsyncFunction('studio', 'console', `"use strict";\n${example.code}`)(api, out);
+      await new AsyncFunction('studio', 'console', `"use strict";\n${code}`)(api, out);
     } catch (e) {
       push('error', [e]);
       stop();
@@ -95,9 +98,31 @@ export default function PlaygroundLite() {
           <Square size={14} /> Stop
         </button>
       </div>
-      <pre className="max-h-56 overflow-auto rounded-lg border border-line bg-bg p-3 font-mono text-[11px] leading-relaxed text-fg-muted">
-        {example.code}
-      </pre>
+      <textarea
+        value={code}
+        onChange={(e) => setEdits((m) => ({ ...m, [example.id]: e.target.value }))}
+        aria-label="Script code"
+        data-testid="script-code"
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        rows={12}
+        className="max-h-72 min-h-40 w-full resize-y rounded-lg border border-line bg-bg p-3 font-mono text-[12px] leading-relaxed text-fg-muted"
+      />
+      {edits[example.id] !== undefined && (
+        <button
+          type="button"
+          onClick={() =>
+            setEdits((m) => {
+              const { [example.id]: _drop, ...rest } = m;
+              return rest;
+            })
+          }
+          className="min-h-[44px] self-start rounded-lg border border-line px-4 text-[13px]"
+        >
+          Reset to the example
+        </button>
+      )}
       <div
         className="max-h-40 overflow-auto rounded-lg border border-line bg-bg p-2 font-mono text-[11px]"
         role="log"
