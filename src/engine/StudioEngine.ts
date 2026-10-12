@@ -77,6 +77,8 @@ export interface LoadModelOptions {
   singleMesh?: boolean;
   /** No missing / remapped texture warnings (rebuilds of a model already loaded once). */
   quiet?: boolean;
+  /** Uniform model scale to build the physics at (rigid bodies are sized when the model is created). */
+  scale?: number;
 }
 
 /** Live material values (model editor preview; MMD material fields). */
@@ -147,6 +149,8 @@ export interface StudioEngine {
   /** Sky and ground ambient the toon looks currently use (0..1+ per channel). */
   getNprAmbient(): { sky: [number, number, number]; ground: [number, number, number] };
   getSunState(): { color: [number, number, number]; direction: [number, number, number] };
+  /** Scale the model's physics bodies were built at (follows the model scale after a short rebuild). */
+  getPhysicsScale(id: string): number;
   resetMorphs(id: string): void;
   getModelState(id: string): ModelRuntimeState | null;
   /** Current world positions of a model's bones (by name), as rendered. */

@@ -148,6 +148,11 @@ interface ModelEntry {
   ikEnabled: boolean;
   /** Original `beforePhysics` (wrapped when IK is disabled so the property track can't re-enable it). */
   rawBeforePhysics?: (frame: number | null) => void;
+  /** Source files, kept to rebuild the model when its scale changes (rigid bodies are sized at build). */
+  files: VFile[];
+  mainPath: string;
+  /** Scale the physics bodies were built at. */
+  physicsScale: number;
 }
 
 let idCounter = 0;
@@ -936,6 +941,12 @@ export class BabylonStudioEngine implements StudioEngine {
       container.addAllToScene();
       const mesh = container.meshes[0] as MmdMesh;
       const metadata = mesh.metadata as MmdModelMetadata;
+      // Rigid bodies are sized from the mesh scale at this moment, so scale first.
+      const buildScale = Math.max(0.01, options.scale ?? options.state?.transform?.scale ?? 1);
+      if (buildScale !== 1) {
+        mesh.scaling.setAll(buildScale);
+        mesh.computeWorldMatrix(true);
+      }
       const model = this.runtime.createMmdModel(mesh, {
         materialProxyConstructor: MmdStandardMaterialProxy,
         buildPhysics: this.physicsRuntime ? { disableOffsetForConstraintFrame: true } : false,
@@ -1011,8 +1022,11 @@ export class BabylonStudioEngine implements StudioEngine {
           mesh.getHierarchyBoundingVectors(true).max.y - mesh.getHierarchyBoundingVectors(true).min.y,
         ),
         materialState: matInfos.map((m) => ({ visible: true, outline: m.outline, alpha: m.alpha })),
-        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
+        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: buildScale },
         restPositions: model.runtimeBones.map((b) => b.linkedBone.position.clone()),
+        files,
+        mainPath,
+        physicsScale: buildScale,
         ikEnabled: true,
         ikChains: metadata.bones.flatMap((b, i) =>
           b.ik ? [{ bone: i, target: b.ik.target, links: b.ik.links.map((l) => l.target) }] : [],
@@ -1094,6 +1108,7 @@ export class BabylonStudioEngine implements StudioEngine {
       name: old.name,
       singleMesh: options.singleMesh,
       quiet: true,
+      scale: state.transform.scale,
     });
     const entry = this.models.get(tmp)!;
     // Drop the old one quietly (no modelRemoved: the id lives on).
@@ -1235,6 +1250,36 @@ export class BabylonStudioEngine implements StudioEngine {
     );
     m.mesh.scaling.setAll(Math.max(0.01, t.scale));
     if (m.physics && this.settings.physics.enabled) this.runtime.initializeMmdModelPhysics(m.model);
+    this.scheduleScaleRebuild(m);
+  }
+
+  private scaleRebuildTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /**
+   * Physics shapes are sized when the model is built, so a model scaled afterwards would simulate with
+   * full-size bodies. After the scale settles, rebuild the model at the new scale (state is carried over).
+   */
+  private scheduleScaleRebuild(m: ModelEntry): void {
+    const pending = this.scaleRebuildTimers.get(m.id);
+    if (pending) clearTimeout(pending);
+    this.scaleRebuildTimers.delete(m.id);
+    const scale = Math.max(0.01, m.transform.scale);
+    if (m.stage || m.info.rigidBodyCount === 0 || Math.abs(scale - m.physicsScale) < 1e-3) return;
+    this.scaleRebuildTimers.set(
+      m.id,
+      setTimeout(() => {
+        this.scaleRebuildTimers.delete(m.id);
+        const cur = this.models.get(m.id);
+        if (!cur || this.disposed || Math.abs(Math.max(0.01, cur.transform.scale) - cur.physicsScale) < 1e-3)
+          return;
+        void this.replaceModel(cur.id, cur.files, cur.mainPath).catch((err) =>
+          this.events.emit(
+            'error',
+            `Could not rebuild the model at the new scale: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        );
+      }, 600),
+    );
   }
 
   setMaterialState(
@@ -1327,6 +1372,10 @@ export class BabylonStudioEngine implements StudioEngine {
     if (!buf) return null;
     const channels = Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i));
     return { samples: toMono(channels), sampleRate: buf.sampleRate };
+  }
+
+  getPhysicsScale(id: string): number {
+    return this.need(id).physicsScale;
   }
 
   getNprAmbient(): { sky: [number, number, number]; ground: [number, number, number] } {

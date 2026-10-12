@@ -51,7 +51,7 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P7. Model scaling with physics
 
-- [ ] P7.1 Scale rigid-body sizes and joint positions with model scale, so scaled physics-heavy models behave.
+- [x] P7.1 Scale rigid-body sizes and joint positions with model scale. babylon-mmd sizes bodies from the mesh scale when the model is built, so a scale change now rebuilds the model after 0.6 s (`scheduleScaleRebuild`), and loading at a saved scale builds at that scale. `e2e/scale-physics.spec.ts` checks the rebuild and that state is kept; the physics behaviour itself was not judged visually.
 
 ### P8. Mobile
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P7 done (rebuild on scale change).
 - 2026-10-12: P5.2 done (extra sounds on extra audio tracks).
 - 2026-10-12: P8 done (phone playground textarea, folder-picking message). Unit test timeout raised to 20 s because babylon-mmd tests timed out under parallel load.
 - 2026-10-12: P5.1 done (toon ambient from the HDR's spherical polynomial, `src/lib/shAmbient.ts`, `e2e/hdr-ambient.spec.ts` passes). P6.1 partly done (肩 only).
