@@ -303,7 +303,17 @@ export function retarget(
           return { local: clampAngle(slerp(QI, swing, SHOULDER_FOLLOW), SHOULDER_MAX) };
         });
       }
-      drivers.set(BONE.arm(s), () => ({ world: armWorld }));
+      // With a 腕捩 bone, the arm keeps the swing and 腕捩 takes the twist about the arm. Their product is
+      // still armWorld, so the elbow and everything below it don't move.
+      const armTwistBone = `${s}腕捩`;
+      if (sk.has(armTwistBone)) {
+        const armTwist = twistAbout(armWorld, R.upper);
+        const armSwing = qmul(armWorld, qconj(armTwist));
+        drivers.set(BONE.arm(s), () => ({ world: armSwing }));
+        drivers.set(armTwistBone, () => ({ local: armTwist }));
+      } else {
+        drivers.set(BONE.arm(s), () => ({ world: armWorld }));
+      }
       const elbowWorld = frameRotation(R.fore, R.armHinge, fore, hingeN);
       drivers.set(BONE.elbow(s), (wp) => ({
         local: hinge(qmul(qconj(wp), elbowWorld), R.armHinge, -5 * DEG, 165 * DEG),

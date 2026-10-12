@@ -46,7 +46,7 @@ Today these tracks are kept and re-exported but not shown.
 
 ### P6. Video to VMD quality
 
-- [~] P6.1 Drive shoulders (肩) and 腕捩 from the pose, not rest. Done: 肩 follows 20 % of the arm swing, max 25°, unit-tested on the synthetic dancer. Todo: 腕捩.
+- [x] P6.1 Drive shoulders (肩) and 腕捩 from the pose, not rest. 肩 follows 20 % of the arm swing, max 25°; 腕捩 takes the arm twist when the model has it. Unit-tested on the synthetic dancer; not tried on a real dance video.
 - [ ] P6.2 Improve depth handling for toward/away moves in single view.
 
 ### P7. Model scaling with physics
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: P6.1 finished (腕捩).
 - 2026-10-12: P7 done (rebuild on scale change).
 - 2026-10-12: P5.2 done (extra sounds on extra audio tracks).
 - 2026-10-12: P8 done (phone playground textarea, folder-picking message). Unit test timeout raised to 20 s because babylon-mmd tests timed out under parallel load.

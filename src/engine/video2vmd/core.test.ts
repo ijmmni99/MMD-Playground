@@ -304,6 +304,58 @@ describe('retargeting', () => {
     expect(skeleton.bones.some((b) => b.name === '左肩')).toBe(true);
   });
 
+  it('puts the arm twist in 腕捩 and still points the arms at the dancer’s joints', () => {
+    // No key reduction, so every frame has keys.
+    const s = { ...DEFAULT_SETTINGS, reduceTolerance: 0 };
+    const track = cleanSequence(syntheticSequence(4, 30, { elbow: 2.0 }), s);
+    const plain = standardSkeleton();
+    // Insert 左腕捩 / 右腕捩 between the arm and the elbow.
+    const withTwist = {
+      ...plain,
+      bones: [
+        ...plain.bones.map((b) => ({ ...b })),
+        ...(['左', '右'] as const).map((side) => {
+          const arm = plain.bones.findIndex((b) => b.name === `${side}腕`);
+          const elbow = plain.bones.find((b) => b.name === `${side}ひじ`)!;
+          return {
+            name: `${side}腕捩`,
+            parent: arm,
+            position: plain.bones[arm].position.map((v, i) => (v + elbow.position[i]) / 2) as Vec3,
+          };
+        }),
+      ],
+    };
+    for (const side of ['左', '右']) {
+      const twistIdx = withTwist.bones.findIndex((b) => b.name === `${side}腕捩`);
+      withTwist.bones.find((b) => b.name === `${side}ひじ`)!.parent = twistIdx;
+    }
+    const result = retarget(track, withTwist, s);
+    const twistKeys = result.keys.filter((k) => /腕捩/.test(k.bone));
+    expect(twistKeys.length).toBeGreaterThan(0);
+    expect(twistKeys.some((k) => Math.abs(k.rotation[3]) < 0.9999)).toBe(true);
+
+    const pairs: [string, string, number, number][] = [
+      ['左腕', '左ひじ', LM.leftShoulder, LM.leftElbow],
+      ['左ひじ', '左手首', LM.leftElbow, LM.leftWrist],
+      ['右腕', '右ひじ', LM.rightShoulder, LM.rightElbow],
+      ['右ひじ', '右手首', LM.rightElbow, LM.rightWrist],
+    ];
+    const worstError = (skeleton: typeof plain, res: typeof result): number => {
+      let worst = 0;
+      for (let f = 5; f < track.frameCount - 5; f += 7) {
+        const { positions } = forwardKinematics(skeleton, posesAt(res, f).locals);
+        const truth = syntheticPose(track.times[f]).joints;
+        for (const [a, b, la, lb] of pairs) {
+          const at = (n: string) => positions[skeleton.bones.findIndex((x) => x.name === n)];
+          worst = Math.max(worst, angleBetween(sub(at(b), at(a)), sub(truth[lb], truth[la])));
+        }
+      }
+      return worst;
+    };
+    // The twist bone changes where the twist lives, not where the arms point.
+    expect(worstError(withTwist, result)).toBeLessThan(worstError(plain, retarget(track, plain, s)) + 3);
+  });
+
   it('keeps hinge joints bending one way', () => {
     const { result } = run({}, { elbow: 2.6 });
     for (const k of result.keys) {

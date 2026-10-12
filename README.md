@@ -232,7 +232,7 @@ flowchart LR
 - Monocular pose estimation can't see depth well. Moves toward or away from the camera, and the exact feet placement when facing sideways, are approximations.
 - Without the **Face** / **Fingers** options, fingers, facial expressions and eye movement stay at rest (see below).
 - Assumes a single person, the full body in frame and a mostly static camera. Spins, floor work and occlusions reduce quality, and the quality report flags the affected times.
-- 腕捩 stays at rest, and 肩 (shoulders) follow only 20 % of the arm swing (up to 25°); 手捩 is driven only with **Fingers** on (wrist refinement).
+- 肩 (shoulders) follow only 20 % of the arm swing (up to 25°), and models that have 腕捩 get the arm twist there; 手捩 is driven only with **Fingers** on (wrist refinement).
 - On phones, analysis runs at up to 720p and 30 fps and is much slower than on a laptop GPU.
 - The open-source Chromium builds used by test runners can't decode H.264. Branded Chrome, Edge and Safari can.
 
