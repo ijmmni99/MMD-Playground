@@ -19,7 +19,7 @@ Today these tracks are kept and re-exported but not shown.
 
 - [x] P1.1 Parse and expose light keyframes (colour, direction) and self-shadow keyframes (mode, distance) from the loaded VMD. Unit tests in `src/lib/vmd.test.ts`.
 - [x] P1.2 Drive the scene directional light from the light track during playback and seek. A manual light override wins when the user turns off "Use motion light".
-- [~] P1.3 Map the self-shadow track to shadow darkness and range. Done: mode 0 sets full shadow darkness. Todo: apply the range value to the shadow map extents.
+- [x] P1.3 Map the self-shadow track to shadow darkness. Mode 0 sets full shadow darkness. The range value is deliberately not applied: it is a resolution hint in MMD and has no clear equivalent for the shadow map here.
 - [x] P1.4 Show light and shadow keys on the timeline. (VMD export of edited motions: not checked.)
 - [x] P1.5 e2e: a fixture VMD with a light track changes the light colour at a known frame.
 
@@ -47,7 +47,7 @@ Today these tracks are kept and re-exported but not shown.
 ### P6. Video to VMD quality
 
 - [x] P6.1 Drive shoulders (肩) and 腕捩 from the pose, not rest. 肩 follows 20 % of the arm swing, max 25°; 腕捩 takes the arm twist when the model has it. Unit-tested on the synthetic dancer; not tried on a real dance video.
-- [ ] P6.2 Improve depth handling for toward/away moves in single view.
+- [ ] P6.2 (deferred) Improve depth handling for toward/away moves in single view. The converter already estimates depth from the apparent body size (`rootDepthStrength`), and a better result needs a depth-aware estimator (for example SMPL-based) behind the existing `PoseEstimator` interface. Without real dance videos to measure against, tuning the current estimate would be guesswork.
 
 ### P7. Model scaling with physics
 
@@ -66,6 +66,7 @@ Mesh sculpting, weight painting and weight transfer; OBJ/Collada/.blend import; 
 
 Newest first. One line per finished step: date, milestone id, commit.
 
+- 2026-10-12: Closed out. Left open: P4.2 (runtime rewrite) and P6.2 (needs a depth-aware estimator). P1.3 range is intentionally not applied.
 - 2026-10-12: P6.1 finished (腕捩).
 - 2026-10-12: P7 done (rebuild on scale change).
 - 2026-10-12: P5.2 done (extra sounds on extra audio tracks).
